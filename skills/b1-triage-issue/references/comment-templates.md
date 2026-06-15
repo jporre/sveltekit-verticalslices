@@ -16,8 +16,7 @@ Se solicita una pantalla CRUD para gestionar productos. Los comments #3 y #5 aco
 ### Archivos afectados
 
 - `src/lib/server/db/schema.ts` — tabla `taProducts` ya existe
-- `src/lib/features/products/` — directorio nuevo
-- `src/routes/[country]/products/` — ruta nueva
+- `src/routes/products/` — carpeta del feature (pagina + remote + componentes)
 
 ### Complejidad estimada
 
@@ -29,11 +28,10 @@ Se solicita una pantalla CRUD para gestionar productos. Los comments #3 y #5 aco
 
 ### Plan propuesto
 
-1. Crear `types.ts` con `InferSelectModel` de `taProducts`.
-2. Crear `data.remote.ts` con `get_products`, `upsert_product`, `delete_product`.
-3. Crear `ui/ProductsPage.svelte` con tabla y formulario upsert.
-4. Crear ruta `+page.svelte` (thin wrapper).
-5. Verificar en navegador.
+1. Crear `products.remote.ts` con `get_products`, `upsert_product`, `delete_product` (exporta tipos via `InferSelectModel`).
+2. Crear `+page.svelte` con tabla y formulario upsert.
+3. (Opcional) `+page.server.ts` con guard de permiso.
+4. Verificar en navegador.
 ```
 
 ## Ready issue (English)
@@ -50,8 +48,7 @@ User wants a CRUD screen for products. Comments #3 and #5 narrowed the scope: in
 ### Affected files
 
 - `src/lib/server/db/schema.ts` — `taProducts` table exists
-- `src/lib/features/products/` — new directory
-- `src/routes/[country]/products/` — new route
+- `src/routes/products/` — new feature folder (page + remote + components)
 
 ### Estimated complexity
 
@@ -63,11 +60,10 @@ User wants a CRUD screen for products. Comments #3 and #5 narrowed the scope: in
 
 ### Plan
 
-1. Create `types.ts` with `InferSelectModel` of `taProducts`.
-2. Create `data.remote.ts` with `get_products`, `upsert_product`, `delete_product`.
-3. Create `ui/ProductsPage.svelte` with table and upsert form.
-4. Create route `+page.svelte`.
-5. Browser verification.
+1. Create `products.remote.ts` with `get_products`, `upsert_product`, `delete_product` (export types via `InferSelectModel`).
+2. Create `+page.svelte` with table and upsert form.
+3. (Optional) `+page.server.ts` with a permission guard.
+4. Browser verification.
 ```
 
 ## Needs-clarification issue (Spanish)
@@ -87,7 +83,7 @@ Existen dos tablas relevantes:
 - `taVentas` (cabecera de venta)
 - `taVentasDetalle` (líneas de venta)
 
-La pantalla actual `src/lib/features/sales/ui/SalesPage.svelte` ya filtra por fecha y vendedor.
+La pantalla actual `src/routes/sales/+page.svelte` ya filtra por fecha y vendedor.
 
 ### Preguntas
 
@@ -104,7 +100,7 @@ La pantalla actual `src/lib/features/sales/ui/SalesPage.svelte` ya filtra por fe
 
 **Estado**: Duplicado
 
-Esta solicitud ya fue cubierta por #142 (mergeado en `master` el 2026-04-15) que agregó la pantalla `src/lib/features/products/ui/ProductsPage.svelte`. Recomiendo cerrar este issue referenciando #142.
+Esta solicitud ya fue cubierta por #142 (mergeado en `master` el 2026-04-15) que agregó la pantalla `src/routes/products/+page.svelte`. Recomiendo cerrar este issue referenciando #142.
 
 Si hay diferencias específicas con la implementación actual, por favor descríbelas y reabriremos.
 ```
@@ -128,4 +124,4 @@ Cuando el checklist de Step 5 dispare, usar redacciones como estas para mantener
 - **security**: validar `requireUser` / `requirePermission` + error estructurado (`AUTH_REQUIRED`, `FORBIDDEN`).
 - **data**: requiere Zod schema; si cambia tabla, incluir migración Drizzle y revisar impacto en `app.route_permissions`.
 - **perms**: ruta nueva requiere alta en `app.route_permissions` + assignment, o el guard del layout redirige a fallback.
-- **docs**: actualizar `docs/` (o `src/lib/features/<f>/docs/`) y agregar entrada al `CHANGELOG`.
+- **docs**: actualizar `docs/` (o un markdown colocado en la carpeta del feature) y agregar entrada al `CHANGELOG`.

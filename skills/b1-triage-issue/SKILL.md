@@ -82,12 +82,12 @@ Only reach this step when Step 2 didn't short-circuit. The goal is grounding, no
 **4a. Extract entities.** Pull 1-3 nouns the issue is about (e.g., "productos", "ventas", "auth", "campaigns"). For each, one targeted grep:
 
 ```bash
-rg -l "<entidad>" src/lib/features src/lib/server/db/schema src/routes
+rg -l "<entidad>" src/routes src/lib/server/db/schema
 ```
 
-Open a file only when the match count justifies it (>1 hit, or the path is the obvious owner — e.g., `src/lib/features/<entidad>/`). Do not open the full directory tree. Do not read README unless the issue references concepts you don't recognize.
+Open a file only when the match count justifies it (>1 hit, or the path is the obvious owner — e.g., `src/routes/<entidad>/`). Do not open the full directory tree. Do not read README unless the issue references concepts you don't recognize.
 
-**4b. Already implemented?** If 4a lands on a feature directory matching the request, read its `index.ts` and `data.remote.ts` only. If the function/screen exists → mark `duplicate` and stop researching.
+**4b. Already implemented?** If 4a lands on a feature route folder matching the request, read its `+page.svelte` and `<entidad>.remote.ts` only. If the function/screen exists → mark `duplicate` and stop researching.
 
 **4c. Affected files.** List specific paths that would change. This grounds the complexity estimate and the risk checklist below.
 
@@ -122,7 +122,7 @@ Walk this once using the file list from 4c. Each row produces at most one bullet
 | Touches auth, permissions, sessions, OAuth         | **security**: validate `requireUser` / `requirePermission` + structured error (`AUTH_REQUIRED`, `FORBIDDEN`) |
 | Touches `*.remote.ts` or `src/lib/server/db/schema` | **data**: needs Zod schema; if schema changes, include migration plan and `app.route_permissions` impact |
 | Adds a new route under `src/routes`                | **perms**: must register in `app.route_permissions` + assignment, or the layout guard redirects to fallback |
-| Affects public API or a core feature               | **docs**: update `docs/` (or `src/lib/features/<f>/docs/`) and `CHANGELOG`                            |
+| Affects public API or a core feature               | **docs**: update `docs/` (or a markdown colocated in the feature route folder) and `CHANGELOG`        |
 
 This single pass replaces three separate quality / security / docs review steps and only spends tokens where the change actually warrants attention.
 

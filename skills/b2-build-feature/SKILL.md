@@ -9,6 +9,13 @@ description: End-to-end SvelteKit feature development. Use ALWAYS when building 
 SvelteKit features are SMALL. Typical feature = 3-5 files, 15-35 KB total.
 No unnecessary layers. The shortest path: **Drizzle query -> remote function -> Svelte component**.
 
+**Colocation: the route folder IS the feature folder.** Everything for a feature lives in one
+folder under `src/routes/` — page, remote functions, components, types. Only `+`-prefixed files
+are special to the router, so `<feature>.remote.ts`, sibling `.svelte` components, and
+`<feature>-types.ts` sit right next to `+page.svelte`. No `src/lib/features/` split, no thin
+wrappers. One folder you can review, debug, and copy to another project as a unit. Shared-only
+code (shadcn `$lib/components/ui`, `$lib/server/db`, cross-feature helpers) stays in `$lib`.
+
 ## Two Entry Points
 
 This skill has two starting paths:
@@ -61,7 +68,7 @@ React trains you to handle forms with onSubmit + preventDefault + state + fetch.
 
 <!-- CORRECT: SvelteKit remote function form -->
 <script>
-  import { upsert_user, get_users } from './data.remote'
+  import { upsert_user, get_users } from './users.remote'
   import { toast } from 'svelte-sonner'
 </script>
 <form {...upsert_user.enhance(async ({ form, submit }) => {
@@ -127,23 +134,27 @@ Otherwise, confirm in 1-2 questions:
 1. **What entity?** Fields, types, relationships
 2. **What operations?** List + Create/Edit + Delete? Filters? Pagination?
 
-Then propose the file structure:
+Then propose the file structure — everything colocated in the route folder:
 
 ```
-src/lib/features/<feature>/
-  types.ts                   # Types from Drizzle schema
-  data.remote.ts             # query + form + command
-  ui/<Feature>Page.svelte    # Main component
-
-src/routes/[country]/<feature>/
-  +page.svelte               # Thin wrapper
+src/routes/<feature>/
+  +page.svelte               # The page itself (UI here; imports sibling components)
+  +page.server.ts            # load + route guard (auth/permission)
+  <feature>.remote.ts        # query + form + command — all data ops
+  <feature>-types.ts         # types (or export them straight from <feature>.remote.ts)
 ```
 
-Only add more files when justified:
+The feature folder sits wherever the app's route tree places it: directly under
+`src/routes/<feature>/`, inside a route group (`src/routes/(app)/<feature>/`), or under a param
+(`src/routes/[country]/<feature>/`). The constant: everything for the feature is in that one
+folder, next to `+page.svelte`.
 
+Only add more files — all colocated in the same folder — when justified:
+
+- `<Feature>Form.svelte`, `<Feature>Table.svelte` — sibling components, flat and PascalCase, NO `ui/` subfolder
 - `schemas.ts` — only if validation is complex (beyond basic required/type checks)
-- `server/service.server.ts` — only if there is real business logic (rules, orchestration), NOT for simple CRUD
-- `server/repo.server.ts` — only if queries are reused by multiple remote functions
+- `<feature>.server.ts` — only if there is real business logic (rules, orchestration), NOT for simple CRUD
+- sub-routes (`new/`, `[id]/`) get their own colocated `+page.svelte` and, if needed, a scoped `*.remote.ts`
 
 ### Phase 2: Build
 
@@ -159,8 +170,9 @@ export type Product = InferSelectModel<typeof taProducts>
 
 If the DB table does not exist, create the Drizzle schema first. Read `drizzle-best-practices` skill for patterns.
 
-**Step 2: Remote Functions** (`data.remote.ts`)
-The CORE file. Every data operation the UI needs goes here:
+**Step 2: Remote Functions** (`<feature>.remote.ts`, e.g. `products.remote.ts`)
+The CORE file. Every data operation the UI needs goes here. Name it after the feature, never
+generic `data.remote.ts`. It must NOT live under `src/lib/server/` (client imports it):
 
 ```typescript
 import {query, form, command} from '$app/server'
@@ -199,11 +211,14 @@ export const delete_product = command(z.object({id: z.string()}), async ({id}) =
 })
 ```
 
-**Step 3: Page Component** (`ui/<Feature>Page.svelte`)
+**Step 3: Page** (`+page.svelte`)
+
+The UI goes straight in `+page.svelte` — it imports the colocated remote file and any sibling
+components. No separate `<Feature>Page.svelte` wrapper:
 
 ```svelte
 <script lang="ts">
-import {get_products, upsert_product, delete_product} from '../data.remote'
+import {get_products, upsert_product, delete_product} from './products.remote'
 import * as Card from '$lib/components/ui/card'
 import * as Table from '$lib/components/ui/table'
 import {Button} from '$lib/components/ui/button'
@@ -277,15 +292,22 @@ function editProduct(item: (typeof products)[0]) {
 </div>
 ```
 
-**Step 4: Route** (`+page.svelte`)
+**Step 4: Route guard** (`+page.server.ts`, optional but recommended)
 
-```svelte
-<script>
-import ProductsPage from '$lib/features/products/ui/ProductsPage.svelte'
-</script>
+The remote functions already check auth, but a load guard blocks rendering a page the user
+can't use:
 
-<ProductsPage />
+```typescript
+import {error} from '@sveltejs/kit'
+import type {PageServerLoad} from './$types'
+
+export const load: PageServerLoad = ({locals}) => {
+  if (!locals.user) error(401, {message: 'No autenticado', code: 'AUTH_REQUIRED'})
+}
 ```
+
+When a feature needs more screens, split into colocated sibling components and sub-route folders
+(`new/+page.svelte`, `[id]/+page.svelte`) — never into a `src/lib/features/` tree.
 
 ### Phase 3: Verify (MANDATORY — no exceptions)
 
@@ -331,7 +353,7 @@ After verification passes:
 3. **Report to user** — summarize what was built, what was tested, what's ready for merge. If working from an issue, remind to use `Closes #<N>` in the PR body (the `b4-pull-request` skill will handle this if given the issue number)
 
 ## Golden Rules
-0. Commit tour changes
+0. Commit your changes
 1. **One upsert form** — optional `id` field, never separate create/update
 2. **$derived for queries** — `$derived(await get_items())`, never $effect+fetch
 3. **form.fields.x.as('text') for form inputs** — no bind:value, no state; use `bind:value` only for non-form UI state (search, filters, toggles)
@@ -339,7 +361,7 @@ After verification passes:
 5. **Auth in remote functions** — `requireUser()`, never in services
 6. **error() throws** — don't catch it, SvelteKit handles it
 7. **href for navigation** — `<Button href="/x">`, never goto() for links
-8. **3-5 files per feature** — more = over-engineering
+8. **Colocate in the route folder** — `<feature>.remote.ts` + components + types live next to `+page.svelte`; 3-5 files, more = over-engineering. No `src/lib/features/`, no `ui/` subfolder
 9. **$derived for filtering** — client-side for <1000 items
 10. **snake_case functions** — `get_items`, `upsert_item`, `delete_item`
 

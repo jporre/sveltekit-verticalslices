@@ -42,7 +42,7 @@ This auto-fixes formatting. Run it once, no need to check output.
 Run the MCP tool `svelte-autofixer` on EACH `.svelte` file you created or modified:
 
 ```
-svelte-autofixer({ filePath: "src/lib/features/<feature>/ui/<Feature>Page.svelte" })
+svelte-autofixer({ filePath: "src/routes/<feature>/+page.svelte" })
 ```
 
 The autofixer catches:
@@ -146,7 +146,7 @@ If any step found issues:
 
 | Symptom                                        | Likely Cause                        | Fix                                                |
 | ---------------------------------------------- | ----------------------------------- | -------------------------------------------------- |
-| Blank page                                     | Missing route file                  | Create `+page.svelte` with thin wrapper            |
+| Blank page                                     | Missing route file                  | Create `+page.svelte` in the feature route folder  |
 | 401 error                                      | Auth check in remote fn             | Ensure user is logged in, or check `requireUser()` |
 | Type error in template                         | Wrong property name                 | Check `InferSelectModel` types match DB columns    |
 | Form doesn't submit                            | Missing `enhance()` or wrong spread | Use `{...form.enhance(...)}` pattern               |
@@ -179,7 +179,7 @@ Add entry to `CHANGELOG.md` under a new date section:
 Stage only your files (not unrelated formatter changes):
 
 ```bash
-git add src/lib/features/<feature>/ src/routes/.../<feature>/ CHANGELOG.md
+git add src/routes/<feature>/ CHANGELOG.md
 git commit -m "feat(<scope>): description"
 ```
 

@@ -2,11 +2,15 @@
 
 Copy-paste templates for common feature types. Replace `<feature>`, `<Feature>`, `<entity>`, `<Entity>` with your actual names.
 
+Everything for a feature is colocated in its route folder under `src/routes/`. Only `+`-prefixed
+files are special to the router, so the remote file, sibling components, and types all sit next to
+`+page.svelte`. No `src/lib/features/` split, no `ui/` subfolder, no thin wrappers.
+
 ## Template 1: Simple CRUD (List + Create + Edit + Delete)
 
 The most common feature. One entity, one screen.
 
-### `src/lib/features/<feature>/types.ts`
+### `src/routes/<feature>/<feature>-types.ts`
 
 ```typescript
 import type { InferSelectModel } from 'drizzle-orm'
@@ -15,12 +19,13 @@ import { ta<Entity> } from '$lib/server/db/schema'
 export type <Entity> = InferSelectModel<typeof ta<Entity>>
 ```
 
-### `src/lib/features/<feature>/data.remote.ts`
+> For simple features you can skip this file and `export type` directly from `<feature>.remote.ts`.
+
+### `src/routes/<feature>/<feature>.remote.ts`
 
 ```typescript
-import { query, form, command } from '$app/server'
-import * as v from 'valibot'
-import { getRequestEvent } from '$app/server'
+import { query, form, command, getRequestEvent } from '$app/server'
+import { z } from 'zod'
 import { error } from '@sveltejs/kit'
 import { db } from '$lib/server/db'
 import { ta<Entity> } from '$lib/server/db/schema'
@@ -41,10 +46,10 @@ export const get_<entities> = query(async () => {
 })
 
 // Upsert (create + edit in ONE form)
-const upsertSchema = v.object({
-  id: v.optional(v.string()),
+const upsertSchema = z.object({
+  id: z.string().optional(),
   // TODO: add your fields here
-  name: v.pipe(v.string(), v.nonEmpty('Requerido')),
+  name: z.string().min(1, 'Requerido'),
 })
 
 export const upsert_<entity> = form(upsertSchema, async (data) => {
@@ -63,7 +68,7 @@ export const upsert_<entity> = form(upsertSchema, async (data) => {
 
 // Delete
 export const delete_<entity> = command(
-  v.object({ id: v.string() }),
+  z.object({ id: z.string() }),
   async ({ id }) => {
     requireUser()
     await db.delete(ta<Entity>).where(eq(ta<Entity>.id, id))
@@ -71,11 +76,13 @@ export const delete_<entity> = command(
 )
 ```
 
-### `src/lib/features/<feature>/ui/<Feature>Page.svelte`
+### `src/routes/<feature>/+page.svelte`
+
+The UI lives directly in `+page.svelte` and imports the colocated remote file:
 
 ```svelte
 <script lang="ts">
-  import { get_<entities>, upsert_<entity>, delete_<entity> } from '../data.remote'
+  import { get_<entities>, upsert_<entity>, delete_<entity> } from './<feature>.remote'
   import * as Card from '$lib/components/ui/card'
   import * as Table from '$lib/components/ui/table'
   import { Button } from '$lib/components/ui/button'
@@ -186,15 +193,19 @@ export const delete_<entity> = command(
 </div>
 ```
 
-### `src/routes/[country]/<feature>/+page.svelte`
+### `src/routes/<feature>/+page.server.ts` (optional route guard)
 
-```svelte
-<script>
-  import <Feature>Page from '$lib/features/<feature>/ui/<Feature>Page.svelte'
-</script>
+```typescript
+import { error } from '@sveltejs/kit'
+import type { PageServerLoad } from './$types'
 
-<<Feature>Page />
+export const load: PageServerLoad = ({ locals }) => {
+  if (!locals.user) error(401, { message: 'No autenticado', code: 'AUTH_REQUIRED' })
+}
 ```
+
+That's the whole feature: one folder, `+page.svelte` + `<feature>.remote.ts` (+ optional types
+and guard). Copy the folder to reuse it elsewhere.
 
 ---
 
@@ -202,15 +213,15 @@ export const delete_<entity> = command(
 
 For viewing items with search/filter and opening a detail view.
 
-### Additional in `data.remote.ts`
+### Additional in `<feature>.remote.ts`
 
 ```typescript
 // Query with filters
-const filterSchema = v.object({
-  search: v.optional(v.string()),
-  status: v.optional(v.picklist(['active', 'inactive', 'all'])),
-  page: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
-  limit: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(100))),
+const filterSchema = z.object({
+  search: z.string().optional(),
+  status: z.enum(['active', 'inactive', 'all']).optional(),
+  page: z.number().int().min(1).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
 })
 
 export const get_<entities> = query(filterSchema, async (filters) => {
@@ -249,7 +260,7 @@ export const get_<entities> = query(filterSchema, async (filters) => {
 
 // Single item detail
 export const get_<entity> = query(
-  v.object({ id: v.string() }),
+  z.object({ id: z.string() }),
   async ({ id }) => {
     requireUser()
     const item = await db.query.ta<Entity>.findFirst({
@@ -265,7 +276,7 @@ export const get_<entity> = query(
 
 ```svelte
 <script lang="ts">
-  import { get_<entities> } from '../data.remote'
+  import { get_<entities> } from './<feature>.remote'
 
   let search = $state('')
   let status = $state<'all' | 'active' | 'inactive'>('all')
@@ -329,7 +340,7 @@ export const get_<entity> = query(
 
 Multiple queries, display as cards and charts.
 
-### `data.remote.ts`
+### `<feature>.remote.ts`
 
 ```typescript
 export const get_dashboard_stats = query(async () => {
@@ -353,7 +364,7 @@ export const get_dashboard_stats = query(async () => {
 
 ```svelte
 <script lang="ts">
-import {get_dashboard_stats} from '../data.remote'
+import {get_dashboard_stats} from './<feature>.remote'
 import * as Card from '$lib/components/ui/card'
 
 const stats = $derived(await get_dashboard_stats())
@@ -417,9 +428,9 @@ Multiple views of the same data (e.g., overview + settings + history).
 ```svelte
 <script lang="ts">
 import * as Tabs from '$lib/components/ui/tabs'
-import OverviewTab from './components/OverviewTab.svelte'
-import SettingsTab from './components/SettingsTab.svelte'
-import HistoryTab from './components/HistoryTab.svelte'
+import OverviewTab from './OverviewTab.svelte'
+import SettingsTab from './SettingsTab.svelte'
+import HistoryTab from './HistoryTab.svelte'
 </script>
 
 <Tabs.Root value="overview">
@@ -441,4 +452,5 @@ import HistoryTab from './components/HistoryTab.svelte'
 </Tabs.Root>
 ```
 
-Each tab is a separate component that imports its own remote functions. Keep tabs independent — each manages its own data.
+Each tab is a separate component colocated in the same route folder (flat, PascalCase) that
+imports its own remote functions. Keep tabs independent — each manages its own data.

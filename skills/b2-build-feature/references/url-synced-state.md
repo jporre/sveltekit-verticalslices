@@ -79,7 +79,7 @@ import { untrack } from 'svelte'
 import { page } from '$app/state'
 import { pushState } from '$app/navigation'
 import { MonthCtx, setMonthContext } from './month-context.svelte'
-import { get_items } from '../data.remote'
+import { get_items } from './<feature>.remote'
 
 // `data.initialMonth` resolved server-side from URL or default.
 // `untrack` so we only initialize once — subsequent prop updates don't reset.

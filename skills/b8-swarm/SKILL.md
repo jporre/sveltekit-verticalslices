@@ -93,7 +93,7 @@ Una sola invocacion del `Workflow` con dos fases. Pasale el cluster + el worktre
 - **Fase `triage` (paralela, read-only):** un `agent()` por issue corriendo `b1-triage-issue`, escribiendo `.b7/triage-<n>.json` en el worktree. Cada uno devuelve `{issue, verdict, type, scope, screens, plan}`. Read-only: **no editan codigo**. Paralelo seguro (cada uno escribe su propio archivo).
 - Gate: descartar issues con `verdict != ready` (se anotan como skipped en el reporte; no entran al `Closes`).
 - **Fase `build` (SECUENCIAL):** `for...of await` por issue ready. Cada `agent()`:
-  1. corre `b2-build-feature` leyendo `.b7/triage-<n>.json`, sobre el worktree compartido (FSD + Remote Functions, sin state global, errores `error(STATUS,{message,code})`);
+  1. corre `b2-build-feature` leyendo `.b7/triage-<n>.json`, sobre el worktree compartido (feature colocado en `src/routes` + Remote Functions, sin state global, errores `error(STATUS,{message,code})`);
   2. valida con skip-by-scope (`check:machine`/`lint`/`test` solo si el diff toca `.ts/.svelte/.js`);
   3. al verde, commitea **solo los cambios de ese issue** con `b3-git-commit`, scope `(#N)`;
   4. si no llega a verde dentro del budget, **revierte sus cambios sin commitear** (`git -C <worktree> checkout -- . && git clean -fd`) y devuelve `status:failed` — asi un issue fallido no deja basura en la rama ni entra al `Closes`.
@@ -185,7 +185,7 @@ for (const n of A.issues) {                       // SECUENCIAL: comparten workt
   if (!t) { builds.push({ issue:n, status:'skipped', note:'triage no-ready' }); continue }
   const out = await agent(
     `Implementá el issue #${n} en el worktree COMPARTIDO ${A.worktree} (rama ${A.branch}). ` +
-    `Usá b2-build-feature leyendo ${A.worktree}/.b7/triage-${n}.json. FSD + Remote Functions. ` +
+    `Usá b2-build-feature leyendo ${A.worktree}/.b7/triage-${n}.json. Feature colocado en src/routes + Remote Functions. ` +
     `Validá (check:machine/lint/test, skip-by-scope). Al verde, commiteá SOLO los cambios de este ` +
     `issue con b3-git-commit, scope (#${n}). Si NO llegás a verde dentro del budget: revertí tus ` +
     `cambios sin commitear (git checkout -- . && git clean -fd) y devolvé status:failed — no dejes ` +

@@ -9,7 +9,7 @@ effort: medium
 
 # Pipeline autónomo Issue → PR (b7) — orientado a pantallas
 
-Glue skill que encadena skills existentes. **No duplicar lógica de los skills encadenados**: si se necesita triage, invocar `b1-triage-issue`; si se necesita worktree, `b1-add-worktree`; etc. El valor de este skill es la **orquestación**, los **budgets**, el **flujo por pantallas (FSD)** y el **rastro documental triple**.
+Glue skill que encadena skills existentes. **No duplicar lógica de los skills encadenados**: si se necesita triage, invocar `b1-triage-issue`; si se necesita worktree, `b1-add-worktree`; etc. El valor de este skill es la **orquestación**, los **budgets**, el **flujo por pantallas (features colocados en `src/routes`)** y el **rastro documental triple**.
 
 > En este proyecto "tarea" = issue de GitHub. Tratar ambos términos como sinónimos.
 
@@ -107,12 +107,12 @@ Cuando el usuario invoca el skill con texto adicional en el mismo prompt (ej. `/
 
 En ningún modo se puede saltar la creación del worktree o el comentario inicial.
 
-## Principio de Diseño: FSD enfocado en pantallas
+## Principio de Diseño: enfocado en pantallas (colocado en src/routes)
 
 Cada feature se evalúa, diseña, programa, revisa y aprueba como **pantallas y/o flujos de pantallas tal como las usaría alguien en la app**. Esto es **obligatorio**:
 
 - El triage debe identificar `screens[]` con `route`, `user_journey`, `acceptance_criteria_visual` y `success_metrics`.
-- La implementación debe respetar el layout `src/lib/features/<feature>/ui/<Screen>Page.svelte` con `+page.svelte` thin wrapper en `src/routes/...`.
+- La implementación coloca cada pantalla en su carpeta de ruta `src/routes/<feature>/`: la UI va directo en `+page.svelte`, los datos en `<feature>.remote.ts`, y los sub-componentes como hermanos PascalCase (sin subcarpeta `ui/`).
 - La revisión usa `b7-screen-review` por cada pantalla declarada (sub-agente con browser MCP).
 - El reporte y los artefactos documentales hablan en lenguaje de pantallas y flujos, no de funciones internas.
 
@@ -158,7 +158,7 @@ Si preflight falla, reportar y salir. No intentar arreglar el estado subyacente.
 Tras un preflight verde, cachear el contexto una sola vez. Son **subcomandos separados** (preflight NO los corre — solo valida); `run.sh` los invoca después de preflight, o el orquestador los corre a mano:
 
 - `guardrails.sh cache-issue <N> <out-dir>` → `<out-dir>/issue.json` (evita re-pegarle a `gh issue view` desde cada sub-skill)
-- `guardrails.sh context-snapshot <out-dir>` → `<out-dir>/context.md`: volcado mínimo del proyecto (stack, aliases, FSD layout). **No usa LLM**, es plantilla + sustituciones.
+- `guardrails.sh context-snapshot <out-dir>` → `<out-dir>/context.md`: volcado mínimo del proyecto (stack, aliases, layout colocado). **No usa LLM**, es plantilla + sustituciones.
 
 `<out-dir>` arranca en el scratch del run y se mueve al `.b7/` del worktree tras crearlo (paso 2).
 
@@ -172,7 +172,7 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
   "type": "feat|fix|chore|docs",
   "scope": "<feature-name>",
   "language": "es|en",
-  "files_likely": ["src/lib/features/.../*"],
+  "files_likely": ["src/routes/<feature>/*"],
   "screens": [
     {
       "name": "BandejaTareasPage",
@@ -269,7 +269,7 @@ Antes de implementar, para cada `screen` del triage producir un esqueleto en `.b
 - Layout en términos de componentes shadcn-svelte (`Card.Root`, `Table.Root`, `Tabs.Root`, etc.)
 - Lista de remote functions necesarias (`get_*`, `create_*`, `update_*`)
 - Estados a mostrar: empty, loading, error, success
-- Dónde vive cada archivo según FSD (`src/lib/features/<f>/...`)
+- Dónde vive cada archivo (todo colocado en `src/routes/<feature>/...`)
 
 Esto es entrada para b2 y para la revisión visual posterior. **Texto plano, no markdown rico** — no consume tokens reformateando.
 
@@ -280,7 +280,7 @@ Invocar `b2-build-feature` **vía sub-agente** (`Agent(subagent_type=general-pur
 - Ruta a `.b7/triage.json`
 - Ruta a `.b7/screens/`
 - Ruta a `.b7/context.md`
-- Indicación: respetar layout FSD, usar Remote Functions Pattern, no introducir state global, errores con `error(STATUS, {message,code})`.
+- Indicación: respetar layout colocado (feature en `src/routes/<feature>/`), usar Remote Functions Pattern, no introducir state global, errores con `error(STATUS, {message,code})`.
 
 Después de cada pasada del sub-agente, ejecutar el bloque de validación. **Skip-by-scope** primero:
 

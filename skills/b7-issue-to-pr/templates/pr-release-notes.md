@@ -53,7 +53,7 @@ ${TEST_PLAN}
 
 ${TECH_SUMMARY}
 <!--
-  - Feature: src/lib/features/${SCOPE}/
+  - Feature: src/routes/${SCOPE}/
   - Remote functions agregadas: ${REMOTE_FNS}
   - Migraciones DB: ${MIGRATIONS}
   - Files changed: ${FILES_CHANGED} / Net lines: ${NET_LINES}

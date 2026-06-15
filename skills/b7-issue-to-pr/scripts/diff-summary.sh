@@ -7,7 +7,7 @@
 # Genera:
 #   <worktree>/.b7/diff-stat.txt    — git diff --stat (tamaño por archivo)
 #   <worktree>/.b7/diff-files.txt   — git diff --name-status (A/M/D)
-#   <worktree>/.b7/diff-summary.md  — markdown human-readable agrupado por capa FSD
+#   <worktree>/.b7/diff-summary.md  — markdown human-readable agrupado por tipo de archivo
 #
 # Usage: diff-summary.sh <worktree>
 
@@ -31,7 +31,7 @@ fi
 git diff --stat "$BASE" -- > .b7/diff-stat.txt
 git diff --name-status "$BASE" -- > .b7/diff-files.txt
 
-# Agrupado por capa FSD para que el reviewer humano (y el LLM) ubique cambios.
+# Agrupado por tipo de archivo (features colocados en src/routes) para ubicar cambios.
 {
   echo "# Resumen de cambios vs base"
   echo
@@ -39,14 +39,13 @@ git diff --name-status "$BASE" -- > .b7/diff-files.txt
   echo
 
   for layer_label in \
-    "UI (componentes y pantallas):src/lib/features/.*/ui/" \
-    "Datos (remote functions):src/lib/features/.*/data\.remote\." \
-    "Server (services / page.server):src/lib/features/.*/server/" \
-    "Schemas (validación):src/lib/features/.*/schemas\." \
-    "Types:src/lib/features/.*/types\." \
-    "Rutas (+page wrappers):src/routes/" \
+    "Datos (remote functions):src/routes/.*\.remote\." \
+    "Server (page.server / *.server):src/routes/.*\.server\." \
+    "Schemas (validación):src/routes/.*/schemas\." \
+    "Types:src/routes/.*-types\." \
+    "Pantallas y componentes:src/routes/.*\.svelte$" \
     "DB (drizzle schema):src/lib/server/db/" \
-    "Componentes compartidos:src/lib/components/" \
+    "Compartido (\$lib):src/lib/" \
     "Tests:\.(test|spec)\." \
     "Docs:\.(md|html)$" ; do
     label="${layer_label%%:*}"

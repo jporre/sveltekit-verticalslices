@@ -8,7 +8,7 @@
 #   release-lock                       — remove the lock file
 #   state-dir                          — print the b7 state dir (creates it if missing) and exit
 #   cache-issue <issue-number> <out-dir> — cache `gh issue view` JSON to <out-dir>/issue.json (idempotent)
-#   context-snapshot <out-dir>         — write <out-dir>/context.md with stack/aliases/FSD layout (no LLM)
+#   context-snapshot <out-dir>         — write <out-dir>/context.md with stack/aliases/colocated layout (no LLM)
 #   init-state <issue-number> <out-dir> — write a minimal .b7/state.json scaffold for publish-docs.sh
 #   verify-worktree <dir>              — verify the worktree was created by setup-worktree.sh (marker + symlinks + dev.sh + location)
 #
@@ -245,7 +245,7 @@ cmd_context_snapshot() {
 - Remote Functions (\`*.remote.ts\`) para todo acceso a datos + lógica de negocio simple
 - TailwindCSS 4 + shadcn-svelte + @lucide/svelte
 - Drizzle ORM + Postgres 18 (uuidv7 para IDs nuevos)
-- Valibot para validación
+- Zod para validación
 - svelte-sonner para notificaciones
 
 ## Aliases
@@ -254,29 +254,26 @@ cmd_context_snapshot() {
 - \`\$components\` → \`src/lib/components\`
 - \`\$api\` → \`src/routes/api\`
 
-## Layout FSD por feature
+## Layout colocado por feature (la carpeta de ruta ES la carpeta del feature)
 \`\`\`
-src/lib/features/<feature>/
-  index.ts
-  types.ts
-  schemas.ts
-  data.remote.ts                   # query/form/command + reglas de negocio simples
-  ui/
-    <Feature>Page.svelte           # pantalla principal (PascalCase, termina en Page)
-    components/                    # sub-componentes
-  server/
-    service.server.ts              # lógica compleja (solo si aplica)
-  docs/
-
-src/routes/[...]/feature/
-  +page.svelte                     # thin wrapper que importa <Feature>Page
-  +page.server.ts                  # re-export load/actions
+src/routes/<feature>/
+  +page.svelte                     # la pantalla (UI aqui; importa componentes hermanos)
+  +page.server.ts                  # load + guard de permiso
+  <feature>.remote.ts              # query/form/command + reglas de negocio simples
+  <feature>-types.ts               # tipos (o exportarlos desde <feature>.remote.ts)
+  <Feature>Form.svelte             # componentes hermanos, planos, PascalCase (sin subcarpeta ui/)
+  schemas.ts                       # solo si la validacion es compleja
+  <feature>.server.ts              # logica compleja (solo si aplica)
+  new/ , [id]/                     # sub-rutas con su propio +page.svelte (y *.remote.ts si aplica)
 \`\`\`
+Todo el feature vive en una carpeta bajo src/routes. Nada de src/lib/features ni thin wrappers.
+Solo lo realmente compartido (shadcn, db, helpers cross-feature) vive en \$lib.
 
 ## Convenciones obligatorias
 - Imports shadcn con namespace: \`import * as Card from '\$lib/components/ui/card'\`
 - Lucide: \`import Plus from '@lucide/svelte/icons/plus'\`
 - Remote functions snake_case: \`get_*\`, \`create_*\`, \`update_*\`, \`delete_*\`
+- Archivo remote nombrado \`<feature>.remote.ts\` (nunca el generico \`data.remote.ts\`), fuera de \`src/lib/server/\`
 - Componentes PascalCase
 - Tablas DB \`ta_*\`, vistas \`vi_*\`
 - Errores estructurados: \`error(STATUS, {message, code})\`

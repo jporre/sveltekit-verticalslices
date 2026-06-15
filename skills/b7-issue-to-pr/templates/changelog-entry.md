@@ -18,8 +18,8 @@ ${SUMMARY_TECHNICAL}
 **Archivos clave**:
 ${FILES_KEY_LIST}
 <!--
-  - `src/lib/features/${SCOPE}/data.remote.ts` — nueva query + permission check
-  - `src/lib/features/${SCOPE}/ui/BandejaTareasPage.svelte` — UI principal
+  - `src/routes/${SCOPE}/${SCOPE}.remote.ts` — nueva query + permission check
+  - `src/routes/${SCOPE}/+page.svelte` — UI principal
 -->
 
 **Riesgos / consideraciones**:

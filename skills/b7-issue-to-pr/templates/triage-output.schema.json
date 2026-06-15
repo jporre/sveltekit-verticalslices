@@ -18,7 +18,7 @@
     },
     "scope": {
       "type": "string",
-      "description": "Nombre del feature en src/lib/features/<scope>/. snake-case o kebab-case."
+      "description": "Nombre del feature; su carpeta de ruta es src/routes/<scope>/. snake-case o kebab-case."
     },
     "language": {
       "type": "string",
@@ -32,7 +32,7 @@
     },
     "screens": {
       "type": "array",
-      "description": "Pantallas del feature (FSD). Vacío para issues backend/infra puras.",
+      "description": "Pantallas del feature. Vacío para issues backend/infra puras.",
       "items": {
         "type": "object",
         "required": ["name", "route", "user_journey", "acceptance_criteria_visual"],

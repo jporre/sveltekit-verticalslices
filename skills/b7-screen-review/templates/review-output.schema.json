@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "b7-screen-review output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["screen", "route", "verdict", "criteria_results", "screenshots"],
+  "properties": {
+    "screen": {"type": "string"},
+    "route": {"type": "string"},
+    "verdict": {"type": "string", "enum": ["pass", "warn", "fail"]},
+    "criteria_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterion", "passed"],
+        "properties": {
+          "criterion": {"type": "string"},
+          "passed": {"type": "boolean"},
+          "evidence": {"type": "string"},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "message"],
+        "properties": {
+          "severity": {"type": "string", "enum": ["error", "warn", "info"]},
+          "message": {"type": "string"},
+          "screenshot": {"type": "string"}
+        }
+      }
+    },
+    "screenshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "path"],
+        "properties": {
+          "label": {"type": "string"},
+          "path": {"type": "string"}
+        }
+      }
+    },
+    "console_errors": {"type": "array", "items": {"type": "string"}},
+    "duration_ms": {"type": "integer"}
+  }
+}

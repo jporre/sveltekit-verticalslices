@@ -1,0 +1,9 @@
+# macOS / editor junk
+.DS_Store
+*.swp
+*~
+
+# transient runtime artifacts (worktree dev servers, logs)
+*.log
+*.pid
+.playwright-mcp/

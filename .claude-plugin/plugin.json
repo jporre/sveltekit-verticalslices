@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "b-pipeline",
+  "displayName": "B Pipeline",
+  "version": "1.0.0",
+  "description": "Pipeline issue -> PR -> merge para SvelteKit: triage (b1), worktrees aislados (b1-add-worktree), build (b2), commit (b3), PR (b4), review (b6), orquestadores (b7 single, b8 cluster, b10 epic) y cierre con gate humano (b9). Validado end-to-end en un epic real de 10 sub-issues.",
+  "author": {
+    "name": "Jean Pierre Porre",
+    "email": "jporre@bnex.cl"
+  },
+  "license": "MIT",
+  "keywords": ["pipeline", "github", "sveltekit", "worktree", "code-review"],
+  "skills": ["./skills"]
+}

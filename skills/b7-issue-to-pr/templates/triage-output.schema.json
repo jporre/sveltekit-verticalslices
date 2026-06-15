@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "b7 triage output",
+  "description": "Estructura que b1-triage-issue debe escribir en .b7/triage.json para que b7 la consuma sin re-leer el cuerpo del issue.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "type", "scope", "language", "screens", "estimated_complexity"],
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["ready", "needs-info", "reject"],
+      "description": "ready = b7 sigue. needs-info/reject = b7 baila."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["feat", "fix", "chore", "docs", "refactor", "test"],
+      "description": "Tipo conventional-commit. Determina prefijo de branch (feat/ vs fix/)."
+    },
+    "scope": {
+      "type": "string",
+      "description": "Nombre del feature en src/lib/features/<scope>/. snake-case o kebab-case."
+    },
+    "language": {
+      "type": "string",
+      "enum": ["es", "en"],
+      "description": "Idioma del issue. Determina idioma del comentario sticky."
+    },
+    "files_likely": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Globs probables. Ayuda a b2 a no explorar ciegamente."
+    },
+    "screens": {
+      "type": "array",
+      "description": "Pantallas del feature (FSD). Vacío para issues backend/infra puras.",
+      "items": {
+        "type": "object",
+        "required": ["name", "route", "user_journey", "acceptance_criteria_visual"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "PascalCase. Termina en Page. Ej: BandejaTareasPage."
+          },
+          "route": {
+            "type": "string",
+            "description": "Ruta SvelteKit. Ej: /tareas o /equipos/[id]/miembros."
+          },
+          "user_journey": {
+            "type": "string",
+            "description": "Una frase: qué hace el usuario en esta pantalla, paso a paso."
+          },
+          "acceptance_criteria_visual": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Lista verificable visualmente. Cada criterio debe ser observable en un screenshot."
+          },
+          "success_metrics": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Métricas opcionales (latencia percibida, accesibilidad, etc.)."
+          },
+          "states_required": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["empty", "loading", "error", "success", "permission-denied"]},
+            "default": ["empty", "loading", "success"]
+          }
+        }
+      }
+    },
+    "security_review_required": {
+      "type": "boolean",
+      "default": false,
+      "description": "Si toca auth, permisos, validación de input crítico, secrets, queries SQL crudas. Forza --no-pr."
+    },
+    "estimated_complexity": {
+      "type": "string",
+      "enum": ["S", "M", "L"],
+      "description": "S: <5 archivos, <300 líneas. M: <15 archivos, <800 líneas. L: por encima -- bot baila."
+    },
+    "blockers": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Cosas que el bot no puede resolver solo. Si presente y verdict=ready, igual marcar para humano en el reporte."
+    },
+    "plan": {
+      "type": "array",
+      "description": "Lista accionable de tareas que el orquestador planifica antes de implementar. Se renderiza como checklist en el sticky del issue y se valida al cierre (gate DoD: plan.every(done)). Mantener S/M items, no micro-tareas: 3–8 items suele ser correcto.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "desc", "done"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "description": "Identificador estable kebab-case. Ej: 'add-rut-field', 'remote-fn-update', 'screen-bandeja'."
+          },
+          "desc": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "Una línea, accionable. Ej: 'Agregar columna rut a ta_persona y migración'."
+          },
+          "done": {
+            "type": "boolean",
+            "default": false
+          },
+          "note": {
+            "type": "string",
+            "description": "Opcional. Resultado, motivo de skip, o link a commit/PR."
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Resumen en idioma del issue. Reusable en comentarios y release notes."
+    }
+  }
+}

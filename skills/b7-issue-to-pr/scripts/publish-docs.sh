@@ -1,0 +1,263 @@
+#!/usr/bin/env bash
+# publish-docs.sh — escritura triple coordinada (CHANGELOG + issue comment + PR body).
+#
+# Lee .b7/state.json (la verdad central del run) y escribe los tres artefactos
+# documentales en una sola pasada determinística. Sin tokens del LLM.
+#
+# Subcomandos:
+#   changelog          — appendea/edita entry en CHANGELOG.md bajo [Unreleased]
+#   issue-comment      — sticky comment en el issue (gh; edita si existe, crea si no)
+#   pr-body            — escribe .b7/pr-body.md (consumido por b4-pull-request)
+#   all                — todos los anteriores
+#   aborted            — variante para cierre de aborto (marca el sticky con ⛔)
+#   bailed             — variante para bail (verdict != ready)
+#   plan-render        — renderiza .b7/triage.json plan[] → state.plan_block (idempotente)
+#   plan-done <id>     — marca plan item por id como done=true en .b7/triage.json
+#   plan-check         — exit 0 si plan.every(done) o plan=[]; exit 5 si quedan pendientes
+#
+# Marker sticky en issue: <!-- b7:status -->  (primera línea del comentario)
+#
+# Usage: publish-docs.sh <subcommand> [--state .b7/state.json] [--worktree DIR]
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_DIR="$(dirname "$SCRIPT_DIR")"
+TEMPLATES="$SKILL_DIR/templates"
+
+SUB=""
+SUB_ARG=""
+STATE_PATH=""
+WORKTREE="${PWD}"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --state)    STATE_PATH="$2"; shift 2 ;;
+    --worktree) WORKTREE="$2"; shift 2 ;;
+    -*)         echo "publish-docs.sh: unknown flag: $1" >&2; exit 2 ;;
+    *)
+      if   [ -z "$SUB" ];     then SUB="$1"
+      elif [ -z "$SUB_ARG" ]; then SUB_ARG="$1"
+      else echo "publish-docs.sh: extra arg: $1" >&2; exit 2
+      fi
+      shift ;;
+  esac
+done
+
+[ -z "$SUB" ]        && { echo "Usage: $0 {changelog|issue-comment|pr-body|all|aborted|bailed} [--state PATH] [--worktree DIR]" >&2; exit 2; }
+[ -z "$STATE_PATH" ] && STATE_PATH="$WORKTREE/.b7/state.json"
+[ ! -f "$STATE_PATH" ] && { echo "publish-docs.sh: state json not found: $STATE_PATH" >&2; exit 3; }
+
+# Helper: extraer valor de state.json (key path estilo jq pero con python3).
+state_get() {
+  python3 -c "
+import json, sys
+with open('$STATE_PATH') as f:
+    d = json.load(f)
+keys = '$1'.split('.')
+v = d
+for k in keys:
+    if isinstance(v, dict):
+        v = v.get(k, '')
+    else:
+        v = ''
+        break
+if isinstance(v, (dict, list)):
+    print(json.dumps(v, ensure_ascii=False))
+elif v is None:
+    print('')
+else:
+    print(v)
+"
+}
+
+# Helper: render template via render-report.sh (mismo motor envsubst).
+render_template() {
+  local tpl="$1"
+  local out="$2"
+  "$SCRIPT_DIR/render-report.sh" "$STATE_PATH" "$tpl" "$out"
+}
+
+# ---- subcomandos ----
+
+cmd_changelog() {
+  local repo_root issue_number scope
+  repo_root="$(git -C "$WORKTREE" rev-parse --show-toplevel)"
+  issue_number="$(state_get issue_number)"
+  scope="$(state_get triage_scope)"
+
+  local cl="$repo_root/CHANGELOG.md"
+  [ -f "$cl" ] || { echo "# Changelog" > "$cl"; echo >> "$cl"; echo "## [Unreleased]" >> "$cl"; echo >> "$cl"; }
+
+  local entry="$WORKTREE/.b7/changelog-entry.md"
+  render_template "$TEMPLATES/changelog-entry.md" "$entry"
+
+  # Insertar bajo "## [Unreleased]" si no hay entrada idempotente para este issue.
+  if grep -qE "^### .*\(#${issue_number}\)" "$cl"; then
+    echo "publish-docs/changelog: entry for #$issue_number already present (idempotent skip)"
+    return 0
+  fi
+
+  python3 - "$cl" "$entry" <<'PY'
+import sys, pathlib
+cl_path, entry_path = sys.argv[1], sys.argv[2]
+cl = pathlib.Path(cl_path).read_text()
+entry = pathlib.Path(entry_path).read_text().rstrip() + "\n\n"
+marker = "## [Unreleased]"
+if marker in cl:
+    cl = cl.replace(marker, marker + "\n\n" + entry, 1)
+else:
+    cl = "## [Unreleased]\n\n" + entry + "\n" + cl
+pathlib.Path(cl_path).write_text(cl)
+PY
+  echo "publish-docs/changelog: appended entry for #$issue_number"
+}
+
+cmd_issue_comment() {
+  local issue_number rendered marker repo
+  issue_number="$(state_get issue_number)"
+  [ -z "$issue_number" ] && { echo "publish-docs/issue-comment: missing issue_number in state" >&2; return 4; }
+
+  rendered="$WORKTREE/.b7/issue-comment.md"
+  render_template "$TEMPLATES/issue-comment.md" "$rendered"
+
+  marker="<!-- b7:status -->"
+  repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+
+  # Buscar comentario existente con el marker (id numerico REST, no node id GraphQL).
+  local existing_id
+  existing_id="$(gh api "repos/$repo/issues/$issue_number/comments" --paginate \
+    --jq ".[] | select(.body | startswith(\"$marker\")) | .id" 2>/dev/null | head -n 1 || true)"
+
+  if [ -n "$existing_id" ]; then
+    # Editar via gh api (PATCH /repos/:owner/:repo/issues/comments/:id)
+    gh api --method PATCH "repos/$repo/issues/comments/$existing_id" \
+      -f body="$(cat "$rendered")" >/dev/null
+    echo "publish-docs/issue-comment: edited sticky comment $existing_id on issue #$issue_number"
+  else
+    gh issue comment "$issue_number" --body-file "$rendered" >/dev/null
+    echo "publish-docs/issue-comment: created sticky comment on issue #$issue_number"
+  fi
+}
+
+cmd_pr_body() {
+  local out="$WORKTREE/.b7/pr-body.md"
+  render_template "$TEMPLATES/pr-release-notes.md" "$out"
+  echo "publish-docs/pr-body: wrote $out"
+}
+
+# Renderiza .b7/triage.json plan[] como checklist markdown y lo escribe en
+# .b7/state.json bajo la clave plan_block. Idempotente.
+cmd_plan_render() {
+  local triage="$WORKTREE/.b7/triage.json"
+  [ ! -f "$triage" ] && { echo "publish-docs/plan-render: missing $triage" >&2; return 4; }
+  python3 - "$triage" "$STATE_PATH" <<'PY'
+import json, sys, pathlib
+triage_p, state_p = sys.argv[1], sys.argv[2]
+triage = json.loads(pathlib.Path(triage_p).read_text())
+plan = triage.get("plan") or []
+if not plan:
+    block = "_Sin plan estructurado (tarea trivial)._"
+else:
+    lines = []
+    for it in plan:
+        box = "[x]" if it.get("done") else "[ ]"
+        note = f" _(`{it['note']}`)_" if it.get("note") else ""
+        lines.append(f"- {box} `{it['id']}` — {it['desc']}{note}")
+    block = "\n".join(lines)
+state = json.loads(pathlib.Path(state_p).read_text()) if pathlib.Path(state_p).exists() else {}
+state["plan_block"] = block
+pathlib.Path(state_p).write_text(json.dumps(state, ensure_ascii=False, indent=2))
+print(f"publish-docs/plan-render: {len(plan)} items → state.plan_block")
+PY
+}
+
+# Marca un plan item como done=true por id. Si no existe, exit 6.
+cmd_plan_done() {
+  local id="${1:-}"
+  [ -z "$id" ] && { echo "publish-docs/plan-done: usage: plan-done <id>" >&2; return 2; }
+  local triage="$WORKTREE/.b7/triage.json"
+  [ ! -f "$triage" ] && { echo "publish-docs/plan-done: missing $triage" >&2; return 4; }
+  python3 - "$triage" "$id" <<'PY'
+import json, sys, pathlib
+p, target = sys.argv[1], sys.argv[2]
+data = json.loads(pathlib.Path(p).read_text())
+plan = data.get("plan") or []
+hit = False
+for it in plan:
+    if it.get("id") == target:
+        it["done"] = True
+        hit = True
+        break
+if not hit:
+    print(f"publish-docs/plan-done: id '{target}' not found in plan", file=sys.stderr)
+    sys.exit(6)
+pathlib.Path(p).write_text(json.dumps(data, ensure_ascii=False, indent=2))
+print(f"publish-docs/plan-done: marked '{target}' done")
+PY
+  cmd_plan_render >/dev/null || true
+}
+
+# Gate DoD: exit 0 si plan vacío o plan.every(done); exit 5 si quedan pendientes
+# (imprime los ids pendientes a stderr).
+cmd_plan_check() {
+  local triage="$WORKTREE/.b7/triage.json"
+  [ ! -f "$triage" ] && { echo "publish-docs/plan-check: missing $triage" >&2; return 4; }
+  python3 - "$triage" <<'PY'
+import json, sys, pathlib
+data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+plan = data.get("plan") or []
+pending = [it["id"] for it in plan if not it.get("done")]
+if pending:
+    print("publish-docs/plan-check: pending items: " + ", ".join(pending), file=sys.stderr)
+    sys.exit(5)
+print(f"publish-docs/plan-check: ok ({len(plan)} items, all done or empty)")
+PY
+}
+
+cmd_all() {
+  cmd_plan_render || true
+  cmd_changelog || true
+  cmd_pr_body   || true
+  cmd_issue_comment || true
+}
+
+cmd_aborted() {
+  python3 - "$STATE_PATH" <<'PY'
+import json, sys
+p = sys.argv[1]
+with open(p) as f: d = json.load(f)
+d["status"] = "aborted"
+d["status_emoji"] = "⛔"
+d["status_label"] = "Detenido"
+with open(p, "w") as f: json.dump(d, f, ensure_ascii=False, indent=2)
+PY
+  cmd_issue_comment || true
+  cmd_changelog || true
+}
+
+cmd_bailed() {
+  python3 - "$STATE_PATH" <<'PY'
+import json, sys
+p = sys.argv[1]
+with open(p) as f: d = json.load(f)
+d["status"] = "bailed"
+d["status_emoji"] = "🚪"
+d["status_label"] = "El bot baileó"
+with open(p, "w") as f: json.dump(d, f, ensure_ascii=False, indent=2)
+PY
+  cmd_issue_comment || true
+}
+
+case "$SUB" in
+  changelog)     cmd_changelog ;;
+  issue-comment) cmd_issue_comment ;;
+  pr-body)       cmd_pr_body ;;
+  all)           cmd_all ;;
+  aborted)       cmd_aborted ;;
+  bailed)        cmd_bailed ;;
+  plan-render)   cmd_plan_render ;;
+  plan-done)     cmd_plan_done "$SUB_ARG" ;;
+  plan-check)    cmd_plan_check ;;
+  *) echo "publish-docs.sh: unknown subcommand: $SUB" >&2; exit 2 ;;
+esac

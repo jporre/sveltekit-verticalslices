@@ -34,7 +34,7 @@ onMount(async () => {
 
 <!-- BIEN: remote function -->
 <script>
-import { get_items } from './data.remote'
+import { get_items } from './<feature>.remote'
 const items = $derived(await get_items())
 </script>
 ```
@@ -174,7 +174,7 @@ export async function load() {
 
 ## 11. Remote function en src/lib/server (prohibido)
 
-Los archivos `.remote.ts` NO pueden estar dentro de `src/lib/server/`. Deben vivir en `src/lib/features/<feature>/data.remote.ts`.
+Los archivos `.remote.ts` NO pueden estar dentro de `src/lib/server/` (el cliente los importa). Viven colocados en la carpeta de ruta del feature como `src/routes/<feature>/<feature>.remote.ts`, nunca como `data.remote.ts` generico.
 
 ## 12. Query sin refresh despues de mutacion
 

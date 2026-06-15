@@ -19,7 +19,7 @@ export async function load({params}) {
 
 **Excepciones validas**: Paginas publicas (login, landing, marketing) no necesitan auth.
 
-## 2. Remote Functions (data.remote.ts)
+## 2. Remote Functions (`<feature>.remote.ts`)
 
 Toda remote function DEBE llamar `requireUser()` o `requirePermission('verbo:sustantivo')` como primera operacion:
 

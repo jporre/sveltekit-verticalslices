@@ -87,11 +87,11 @@ Lee los archivos cambiados con atencion. Para archivos `.svelte` y `.ts` relevan
 Evalua:
 
 1. **Simplicidad**: El codigo es directo o hay sobre-ingenieria? Hay abstracciones prematuras, helpers innecesarios, o indirecciones que no se justifican?
-2. **Arquitectura feature-first**: Los archivos estan en la estructura correcta?
-   - Feature logic en `src/lib/features/<feature>/`
-   - Routes como thin wrappers en `src/routes/`
-   - Server-only code en archivos `.server.ts`
-   - Remote functions en `data.remote.ts` (fuera de `src/lib/server/`)
+2. **Arquitectura colocada por feature**: Los archivos estan en la estructura correcta?
+   - Todo el feature vive en su carpeta de ruta `src/routes/<feature>/` (pagina, remote, componentes, types)
+   - `+page.svelte` ES la pantalla; componentes como hermanos PascalCase, sin subcarpeta `ui/` ni `src/lib/features/`
+   - Remote functions en `<feature>.remote.ts` (fuera de `src/lib/server/`), no el generico `data.remote.ts`
+   - Server-only code en `.server.ts` colocados; solo lo realmente compartido vive en `$lib`
 3. **Convenciones**:
    - shadcn-svelte con namespace imports (`import * as Card from ...`)
    - Lucide con deep imports (`import Plus from '@lucide/svelte/icons/plus'`)
@@ -192,7 +192,7 @@ El PR puede introducir funciones que ya existen en el codebase con otro nombre o
 **Ejemplo de reporte:**
 
 ```
-WARNING: `formatDateShort()` en src/lib/features/reportes/utils.ts duplica
+WARNING: `formatDateShort()` en src/routes/reportes/reportes-utils.ts duplica
 `formatFecha()` en src/lib/utils/dates.ts. Ambas formatean una fecha como "DD/MM/YYYY"
 usando Intl.DateTimeFormat. Reusar la existente.
 ```

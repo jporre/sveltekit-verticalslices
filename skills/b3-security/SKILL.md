@@ -34,7 +34,7 @@ Ejemplos:
 ## Patron requireUser (Autenticacion)
 
 ```typescript
-// src/lib/features/<feature>/data.remote.ts
+// src/routes/<feature>/<feature>.remote.ts
 import {query, getRequestEvent} from '$app/server'
 import {error} from '@sveltejs/kit'
 
@@ -136,14 +136,13 @@ error(404, {message: 'No encontrado', code: 'NOT_FOUND'})
 ## Donde Poner la Verificacion
 
 ```
-src/lib/features/<feature>/
-  data.remote.ts        # requireUser/requirePermission aqui
-  server/
-    repo.server.ts      # NO verificar permisos aqui (solo datos)
-    service.server.ts   # Logica de negocio, puede verificar reglas
+src/routes/<feature>/
+  <feature>.remote.ts   # requireUser/requirePermission aqui (capa expuesta al cliente)
+  +page.server.ts       # guard del load: bloquea el render si falta acceso
+  <feature>.server.ts   # logica de negocio; puede verificar reglas, NO re-chequear permisos basicos
 ```
 
-La verificacion de permisos va en `data.remote.ts` (la capa que expone al cliente). El repo.server.ts confia en que fue llamado correctamente.
+La verificacion de permisos va en `<feature>.remote.ts` (la capa que expone al cliente). Los archivos `*.server.ts` confian en que fueron llamados correctamente.
 
 ## Datos de Prueba Recomendados
 

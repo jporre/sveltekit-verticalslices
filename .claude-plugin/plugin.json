@@ -9,6 +9,5 @@
     "email": "jporre@bnex.cl"
   },
   "license": "MIT",
-  "keywords": ["pipeline", "github", "sveltekit", "worktree", "code-review"],
-  "skills": ["./skills"]
+  "keywords": ["pipeline", "github", "sveltekit", "worktree", "code-review"]
 }

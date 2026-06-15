@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "b-pipeline-market",
+  "description": "Marketplace de b-pipeline: pipeline issue -> PR -> merge para SvelteKit.",
+  "owner": {
+    "name": "Jean Pierre Porre",
+    "email": "jporre@bnex.cl"
+  },
+  "plugins": [
+    {
+      "name": "b-pipeline",
+      "description": "Pipeline issue -> PR -> merge: triage, worktrees, build, commit, PR, review, orquestadores y cierre con gate humano.",
+      "version": "1.0.0",
+      "source": "./"
+    }
+  ]
+}

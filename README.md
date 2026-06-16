@@ -42,6 +42,8 @@ You give it an issue number. It:
 
 It runs unattended where it is safe to do so, and **stops and asks** where judgement is required (complex builds, every merge).
 
+**Don't have the issues yet?** Start one step earlier with **`b0-conversation-to-issues`**: it turns the current conversation (a design chat, a brainstorm, a plan) into well-scoped GitHub issues, **sliced vertically** (tracer-bullet), ordered by dependency, and grouped under an epic — the exact shape `b10-ship --epic` drains. It verifies what you *really* want before creating anything.
+
 ---
 
 ## 2. How it works (mental model)
@@ -124,6 +126,13 @@ Only need the draft PR (stop before merge)?
 /b-pipeline:b7-issue-to-pr 42
 ```
 
+Don't have the issues yet — just a conversation? Generate them first, then ship the epic:
+
+```text
+/b-pipeline:b0-conversation-to-issues        # turns this chat into sliced issues + epic
+/b-pipeline:b10-ship --epic=<N>              # drains the epic it just created
+```
+
 ---
 
 ## 6. The skills at a glance
@@ -132,6 +141,7 @@ Skills are namespaced `b-pipeline:<skill>`.
 
 | Skill | Role |
 | --- | --- |
+| **b0-conversation-to-issues** | Genesis step (before triage). Turns the conversation (or a plan/PRD via `--from`) into vertically-sliced GitHub issues with dependencies and an epic, ready for `b10-ship --epic`. Verifies the real intent with a human gate before creating anything. |
 | **b10-ship** | Top-level orchestrator. `<issue>` for one issue, or `--epic=<N>` to drain an epic's sub-issue graph. Chains triage → build → review → close with the human gates. |
 | **b7-issue-to-pr** | Single-issue orchestrator: triage → worktree → build → screen review → commit → **draft PR** → auto-review. Stops at the draft PR (does not merge). |
 | **b8-swarm** | Resolves a **cluster of related issues** in **one** combined PR (refactors, multi-step migrations, "Phase X.Y" series). One worktree, one branch, one PR. |

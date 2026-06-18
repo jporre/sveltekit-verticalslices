@@ -1,7 +1,7 @@
 ---
 name: b0-conversation-to-issues
 description: 'Convierte el HISTORIAL de la conversacion (o un plan/PRD/doc) en uno o varios GitHub issues bien scopeados, sliceados en VERTICAL (tracer-bullet), con dependencias y un epic de tracking — listos para drenar con b10-ship --epic. Es el paso GENESIS del pipeline, antes de b1-triage. Usar cuando el usuario diga "crea el/los issue(s) de esto", "convierte esto en issues/tareas", "arma las tareas en github", "saca los issues de lo que hablamos", "abre los tickets de esta conversacion", "turn this into issues", "create issues from this conversation/plan", "break this into tickets", "split this into vertical slices". Tambien cuando una sesion de diseño/brainstorm/planificacion converge en trabajo concreto que hay que registrar. Antes de crear NADA verifica con el usuario lo que REALMENTE pide (gate humano). NO implementa codigo, NO triagea, NO abre PRs — solo produce la estructura de issues que el resto del pipeline procesa.'
-allowed-tools: Bash, Read, Write, AskUserQuestion, Agent, Skill
+allowed-tools: Bash, Read, Write, AskUserQuestion, Agent, Skill, Workflow
 model: opus
 ---
 
@@ -13,7 +13,9 @@ Paso **b0**: el genesis del pipeline. Toma lo discutido en la sesion y lo deja c
 
 ## SIN `context: fork` — a proposito
 
-Este skill corre en el **main loop**, NO en fork. Es deliberado y critico: la fuente de verdad es **el historial de la conversacion actual**, y un fork solo ve el cuerpo de este `SKILL.md` (no la sesion). Forkear este skill lo dejaria ciego a lo unico que necesita leer. Tambien necesita `AskUserQuestion` con el usuario presente para el gate de verificacion. La unica via de aislamiento aqui es el `Agent` opcional del Paso 2 (grounding en el codebase).
+Este skill corre en el **main loop**, NO en fork. Es deliberado y critico: la fuente de verdad es **el historial de la conversacion actual**, y un fork solo ve el cuerpo de este `SKILL.md` (no la sesion). Forkear este skill lo dejaria ciego a lo unico que necesita leer. Tambien necesita `AskUserQuestion` con el usuario presente para el gate de verificacion.
+
+El **trabajo de razonamiento** (destilar la necesidad, slicear, ordenar olas, el gate) se queda en el main loop por la misma razon. Lo que SI se delega a subagentes —siempre trabajo acotado y read-only o mecanico, posterior a las decisiones— es: el **grounding** en el codebase (Paso 2, opcionalmente en paralelo) y la **redaccion de bodies** ya aprobados (Paso 6, en paralelo para breakdowns grandes). Ningun subagente decide el slicing.
 
 ## Argumentos
 
@@ -87,9 +89,14 @@ Para que los issues nombren rutas/entidades REALES (no inventadas), un grounding
 - Si ya existe la ruta/feature → el slice es enhancement de algo existente (afecta titulo y alcance), o puede ser **duplicate** (no crear).
 - Confirmar nombres de scope reales para las labels (`scope:<area>`).
 
-Para entidades multiples o un codebase desconocido, lanzar **un** `Agent(subagent_type=Explore)` acotado ("ubica las rutas y tablas de X, Y, Z; reporta paths exactos") en vez de gastar el contexto principal. No mas de eso.
+Para entidades multiples o un codebase desconocido, delegar el grounding a `Agent(subagent_type=Explore)` para no gastar el contexto principal — y **paralelizar cuando hay varias entidades**:
 
-> Si `.codegraph/` existe en el proyecto, preferir `codegraph_search` para ubicar entidades/rutas — mas rapido que grep.
+- **1-3 entidades:** un solo `Agent(Explore)` acotado ("ubica las rutas y tablas de X, Y, Z; reporta paths exactos").
+- **4+ entidades:** lanzar varios `Agent(Explore)` **en paralelo** (todos en un mismo mensaje, un agente por entidad o par de entidades cohesivas), cada uno con encargo cerrado: "¿existe `src/routes/<area>`? ¿que tabla Drizzle la respalda? reporta paths exactos o 'no existe'". Read-only y disjuntos → seguro en paralelo, y corta el wall-clock de N busquedas secuenciales. Cap razonable: ~6 agentes.
+
+El grounding es read-only: no decide nada, solo devuelve paths reales para que el slicing nombre rutas/tablas que existen (o confirme que son nuevas). Consolidás los reportes en el main loop antes de slicear.
+
+> Si `.codegraph/` existe en el proyecto, preferir `codegraph_search` para ubicar entidades/rutas — mas rapido que grep, y suele evitar el fan-out (una consulta cubre varias entidades). Pasarle a cada Explore la instruccion de usar codegraph.
 
 ### Paso 3 — Slicear en vertical
 
@@ -152,6 +159,41 @@ Escribir el plan JSON a un scratch (ej. `"$(mktemp -t b0-plan.XXXX).json"`) con 
 > Las deps van SOLO en `blocked_by` (ids), **no** escribir `## Blocked by` ni `#numeros` en el `body` — esos issues aun no existen; el script inyecta la seccion resolviendo ids → numeros reales.
 > `closing_slice: "epic"` hace que el epic dependa de TODOS los subs y se vuelva el slice de cierre de b10 (build ultimo, tras epic-review). Util cuando el cierre del epic incluye limpieza/swap. Si no aplica, `null`.
 > Con `--no-epic`: omitir la clave `epic` (issues sueltos, sin linkeo).
+
+#### Redaccion de bodies — inline o en paralelo
+
+El cuerpo de cada slice es independiente: distinto archivo, distinta pantalla. El **slicing** (objetivo, deps, olas) es la parte dificil y ya quedo fijado y aprobado en el gate; redactar los markdown es trabajo mecanico que sigue el template de `references/slicing-guide.md`.
+
+- **Breakdown chico (≤5 slices):** redactar los bodies inline. Es rapido y mantiene un solo tono.
+- **Breakdown grande (≥6 slices):** **paralelizar la redaccion** via `Workflow` — un `agent()` (haiku/sonnet) por slice. Cada agente recibe lo MISMO para no divergir: (a) el template del slicing-guide, (b) la **lista completa de slices** (titulo + alcance de cada uno) para que su seccion `## Alcance` referencie bien lo que queda para OTROS slices, (c) los grounding facts (rutas/tablas reales del Paso 2), (d) el idioma. Devuelve `{id, body}`. El main loop ensambla los bodies devueltos en el array `issues` del plan JSON. Cap de paralelismo razonable: ~8.
+
+```js
+export const meta = {
+  name: 'b0-draft-bodies',
+  description: 'Redaccion paralela de los bodies de slices ya aprobados en el gate',
+  phases: [{ title: 'draft', detail: 'un agent() por slice, read-only sobre la conversacion ya destilada' }],
+}
+const A = (typeof args === 'string') ? JSON.parse(args) : (args || {})
+const BODY = { type: 'object', required: ['id', 'body'],
+  properties: { id: { type: 'string' }, body: { type: 'string' } } }
+
+phase('draft')
+const bodies = (await parallel(A.slices.map(s => () =>
+  agent(
+    `Redacta SOLO el body markdown del slice "${s.id}" (${s.title}). ` +
+    `Segui EXACTO el template de references/slicing-guide.md. Idioma: ${A.lang}. ` +
+    `Grounding (rutas/tablas reales): ${A.grounding}. ` +
+    `Para la seccion "## Alcance (slice vertical)", estos son los OTROS slices del epic ` +
+    `(lo que queda para cada uno): ${JSON.stringify(A.slices)}. ` +
+    `PROHIBIDO escribir "## Blocked by" o #numeros — las deps las inyecta el script. ` +
+    `Devolve {id:"${s.id}", body:"<markdown>"}.`,
+    { label: `body:${s.id}`, phase: 'draft', schema: BODY }
+  )
+))).filter(Boolean)
+return { bodies }
+```
+
+Invocacion: `Workflow({ script:<lo de arriba>, args:{ slices:[{id,title,scope}], lang:'es', grounding:'<resumen Paso 2>' } })`. Tras recibir `{bodies}`, mapear `id → body` y completar cada issue del plan. **El slicing NO se delega** — los agentes solo escriben prosa de slices que vos ya decidiste; no inventan slices nuevos ni cambian deps.
 
 Correr el preview (no toca GitHub):
 

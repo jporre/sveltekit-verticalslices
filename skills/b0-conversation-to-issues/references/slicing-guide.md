@@ -33,6 +33,8 @@ Analogia: la bala trazadora confirma la trayectoria antes de gastar el resto del
 4. **Deps minimas.** Solo lo que de verdad bloquea (casi todo depende del tracer; los enriquecimientos rara vez dependen entre si salvo que compartan UI).
 5. **Cohesion de scope para cluster.** Slices secuenciales del mismo `scope`, `simple|medium`, son candidatos a un PR combinado (b8). Scopes distintos → nunca el mismo cluster.
 
+> **Lo transversal NO es un slice.** auth, db, storage, notificaciones y audit son infra genuinamente cross-cutting (viven en `$lib`, no en una ruta). No generan un issue "feature" por sí solos: o son parte del alcance de un slice de pantalla (ej. el slice exige sesión), o son un issue de infra puntual (backend puro, sin `## Pantalla(s)`). No cortes "el módulo de auth" como si fuera una pantalla.
+
 ## Ejemplo completo: "necesito gestionar los productos"
 
 Conversacion → objetivo real: **CRUD de productos con busqueda**. Grounding: no existe `src/routes/productos/` → feature nueva, scope `productos`.

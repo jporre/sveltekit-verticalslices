@@ -108,10 +108,28 @@ Assess against these criteria:
 | Entity clarity      | Is it clear what data/entity is involved?                  |
 | Operation clarity   | What needs to happen? (CRUD, behavior change, UI addition) |
 | Scope               | Boundary defined or open-ended?                            |
+| **Vertical slice**  | Does it deliver a usable **screen** end-to-end, or is it a horizontal technical layer? (see below) |
 | Acceptance criteria | How will anyone know it's done?                            |
 | Dependencies        | Does this need other work to land first?                   |
 
 Classification: **ready** | **needs-info** | **duplicate** | **blocked**.
+
+### Vertical-slice check (gate antes de marcar ready)
+
+Este proyecto es **screen-first / Vertical Slice Architecture**: cada issue que entra a build debe ser una **rebanada vertical** — algo que un usuario puede USAR al mergearse, cruzando todo el stack (Drizzle → Remote Function → pantalla en `src/routes`). Un issue que entrega solo una **capa técnica** rompe el modelo: b2/b7 construyen y revisan por pantalla, no por capa, y un slice horizontal no se puede verificar en browser ni cierra nada útil.
+
+Señales de **capa horizontal** (mal slice) en el título/cuerpo:
+
+- "crear el schema/migración de todo el módulo", "escribir todas las remote functions", "maquetar los componentes", "conectar el front al back".
+- El issue no nombra ninguna **ruta/pantalla** (`/<feature>`) ni un journey de usuario.
+- Lo entregable no se puede ver/usar en el browser por sí solo.
+
+Acción cuando el issue es horizontal:
+
+- **needs-info** con una pregunta concreta que proponga re-slicear en vertical: "Este issue es una capa horizontal (solo `<X>`). En este proyecto cada tarea debe entregar una pantalla usable end-to-end. ¿Lo reescribimos como slice vertical (ej. 'listar `<entidad>` en `/<feature>`') o lo partimos en slices con `/b-pipeline:b0-conversation-to-issues`?"
+- Si es parte de un feature más grande mal cortado, recomendar pasar el contexto por **b0** (que slicea en vertical + arma el epic) en vez de buildearlo tal cual.
+
+**Excepción — concerns transversales:** auth, db, storage, notificaciones y audit son infra genuinamente transversal, no features. Un issue legítimamente backend (ej. "agregar índice a `taVentas`", "rotar el secreto de storage") NO es un mal slice — no exige pantalla. Marcar estos como `ready` normal; el `## Pantalla(s)` del body se reemplaza por `## Remote functions / endpoints` (mismo criterio que b0). La regla horizontal aplica a **features de producto** partidas por capa, no a infra transversal.
 
 ### Risk checklist (conditional — only flag what the affected files trigger)
 

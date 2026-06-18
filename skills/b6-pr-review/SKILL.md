@@ -86,7 +86,12 @@ Lee los archivos cambiados con atencion. Para archivos `.svelte` y `.ts` relevan
 
 Evalua:
 
-1. **Simplicidad**: El codigo es directo o hay sobre-ingenieria? Hay abstracciones prematuras, helpers innecesarios, o indirecciones que no se justifican?
+1. **Simplicidad (lente de la escalera perezosa)**: El codigo es directo o hay sobre-ingenieria? Lente — ¿pasaron de largo un peldaño que aguantaba? (¿una abstraccion nueva donde la stdlib/SvelteKit/una dep ya instalada bastaba? ¿un service layer para CRUD simple? ¿una dependencia nueva para lo que son unas lineas?). Banderas concretas:
+   - **Indirección innecesaria** (el antipatrón que más molesta): `query → función → abstracción Drizzle → otra función → query`. La remote function debe hacer la query Drizzle directo; cada salto intermedio sin lógica real es WARNING.
+   - **Abstracción de una sola implementación**: interfaz/factory/wrapper con un solo uso → WARNING (borrarlo simplifica).
+   - **Helpers que envuelven una llamada**: una función que solo reenvía a otra → inline.
+   - **Marcador `// ponytail:`**: si un atajo está marcado así, es una simplificación **deliberada** — NO la reportes como ignorancia. Validá que el techo nombrado (ej. "client-side <1000 items", "lock global") sea razonable para el caso; solo es finding si el techo ya se superó (ej. ponytail dice "<1000 items" pero la query trae 50k). Un atajo sano marcado con ponytail es **OK**, no WARNING.
+   - **Prosa de más**: comentarios que explican el QUÉ (el código ya lo dice), docstrings de párrafos, comentarios que referencian el task/PR. SUGGESTION para borrarlos. (Excepción: `// ponytail:` es la prosa válida — marca intención.)
 2. **Arquitectura colocada por feature**: Los archivos estan en la estructura correcta?
    - Todo el feature vive en su carpeta de ruta `src/routes/<feature>/` (pagina, remote, componentes, types)
    - `+page.svelte` ES la pantalla; componentes como hermanos PascalCase, sin subcarpeta `ui/` ni `src/lib/features/`
@@ -98,7 +103,7 @@ Evalua:
    - snake_case para remote functions, PascalCase para componentes
    - Drizzle: query builder tipado (`db.query.*` / `db.insert/update`); raw `sql` solo como ultimo recurso
 4. **Tipos**: Los tipos son adecuados? Hay `any` injustificados? Los tipos de schema Drizzle se propagan (no re-declarar interfaces a mano)?
-5. **Complejidad innecesaria**: Hay codigo que podria ser mas simple? Usar la tabla de CLAUDE.md como guia:
+5. **Complejidad innecesaria**: Hay codigo que podria ser mas simple? Usar la tabla de CLAUDE.md y `../b2-build-feature/references/simplicity-ladder.md` como guia:
    - `goto()` donde bastaba un `href`
    - Filtrado server-side para pocos items (deberia ser `$derived`)
    - `$state` + `$effect` donde bastaba `$derived`

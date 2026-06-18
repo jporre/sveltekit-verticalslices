@@ -9,6 +9,8 @@ description: End-to-end SvelteKit feature development. Use ALWAYS when building 
 SvelteKit features are SMALL. Typical feature = 3-5 files, 15-35 KB total.
 No unnecessary layers. The shortest path: **Drizzle query -> remote function -> Svelte component**.
 
+**Build lazy: stop at the first rung that holds.** Need it at all? (YAGNI, skip and say so) → stdlib/SvelteKit does it? → native platform feature (`<input type="date">`, CSS, DB constraint)? → already-installed dep? → one line? → only then the minimum code. No abstraction nobody asked for, no service layer for CRUD, no `query → fn → drizzle-wrapper → fn → query` indirection — the remote function queries Drizzle directly. Fewest files, shortest working diff. Mark deliberate shortcuts with a `// ponytail:` comment (the sanctioned exception to the no-comments default). Full discipline: `references/simplicity-ladder.md`.
+
 **Colocation: the route folder IS the feature folder.** Everything for a feature lives in one
 folder under `src/routes/` — page, remote functions, components, types. Only `+`-prefixed files
 are special to the router, so `<feature>.remote.ts`, sibling `.svelte` components, and
@@ -364,12 +366,14 @@ After verification passes:
 8. **Colocate in the route folder** — `<feature>.remote.ts` + components + types live next to `+page.svelte`; 3-5 files, more = over-engineering. No `src/lib/features/`, no `ui/` subfolder
 9. **$derived for filtering** — client-side for <1000 items
 10. **snake_case functions** — `get_items`, `upsert_item`, `delete_item`
+11. **Lazy ladder** — stop at the first rung that holds; no unrequested abstraction; mark deliberate shortcuts with `// ponytail:` (see `references/simplicity-ladder.md`)
 
 ## When to Read References
 
 | Situation                                     | Read                                   |
 | --------------------------------------------- | -------------------------------------- |
 | React->Svelte doubts                          | `references/svelte5-not-react.md`      |
+| Tempted to add a layer/abstraction/dependency | `references/simplicity-ladder.md`      |
 | Need copy-paste templates                     | `references/feature-templates.md`      |
 | Running verification                          | `references/verification-checklist.md` |
 | Feature has 4+ screens                        | `references/complex-features.md`       |

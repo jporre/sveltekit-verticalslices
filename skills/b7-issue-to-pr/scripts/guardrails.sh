@@ -4,8 +4,9 @@
 # Subcommands:
 #   preflight <issue-number>           — run before anything else; exits non-zero if unsafe to proceed
 #   check-budget <worktree-dir>        — verify files-changed / lines-added under cap; exits non-zero if exceeded
-#   acquire-lock                       — flock the b7 lock file (writes PID); exits non-zero if already held
+#   acquire-lock [owner-pid]           — take the b7 lock (writes owner pid, default $PPID); exits non-zero if held
 #   release-lock                       — remove the lock file
+#   heartbeat <worktree-dir>           — write .b7/heartbeat (UTC) and touch the lock (keeps it fresh)
 #   state-dir                          — print the b7 state dir (creates it if missing) and exit
 #   cache-issue <issue-number> <out-dir> — cache `gh issue view` JSON to <out-dir>/issue.json (idempotent)
 #   context-snapshot <out-dir>         — write <out-dir>/context.md with stack/aliases/colocated layout (no LLM)
@@ -17,6 +18,7 @@
 #   B7_BUDGET_FILES    (default 25)
 #   B7_BUDGET_LINES    (default 1500)
 #   B7_BOT_LABEL       (default auto-pr-bot)
+#   B7_LOCK_STALE_SECS (default 7200)  — lock older than this (mtime) is stale; matches b10's 2h zombie threshold
 
 set -euo pipefail
 
@@ -52,6 +54,15 @@ ensure_state_dir() {
   printf '%s' "$d"
 }
 
+# Edad del lock en segundos (mtime). La staleness NO puede depender de kill -0:
+# el lock sobrevive a run.sh a proposito (lo retiene la fase LLM), asi que el PID
+# escritor muerto no significa run muerto. SKILL.md toca el lock en cada heartbeat.
+lock_age_secs() {
+  local f="$1" mtime
+  mtime="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)"
+  echo $(( $(date +%s) - mtime ))
+}
+
 cmd_state_dir() {
   ensure_state_dir
   echo
@@ -73,15 +84,16 @@ cmd_preflight() {
     return 10
   fi
 
-  # Lock file
+  # Lock file — staleness por mtime, no por PID vivo (ver lock_age_secs).
   if [ -f "$sd/b7.lock" ]; then
-    local pid
-    pid="$(cat "$sd/b7.lock" 2>/dev/null || echo)"
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-      echo "preflight: another b7 run is in progress (pid $pid)" >&2
+    local pid age
+    pid="$(cat "$sd/b7.lock" 2>/dev/null || echo '?')"
+    age="$(lock_age_secs "$sd/b7.lock")"
+    if [ "$age" -lt "${B7_LOCK_STALE_SECS:-7200}" ]; then
+      echo "preflight: another b7 run is in progress (owner pid $pid, lock age ${age}s)" >&2
       return 11
     else
-      echo "preflight: stale lock file (pid $pid not running) — removing" >&2
+      echo "preflight: stale lock (age ${age}s > ${B7_LOCK_STALE_SECS:-7200}s) — removing" >&2
       rm -f "$sd/b7.lock"
     fi
   fi
@@ -174,17 +186,22 @@ cmd_check_budget() {
 }
 
 cmd_acquire_lock() {
-  local sd
+  # Owner default: $PPID — el proceso invocador (cron/launchd/orquestador/sesion)
+  # que sobrevive al handoff hacia la fase LLM. NO $$: ese PID muere con este script
+  # y dejaba un lock instantaneamente "stale" para el janitor de b10.
+  local owner="${1:-$PPID}" sd
   sd="$(ensure_state_dir)"
   if [ -f "$sd/b7.lock" ]; then
-    local pid
-    pid="$(cat "$sd/b7.lock" 2>/dev/null || echo)"
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-      echo "acquire-lock: held by pid $pid" >&2
+    local pid age
+    pid="$(cat "$sd/b7.lock" 2>/dev/null || echo '?')"
+    age="$(lock_age_secs "$sd/b7.lock")"
+    if [ "$age" -lt "${B7_LOCK_STALE_SECS:-7200}" ]; then
+      echo "acquire-lock: held by pid $pid (lock age ${age}s)" >&2
       return 11
     fi
+    echo "acquire-lock: stale lock (age ${age}s) — taking over" >&2
   fi
-  echo "$$" > "$sd/b7.lock"
+  echo "$owner" > "$sd/b7.lock"
   echo "$sd/b7.lock"
 }
 
@@ -192,6 +209,23 @@ cmd_release_lock() {
   local sd
   sd="$(ensure_state_dir)"
   rm -f "$sd/b7.lock"
+}
+
+cmd_heartbeat() {
+  # Un solo lugar para el latido: heartbeat del worktree (b10 lo parsea con
+  # `date -j -u -f '%Y-%m-%dT%H:%M:%SZ'` — NO cambiar el formato) + touch del lock
+  # (la staleness del lock es por mtime; un build vivo lo mantiene fresco).
+  local wt="${1:-}"
+  if [ -z "$wt" ] || [ ! -d "$wt" ]; then
+    echo "heartbeat: usage: heartbeat <worktree-dir>" >&2
+    return 2
+  fi
+  mkdir -p "$wt/.b7"
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$wt/.b7/heartbeat"
+  local sd
+  sd="$(ensure_state_dir)"
+  [ -f "$sd/b7.lock" ] && touch "$sd/b7.lock"
+  return 0
 }
 
 cmd_cache_issue() {
@@ -264,10 +298,15 @@ src/routes/<feature>/
   <Feature>Form.svelte             # componentes hermanos, planos, PascalCase (sin subcarpeta ui/)
   schemas.ts                       # solo si la validacion es compleja
   <feature>.server.ts              # logica compleja (solo si aplica)
+  <feature>.md                     # doc del feature: proposito, pantallas, remote fns, datos, decisiones
   new/ , [id]/                     # sub-rutas con su propio +page.svelte (y *.remote.ts si aplica)
 \`\`\`
-Todo el feature vive en una carpeta bajo src/routes. Nada de src/lib/features ni thin wrappers.
-Solo lo realmente compartido (shadcn, db, helpers cross-feature) vive en \$lib.
+Todo el feature vive en una carpeta bajo src/routes (regla 99%). Nada NUEVO en src/lib/features
+ni thin wrappers. En \$lib solo: shadcn (\$lib/components/ui), css global, db (\$lib/server/db),
+transversales genuinos (logger/auth/format usados por 3+ features sin logica de un feature).
+Tolerancia legacy: EDITAR un feature existente bajo src/lib/features sigue SU patron interno;
+CREAR un feature nuevo ahi esta prohibido. Al debuggear: leer primero el <feature>.md si existe.
+Spec completa: skills/b2-build-feature/references/slice-spec.md (en el plugin).
 
 ## Convenciones obligatorias
 - Imports shadcn con namespace: \`import * as Card from '\$lib/components/ui/card'\`
@@ -472,13 +511,14 @@ case "${1:-}" in
   check-budget)     shift; cmd_check_budget "$@" ;;
   acquire-lock)     shift; cmd_acquire_lock "$@" ;;
   release-lock)     shift; cmd_release_lock "$@" ;;
+  heartbeat)        shift; cmd_heartbeat "$@" ;;
   state-dir)        shift; cmd_state_dir "$@" ;;
   cache-issue)      shift; cmd_cache_issue "$@" ;;
   context-snapshot) shift; cmd_context_snapshot "$@" ;;
   init-state)       shift; cmd_init_state "$@" ;;
   verify-worktree)  shift; cmd_verify_worktree "$@" ;;
   *)
-    echo "Usage: $0 {preflight <issue>|check-budget <worktree>|acquire-lock|release-lock|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>}" >&2
+    echo "Usage: $0 {preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>}" >&2
     exit 2
     ;;
 esac

@@ -5,6 +5,7 @@ Copy-paste templates for common feature types. Replace `<feature>`, `<Feature>`,
 Everything for a feature is colocated in its route folder under `src/routes/`. Only `+`-prefixed
 files are special to the router, so the remote file, sibling components, and types all sit next to
 `+page.svelte`. No `src/lib/features/` split, no `ui/` subfolder, no thin wrappers.
+Canonical layout spec (99% rule, `$lib` exceptions, legacy tolerance): `slice-spec.md`.
 
 ## Template 1: Simple CRUD (List + Create + Edit + Delete)
 

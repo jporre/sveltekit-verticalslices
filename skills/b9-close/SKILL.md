@@ -38,13 +38,19 @@ REPO_MAIN="$(git rev-parse --show-toplevel)"
 ARG="<primer-token-de-$ARGUMENTS>"
 
 # Modo issue (número pelado o "issue N"): buscar el PR que lo cierra.
-PR=$(gh pr list --state open --search "in:body Closes #${ARG}" --json number --jq '.[0].number')
+# CRITICO: la busqueda server-side de gh NO respeta fronteras de digitos ("Closes #261"
+# matchea PRs con "Closes #2610") — verificar SIEMPRE el body con regex de frontera
+# ([^0-9]|$) antes de aceptar el match. Este es el PR que se va a MERGEAR: un falso
+# positivo mergea el PR equivocado.
+PR=$(gh pr list --state open --search "in:body Closes #${ARG}" --json number,body \
+     --jq ".[] | select(.body | test(\"[Cc]loses #${ARG}([^0-9]|\$)\")) | .number" | head -1)
 # Modo PR (#N / "pr N"): usar directo.   Modo branch: gh pr list --head <branch>.
 # Sin arg: PR=$(gh pr list --head "$(git rev-parse --abbrev-ref HEAD)" --json number --jq '.[0].number')
 
 # Idempotencia: si no hay PR abierto, buscar uno YA MERGEADO (re-run tras crash a
 # mitad de limpieza). Si aparece y esta MERGED, saltar directo a PASO 6/7.
-[ -z "$PR" ] && PR=$(gh pr list --state merged --search "in:body Closes #${ARG}" --json number --jq '.[0].number')
+[ -z "$PR" ] && PR=$(gh pr list --state merged --search "in:body Closes #${ARG}" --json number,body \
+     --jq ".[] | select(.body | test(\"[Cc]loses #${ARG}([^0-9]|\$)\")) | .number" | head -1)
 
 [ -z "$PR" ] && { echo "ABORT: no encontré PR (abierto ni mergeado) para '$ARG'"; exit 1; }
 
@@ -73,7 +79,7 @@ gh pr view "$PR" --json number,title,isDraft,mergeable,mergeStateStatus,reviewDe
 Solo si existe `$WORKTREE`. El squash-merge debe incluir TODO el trabajo; cambios sueltos o commits sin push se pierden silenciosamente.
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
 ```
 
@@ -185,7 +191,7 @@ Solo si existe `$WORKTREE` y (el usuario eligió "Mergear y limpiar" O la aproba
 [ -f "$WORKTREE/.b7/dev-server.pid" ] && kill "$(cat "$WORKTREE/.b7/dev-server.pid")" 2>/dev/null || true
 
 # PROHIBIDO remove --force con trabajo sin commitear. Verificar primero:
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
 ```
 

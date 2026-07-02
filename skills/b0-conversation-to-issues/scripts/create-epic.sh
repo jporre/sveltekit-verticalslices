@@ -49,7 +49,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # epic-link.sh vive en b10-ship; reusar en vez de duplicar el linkeo nativo.
 EPIC_LINK="$SCRIPT_DIR/../../b10-ship/scripts/epic-link.sh"
 if [ ! -f "$EPIC_LINK" ]; then
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
   EPIC_LINK="$PLUGIN_ROOT/skills/b10-ship/scripts/epic-link.sh"
 fi
 

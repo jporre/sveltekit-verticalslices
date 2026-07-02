@@ -54,7 +54,7 @@ $ARGUMENTS
 
    In headless mode the final stdout line is machine-parseable: `WORKTREE_READY dir=<abs-path> branch=<name> port=<n>`. Consumers should grep that line rather than reparsing the human-friendly output.
 
-   Where `<skill-dir>` is the directory containing this SKILL.md file. Resolve it portably as `"${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}/skills/b1-add-worktree"` — works whether the plugin is installed via the Claude Code marketplace or sitting in the dev location.
+   Where `<skill-dir>` is the directory containing this SKILL.md file. Resolve it portably as `"${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}/skills/b1-add-worktree"` — works whether the plugin is installed via the Claude Code marketplace or sitting in the dev location.
 
    If the script fails, report the failure to the user and stop. Do not work around it by running pieces manually — the failure usually points to real state that needs human attention (dirty tree, branch already exists, port detection failure).
 

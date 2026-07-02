@@ -176,12 +176,9 @@ Add entry to `CHANGELOG.md` under a new date section:
 
 ### Commit on branch
 
-Stage only your files (not unrelated formatter changes):
-
-```bash
-git add src/routes/<feature>/ CHANGELOG.md
-git commit -m "feat(<scope>): description"
-```
+Invoke `Skill b-pipeline:b3-git-commit` — it stages only your files (not unrelated
+formatter changes), writes the conventional-commit message, and enforces the
+clean-tree gate. Do not hand-write `git add`/`git commit` here.
 
 ### Report to user
 

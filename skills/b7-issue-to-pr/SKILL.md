@@ -30,7 +30,7 @@ Si alguno de estos 5 pasos no se completa con éxito, el run no es válido y deb
 Antes de devolver el resumen final al usuario, el orquestador **debe** correr estos checks observables y exhibir el resultado de cada uno. Si alguno falla, el run no terminó:
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 # 1. Worktree existe, fue creado por setup-worktree.sh, y la rama está sobre master
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-worktree "$WORKTREE"
 git -C "$WORKTREE" rev-parse --abbrev-ref HEAD       # feat/<N>-... o fix/<N>-...
@@ -112,7 +112,7 @@ En ningún modo se puede saltar la creación del worktree o el comentario inicia
 Cada feature se evalúa, diseña, programa, revisa y aprueba como **pantallas y/o flujos de pantallas tal como las usaría alguien en la app**. Esto es **obligatorio**:
 
 - El triage debe identificar `screens[]` con `route`, `user_journey`, `acceptance_criteria_visual` y `success_metrics`.
-- La implementación coloca cada pantalla en su carpeta de ruta `src/routes/<feature>/`: la UI va directo en `+page.svelte`, los datos en `<feature>.remote.ts`, y los sub-componentes como hermanos PascalCase (sin subcarpeta `ui/`).
+- La implementación coloca cada pantalla en su carpeta de ruta `src/routes/<feature>/`: la UI va directo en `+page.svelte`, los datos en `<feature>.remote.ts`, y los sub-componentes como hermanos PascalCase (sin subcarpeta `ui/`). Spec canonica del layout (regla 99%, excepciones `$lib`, tolerancia legacy `src/lib/features/`, doc `<feature>.md`): `$PLUGIN_ROOT/skills/b2-build-feature/references/slice-spec.md`.
 - La revisión usa `b7-screen-review` por cada pantalla declarada (sub-agente con browser MCP).
 - El reporte y los artefactos documentales hablan en lenguaje de pantallas y flujos, no de funciones internas.
 
@@ -213,7 +213,7 @@ Si `estimated_complexity == "L"` y NO se paso `--force-complex`: comentar y bail
 Patrón obligatorio (copiar tal cual, no parafrasear):
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 BRANCH="feat/<issue>-<short-slug>"   # o fix/<...> según triage.type
 OUT=$(bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh" "$BRANCH" master --headless)
 echo "$OUT"
@@ -235,10 +235,10 @@ Sin `WORKTREE_READY` no hay `$WORKTREE` exportado → ninguna escritura posterio
 Crear `.b7/` dentro del worktree (excluido via el exclude por-worktree que siembra `setup-worktree.sh`). Mover los artefactos `.b7/issue.json`, `.b7/triage.json`, `.b7/context.md` al worktree. **Sembrar el heartbeat de inmediato** (la reconciliacion de b10 lo usa para distinguir runs vivos de zombies — sin el, un run muerto en fases tempranas es invisible):
 
 ```bash
-date -u +%Y-%m-%dT%H:%M:%SZ > "$WORKTREE/.b7/heartbeat"
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" heartbeat "$WORKTREE"
 ```
 
-Tocar el heartbeat tambien: al inicio del paso 5.0 (antes de levantar el dev server), al completar cada pantalla en 5.2, y antes de invocar b6 en 8c.
+El subcomando escribe `.b7/heartbeat` (formato UTC exacto que parsea b10) y ademas toca `b7.lock` — la staleness del lock es por mtime, un run vivo lo mantiene fresco. Tocar el heartbeat tambien: al inicio del paso 5.0 (antes de levantar el dev server), al completar cada pantalla en 5.2, y antes de invocar b6 en 8c.
 
 **Verificación previa a cualquier escritura:** después de `verify-worktree OK`, toda invocación de Edit/Write/Bash debe operar sobre `$WORKTREE`. Si en algún momento `pwd` reporta el repo principal, detenerse — la siguiente escritura sería un parche en master.
 
@@ -291,10 +291,10 @@ echo "$changed" | grep -qE '\.(test|spec)\.' && RUN_TEST=1 || RUN_TEST=0
 echo "$changed" | grep -qE '\.(ts|svelte|js|css)$' && RUN_LINT=1 || RUN_LINT=0
 ```
 
-Al inicio de CADA iteracion, tocar el heartbeat (permite a la reconciliacion de b10 distinguir un run vivo de uno zombie):
+Al inicio de CADA iteracion, tocar el heartbeat (permite a la reconciliacion de b10 distinguir un run vivo de uno zombie, y mantiene fresco el lock):
 
 ```bash
-date -u +%Y-%m-%dT%H:%M:%SZ > "$WORKTREE/.b7/heartbeat"
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" heartbeat "$WORKTREE"
 ```
 
 Solo re-correr los comandos que estaban rojos en `.b7/iter-status.json` (o todos en iter 1):
@@ -495,8 +495,8 @@ Cada milestone (`started`, `triage-done`, `worktree-ready`, `iter-N-green`, `scr
 
 ## Manejo de errores
 
-- Toda ruta de abort debe (a) `publish-docs.sh aborted` (que actualiza el comentario del issue + entry en CHANGELOG con `[Aborted]`), (b) escribir el run report, (c) liberar el lock.
-- `trap` en `run.sh` libera el lock en `EXIT`, success o fail.
+- Toda ruta de abort debe (a) `publish-docs.sh aborted` (que actualiza el comentario del issue + entry en CHANGELOG con `[Aborted]`), (b) escribir el run report, (c) liberar el lock con `guardrails.sh release-lock`.
+- **El lock NO se libera solo.** `run.sh` lo deja retenido a proposito para la fase LLM; toda ruta terminal (exito, abort, bail) debe invocar `guardrails.sh release-lock`. Fallback: un lock sin tocar por 2h (`B7_LOCK_STALE_SECS`) se recupera en el proximo preflight — el heartbeat de cada iteracion lo mantiene fresco en runs vivos.
 - Si `publish-docs.sh` falla (p.ej. `gh` cae), no bloquear el resto del cierre — log a stderr y continuar.
 
 ## Invocación headless

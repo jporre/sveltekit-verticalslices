@@ -18,6 +18,11 @@ are special to the router, so `<feature>.remote.ts`, sibling `.svelte` component
 wrappers. One folder you can review, debug, and copy to another project as a unit. Shared-only
 code (shadcn `$lib/components/ui`, `$lib/server/db`, cross-feature helpers) stays in `$lib`.
 
+**Canonical spec: `references/slice-spec.md`** — the 99% rule, the exact `$lib` exception
+table, the legacy tolerance (editing an existing `src/lib/features/` feature follows ITS
+pattern; NEW features never go there), and the colocated `<feature>.md` doc every new
+feature ships with. When in doubt about where a file goes, that spec wins.
+
 ## Two Entry Points
 
 This skill has two starting paths:
@@ -113,10 +118,13 @@ git checkout -b feat/<feature-name>    # new feature
 git checkout -b fix/<description>      # bug fix
 ```
 
-For complex features that need isolation, use a worktree:
+For complex features that need isolation, create the worktree via `b1-add-worktree` —
+a raw `git worktree add` is BLOCKED by the plugin's PreToolUse hook (it skips the env
+symlinks, port allocation, and budget hook that `setup-worktree.sh` provisions):
 
 ```bash
-git worktree add ../worktrees/<feature> -b feat/<feature-name>
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh" "feat/<feature-name>" master --headless
 ```
 
 ### Phase 1: Clarify
@@ -170,7 +178,7 @@ import {taProducts} from '$lib/server/db/schema'
 export type Product = InferSelectModel<typeof taProducts>
 ```
 
-If the DB table does not exist, create the Drizzle schema first. Read `drizzle-best-practices` skill for patterns.
+If the DB table does not exist, create the Drizzle schema first. Read the `postgresql-table-design` skill for patterns (if available).
 
 **Step 2: Remote Functions** (`<feature>.remote.ts`, e.g. `products.remote.ts`)
 The CORE file. Every data operation the UI needs goes here. Name it after the feature, never
@@ -336,21 +344,11 @@ Read `references/verification-checklist.md` for the detailed process.
 After verification passes:
 
 1. **Update CHANGELOG.md** — add entry under new date section
-2. **Commit on the branch** — use conventional commit format. If working from a GitHub issue, reference it:
-
-   ```bash
-   git add <specific files>
-   git commit -m "feat(<scope>): description
-
-   Refs #<issue-number>"
-   ```
-
-   Without an issue:
-
-   ```bash
-   git add <specific files>
-   git commit -m "feat(<scope>): description"
-   ```
+2. **Commit on the branch** — invoke `Skill b-pipeline:b3-git-commit` (pass the issue
+   number if any: it adds the `Refs #N`, stages only your files with intelligent
+   grouping, and runs the mandatory clean-tree gate). Do NOT hand-write `git add` +
+   `git commit` — two competing commit procedures is how messages drift and files
+   get staged by accident.
 
 3. **Report to user** — summarize what was built, what was tested, what's ready for merge. If working from an issue, remind to use `Closes #<N>` in the PR body (the `b4-pull-request` skill will handle this if given the issue number)
 
@@ -372,17 +370,22 @@ After verification passes:
 
 | Situation                                     | Read                                   |
 | --------------------------------------------- | -------------------------------------- |
+| Where does this file go? / layout doubts      | `references/slice-spec.md`             |
 | React->Svelte doubts                          | `references/svelte5-not-react.md`      |
 | Tempted to add a layer/abstraction/dependency | `references/simplicity-ladder.md`      |
 | Need copy-paste templates                     | `references/feature-templates.md`      |
 | Running verification                          | `references/verification-checklist.md` |
 | Feature has 4+ screens                        | `references/complex-features.md`       |
 | URL-synced page state (filter/tab/month)      | `references/url-synced-state.md`       |
-| Remote function details                       | `sveltekit-remote-functions` skill     |
-| Drizzle query patterns                        | `drizzle-best-practices` skill         |
-| shadcn component usage                        | `ui-stack` skill                       |
+| Screen lists/filters/exports DB records       | `bt1-data-table` skill — invoke it, do NOT hand-roll the table |
+| Remote function details / forms               | `using-remote-functions` skill         |
+| Drizzle / Postgres table patterns             | `postgresql-table-design` skill        |
 | Svelte 5 runes                                | `svelte-runes` skill                   |
-| Auth & permissions                            | `security` skill                       |
+| Auth & permissions                            | `b-pipeline:b3-security` skill         |
+
+> Los skills externos (`bt1-data-table`, `using-remote-functions`, `postgresql-table-design`,
+> `svelte-runes`) son del entorno del usuario: si no aparecen en la lista de skills
+> disponibles, seguir con las references del plugin y decirlo en el reporte.
 
 ## Complexity Guide
 

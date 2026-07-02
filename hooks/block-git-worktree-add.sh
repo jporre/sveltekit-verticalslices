@@ -25,7 +25,9 @@
 
 set -euo pipefail
 
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+# Auto-ubicacion: este script vive en <plugin-root>/hooks/, asi que la raiz es el
+# directorio padre. No depende de CLAUDE_PLUGIN_ROOT ni de rutas de instalacion.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 input="$(cat)"
 

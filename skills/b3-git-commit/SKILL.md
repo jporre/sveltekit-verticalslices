@@ -121,7 +121,7 @@ EOF
 El skill NUNCA termina con working tree sucio. Como ultimo paso, SIEMPRE correr:
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" . --fix
 ```
 

@@ -56,16 +56,25 @@ If it reports issues, fix them and run again until clean.
 
 ## Step 4: Browser Test
 
-### Start dev server (if not running)
+### Start dev server (serve THIS checkout, not master)
+
+Serví siempre desde el checkout actual — si estás en un worktree, usá su `./dev.sh`
+(puerto propio del worktree), no `pnpm dev` (hardcodeado al puerto del repo principal).
+Un dev server viejo en el puerto puede estar sirviendo master: no confíes en que "algo
+responde", verificá que el listener sea ESTE checkout con `verify-port`:
 
 ```bash
-pnpm dev
+# Desde el worktree:
+nohup ./dev.sh > dev-server.log 2>&1 &   # levanta vite --strictPort en el puerto del worktree
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "<port>" "$(pwd)"
+# exit 0 → B7_PORT_OK; exit 40 nadie escucha; exit 41 lo sirve otro cwd (p.ej. master)
 ```
 
 ### Navigate to the page
 
 ```bash
-agent-browser open http://localhost:6024/[country]/<feature>
+agent-browser open http://localhost:<port>/[country]/<feature>
 ```
 
 ### Check for errors
@@ -79,7 +88,7 @@ Look for:
 
 - Page loads without blank screen
 - No JavaScript errors in browser console
-- No server errors in the terminal running `pnpm dev`
+- No server errors in the dev server log (dev-server.log)
 
 ### Test operations
 
@@ -127,7 +136,7 @@ agent-browser snapshot
 
 ### Check server terminal
 
-Look at the terminal running `pnpm dev` for:
+Look at the dev server log (dev-server.log) for:
 
 - Unhandled promise rejections
 - Database connection errors

@@ -12,6 +12,7 @@
 #   context-snapshot <out-dir>         — write <out-dir>/context.md with stack/aliases/colocated layout (no LLM)
 #   init-state <issue-number> <out-dir> — write a minimal .b7/state.json scaffold for publish-docs.sh
 #   verify-worktree <dir>              — verify the worktree was created by setup-worktree.sh (marker + symlinks + dev.sh + location)
+#   verify-port <port> <worktree-dir>  — verify the dev server on <port> is serving <worktree> (cwd match); exit 40 nadie escucha, 41 intruso
 #   validate-triage <triage.json>      — validate .b7/triage.json against triage-output.schema.json (required/enums/additionalProperties); exit 4 on invalid
 #
 # Env knobs:
@@ -507,6 +508,50 @@ HINT
   return 0
 }
 
+cmd_verify_port() {
+  # verify-port <port> <worktree-dir>
+  # Confirma que quien escucha en <port> es un proceso cuyo cwd ES el worktree.
+  # Evita revisar/servir master cuando otro dev server viejo ocupa el puerto
+  # (dev.sh sin --strictPort derivaba a PORT+1 en silencio). Ver issue #6.
+  local port="${1:-}" dir="${2:-}"
+  if [ -z "$port" ] || [ -z "$dir" ]; then
+    echo "verify-port: usage: verify-port <port> <worktree-dir>" >&2
+    return 2
+  fi
+
+  # pid(s) escuchando en el puerto. Puede haber varios (worker + master de vite).
+  local pids
+  pids="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)"
+  if [ -z "$pids" ]; then
+    echo "verify-port: FAIL nadie escucha en :$port (dev server no levanto)" >&2
+    return 40
+  fi
+
+  local want
+  want="$(cd "$dir" 2>/dev/null && pwd -P || realpath "$dir" 2>/dev/null || echo "$dir")"
+
+  local pid cwd got
+  for pid in $pids; do
+    # cwd del pid: lsof -Fn imprime lineas 'n<path>' para el fd cwd.
+    cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+    [ -z "$cwd" ] && continue
+    got="$(realpath "$cwd" 2>/dev/null || echo "$cwd")"
+    if [ "$got" = "$want" ]; then
+      echo "B7_PORT_OK port=$port pid=$pid cwd=$got"
+      return 0
+    fi
+  done
+
+  # Ninguno de los listeners tiene cwd == worktree: intruso.
+  pid="$(printf '%s\n' $pids | head -1)"
+  cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
+  echo "verify-port: FAIL :$port lo sirve un proceso ajeno al worktree" >&2
+  echo "  esperado cwd: $want" >&2
+  echo "  intruso pid=$pid cwd=${cwd:-desconocido}" >&2
+  echo "  hint: mata ese proceso (kill $pid) o revisa que dev.sh use --strictPort" >&2
+  return 41
+}
+
 cmd_validate_triage() {
   local file="${1:-}"
   if [ -z "$file" ]; then
@@ -582,8 +627,9 @@ case "${1:-}" in
   context-snapshot) shift; cmd_context_snapshot "$@" ;;
   init-state)       shift; cmd_init_state "$@" ;;
   verify-worktree)  shift; cmd_verify_worktree "$@" ;;
+  verify-port)      shift; cmd_verify_port "$@" ;;
   *)
-    echo "Usage: $0 {preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|validate-triage <triage.json>}" >&2
+    echo "Usage: $0 {preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|verify-port <port> <worktree>|validate-triage <triage.json>}" >&2
     exit 2
     ;;
 esac

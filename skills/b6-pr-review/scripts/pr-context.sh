@@ -1,20 +1,47 @@
 #!/usr/bin/env bash
 # pr-context.sh — Recolecta todo el contexto de un PR para revision
-# Uso: bash pr-context.sh <PR_NUMBER>
+# Uso: bash pr-context.sh <PR_NUMBER> [--light]
+#   --light: fuerza modo light (modo efectivo = flag O size-gate)
 set -euo pipefail
 
-PR="${1:?Uso: pr-context.sh <PR_NUMBER>}"
+PR="${1:?Uso: pr-context.sh <PR_NUMBER> [--light]}"
+FORCE_LIGHT=0
+[ "${2:-}" = "--light" ] && FORCE_LIGHT=1
 
+# Meta una sola vez: sirve para PR_META y para el size-gate (adds+dels/files).
+META=$(gh pr view "$PR" --json number,title,body,author,state,baseRefName,headRefName,additions,deletions,changedFiles,labels,createdAt,url)
+ADD=$(echo "$META" | jq -r '.additions // 0')
+DEL=$(echo "$META" | jq -r '.deletions // 0')
+NFILES=$(echo "$META" | jq -r '.changedFiles // 0')
+
+# Size-gate: light si el PR es chico (adds+dels<300 && files<5), sino full.
+# Modo efectivo = flag --light O gate.
+MODE=full
+if [ "$FORCE_LIGHT" = 1 ] || { [ $((ADD + DEL)) -lt 300 ] && [ "$NFILES" -lt 5 ]; }; then
+  MODE=light
+fi
+
+# Lista de archivos y diff completo: una sola llamada a cada modo del comando (2 en total).
+FILES=$(gh pr diff "$PR" --name-only)
+DIFF=$(gh pr diff "$PR")
+
+echo "=== REVIEW_MODE ==="
+echo "$MODE"
+
+echo ""
 echo "=== PR_META ==="
-gh pr view "$PR" --json number,title,body,author,state,baseRefName,headRefName,additions,deletions,changedFiles,labels,createdAt,url
+echo "$META"
 
 echo ""
 echo "=== PR_FILES ==="
-gh pr diff "$PR" --name-only
+echo "$FILES"
 
-echo ""
-echo "=== PR_DIFF_STAT ==="
-gh pr diff "$PR" --stat 2>/dev/null || echo "(stat no disponible)"
+# En light el size-gate ya acota el PR; el stat per-archivo es redundante.
+if [ "$MODE" != light ]; then
+  echo ""
+  echo "=== PR_DIFF_STAT ==="
+  echo "$DIFF" | git apply --stat 2>/dev/null || echo "(stat no disponible)"
+fi
 
 echo ""
 echo "=== PR_COMMITS ==="
@@ -22,7 +49,7 @@ gh pr view "$PR" --json commits --jq '.commits[] | "\(.oid[0:7]) \(.messageHeadl
 
 echo ""
 echo "=== PR_DIFF ==="
-gh pr diff "$PR"
+echo "$DIFF"
 
 echo ""
 echo "=== PR_CHECKS ==="
@@ -31,7 +58,8 @@ gh pr checks "$PR" 2>/dev/null || echo "(sin checks)"
 echo ""
 echo "=== CLASSIFY_FILES ==="
 # Clasifica archivos cambiados por tipo para guiar la revision
-gh pr diff "$PR" --name-only | while read -r f; do
+echo "$FILES" | while read -r f; do
+  [ -z "$f" ] && continue
   case "$f" in
     *+page.server.ts)      echo "LOAD_SERVER: $f" ;;
     *+page.ts)             echo "LOAD_UNIVERSAL: $f" ;;

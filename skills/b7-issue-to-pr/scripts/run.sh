@@ -60,15 +60,19 @@ export B7_NO_PR="$NO_PR"
 export B7_MODE="$MODE"
 export B7_ISSUE="$ISSUE"
 
-# 1. Preflight
-if ! "$GUARDRAILS" preflight "$ISSUE"; then
-  echo "run.sh: preflight failed; refusing to start" >&2
-  exit $?
-fi
+# 1. Preflight. NO envolver en `if !`: la negacion resetea $? (el bug historico
+# hacia `exit $?` = exit 0 tras el echo, y los callers headless veian exito).
+"$GUARDRAILS" preflight "$ISSUE" || {
+  rc=$?
+  echo "run.sh: preflight failed (rc=$rc); refusing to start" >&2
+  exit "$rc"
+}
 
-# 2. Lock (released on EXIT regardless of how we leave)
-LOCK_PATH="$("$GUARDRAILS" acquire-lock)"
-trap '"$GUARDRAILS" release-lock' EXIT
+# 2. Lock. Owner = $PPID (el proceso que invoco este script: cron/launchd/orquestador),
+# que sobrevive al handoff. SIN trap EXIT a proposito: el lock debe sobrevivir a run.sh
+# porque la fase LLM lo retiene; se libera con `guardrails.sh release-lock` al cierre
+# del run (exito, abort o bail — ver SKILL.md, Manejo de errores).
+LOCK_PATH="$("$GUARDRAILS" acquire-lock "$PPID")"
 
 STATE_DIR="$("$GUARDRAILS" state-dir)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -126,4 +130,6 @@ echo "SCRATCH_DIR=${SCRATCH_DIR}"
 
 # After this point, the LLM-driven part of the skill takes over. Claude reads SKILL.md
 # and invokes b1-triage-issue, b1-add-worktree --headless, b2-build-feature, etc.
-# This script's job is done; the lock is held by the trap until Claude's run ends.
+# The lock persists past this script ON PURPOSE: every terminal path of the run
+# (success, abort, bail) must call `guardrails.sh release-lock`. Staleness fallback:
+# a lock untouched for B7_LOCK_STALE_SECS (2h) is reclaimed by the next preflight.

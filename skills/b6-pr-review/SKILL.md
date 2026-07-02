@@ -33,7 +33,7 @@ Si no hay PR, informa al usuario que necesitas un PR existente.
 Ejecuta el script que recopila todo el contexto del PR:
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/pr-context.sh" <PR_NUMBER>
 ```
 
@@ -92,11 +92,13 @@ Evalua:
    - **Helpers que envuelven una llamada**: una función que solo reenvía a otra → inline.
    - **Marcador `// ponytail:`**: si un atajo está marcado así, es una simplificación **deliberada** — NO la reportes como ignorancia. Validá que el techo nombrado (ej. "client-side <1000 items", "lock global") sea razonable para el caso; solo es finding si el techo ya se superó (ej. ponytail dice "<1000 items" pero la query trae 50k). Un atajo sano marcado con ponytail es **OK**, no WARNING.
    - **Prosa de más**: comentarios que explican el QUÉ (el código ya lo dice), docstrings de párrafos, comentarios que referencian el task/PR. SUGGESTION para borrarlos. (Excepción: `// ponytail:` es la prosa válida — marca intención.)
-2. **Arquitectura colocada por feature**: Los archivos estan en la estructura correcta?
+2. **Arquitectura colocada por feature**: Los archivos estan en la estructura correcta? Spec canonica (regla 99%, tabla de excepciones `$lib`, tolerancia legacy, checklist): `../b2-build-feature/references/slice-spec.md`.
    - Todo el feature vive en su carpeta de ruta `src/routes/<feature>/` (pagina, remote, componentes, types)
    - `+page.svelte` ES la pantalla; componentes como hermanos PascalCase, sin subcarpeta `ui/` ni `src/lib/features/`
    - Remote functions en `<feature>.remote.ts` (fuera de `src/lib/server/`), no el generico `data.remote.ts`
-   - Server-only code en `.server.ts` colocados; solo lo realmente compartido vive en `$lib`
+   - Server-only code en `.server.ts` colocados; solo lo realmente compartido vive en `$lib` (excepciones taxativas del spec: shadcn, css, db, transversales 3+ features)
+   - **Tolerancia legacy**: editar un feature existente bajo `src/lib/features/` siguiendo su patron interno NO es finding; crear un feature NUEVO ahi es BLOCKER.
+   - Feature nuevo sin su `<feature>.md` colocado (doc del slice) → WARNING
 3. **Convenciones**:
    - shadcn-svelte con namespace imports (`import * as Card from ...`)
    - Lucide con deep imports (`import Plus from '@lucide/svelte/icons/plus'`)

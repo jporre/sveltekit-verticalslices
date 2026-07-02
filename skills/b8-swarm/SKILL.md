@@ -150,7 +150,8 @@ export const meta = {
 // args: { issues:[192,193], worktree:'/abs/path', branch:'refactor/...', dryRun:false, onError:'continue' }
 const TRIAGE = {
   type:'object', required:['issue','verdict'],
-  properties:{ issue:{type:'number'}, verdict:{enum:['ready','needs-info','reject']},
+  properties:{ issue:{type:'number'}, verdict:{enum:['ready','needs-info','duplicate','blocked','closed']},
+    complexity:{enum:['simple','medium','complex']},
     type:{type:'string'}, scope:{type:'string'},
     screens:{type:'array'}, plan:{type:'array'}, note:{type:'string'} },
 }

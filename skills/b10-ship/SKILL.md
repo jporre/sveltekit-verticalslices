@@ -65,7 +65,7 @@ Skill b-pipeline:b1-triage-issue "<N> --auto"
 Parsear la ultima linea `TRIAGE_RESULT {...}`. **Fallback si falta:** leer labels del issue (`ready`/`needs-info`/`blocked`/`duplicate` + `simple`/`medium`/`complex`).
 
 - `verdict=ready` y complexity `simple|medium` → fase 3.
-- `verdict=ready` y complexity `complex` → **GATE**: b7 baila con complejidad L por politica propia. Preguntar via `AskUserQuestion`: "Issue #N es complex — ¿forzar b7 / construir interactivo (b2) / saltar?". Si elige forzar: `Skill b-pipeline:b7-issue-to-pr "<N> --lang=es --force-complex"` (b7 soporta el flag; los budgets siguen aplicando). En headless: comentar en el issue, no tocar labels, parar.
+- `verdict=ready` y complexity `complex` → **GATE**: b7 baila con complejidad complex por politica propia. Preguntar via `AskUserQuestion`: "Issue #N es complex — ¿forzar b7 / construir interactivo (b2) / saltar?". Si elige forzar: `Skill b-pipeline:b7-issue-to-pr "<N> --lang=es --force-complex"` (b7 soporta el flag; los budgets siguen aplicando). En headless: comentar en el issue, no tocar labels, parar.
 - `verdict=needs-info|blocked|duplicate|closed` → las preguntas/razones ya quedaron en el issue (las posteo b1). Notificar (PushNotification si esta disponible) y parar. Reanudacion: cuando el reporter responda, el proximo re-run detecta el comentario nuevo (`B10_NEEDS_INFO_ANSWERED=true`) y re-triagea solo.
 
 ### 3. Build

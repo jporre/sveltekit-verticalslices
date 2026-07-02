@@ -12,6 +12,7 @@
 #   context-snapshot <out-dir>         — write <out-dir>/context.md with stack/aliases/colocated layout (no LLM)
 #   init-state <issue-number> <out-dir> — write a minimal .b7/state.json scaffold for publish-docs.sh
 #   verify-worktree <dir>              — verify the worktree was created by setup-worktree.sh (marker + symlinks + dev.sh + location)
+#   validate-triage <triage.json>      — validate .b7/triage.json against triage-output.schema.json (required/enums/additionalProperties); exit 4 on invalid
 #
 # Env knobs:
 #   B7_MAX_OPEN_PRS    (default 3)     — backpressure threshold for open auto-pr-bot PRs
@@ -506,8 +507,72 @@ HINT
   return 0
 }
 
+cmd_validate_triage() {
+  local file="${1:-}"
+  if [ -z "$file" ]; then
+    echo "validate-triage: usage: validate-triage <triage.json>" >&2
+    return 2
+  fi
+  if [ ! -f "$file" ]; then
+    echo "VALIDATE_TRIAGE_FAIL file=$file reason=not-found" >&2
+    return 4
+  fi
+  local schema="$SCRIPT_DIR/../templates/triage-output.schema.json"
+  if [ ! -f "$schema" ]; then
+    echo "validate-triage: schema not found at $schema" >&2
+    return 3
+  fi
+
+  # Validacion mecanica contra el schema (draft 2020-12, subset): required, enums
+  # de propiedades de primer nivel, y additionalProperties:false. No depende de la
+  # libreria jsonschema (no siempre instalada); implementa el subset que importa.
+  python3 - "$file" "$schema" <<'PY'
+import json, sys
+
+triage_path, schema_path = sys.argv[1], sys.argv[2]
+
+def fail(reason):
+    print(f"VALIDATE_TRIAGE_FAIL file={triage_path} reason={reason}", file=sys.stderr)
+    sys.exit(4)
+
+try:
+    with open(triage_path) as f:
+        data = json.load(f)
+except json.JSONDecodeError as e:
+    fail(f"invalid-json:{e}")
+
+with open(schema_path) as f:
+    schema = json.load(f)
+
+if not isinstance(data, dict):
+    fail("root-not-object")
+
+props = schema.get("properties", {})
+
+# required
+for key in schema.get("required", []):
+    if key not in data:
+        fail(f"missing-required:{key}")
+
+# additionalProperties:false → sin claves desconocidas de primer nivel
+if schema.get("additionalProperties") is False:
+    unknown = [k for k in data if k not in props]
+    if unknown:
+        fail(f"unknown-keys:{','.join(sorted(unknown))}")
+
+# enums de propiedades de primer nivel presentes
+for key, spec in props.items():
+    if key in data and isinstance(spec, dict) and "enum" in spec:
+        if data[key] not in spec["enum"]:
+            fail(f"bad-enum:{key}={data[key]}:allowed={'|'.join(map(str, spec['enum']))}")
+
+print(f"validate-triage OK: {triage_path}")
+PY
+}
+
 case "${1:-}" in
   preflight)        shift; cmd_preflight "$@" ;;
+  validate-triage)  shift; cmd_validate_triage "$@" ;;
   check-budget)     shift; cmd_check_budget "$@" ;;
   acquire-lock)     shift; cmd_acquire_lock "$@" ;;
   release-lock)     shift; cmd_release_lock "$@" ;;
@@ -518,7 +583,7 @@ case "${1:-}" in
   init-state)       shift; cmd_init_state "$@" ;;
   verify-worktree)  shift; cmd_verify_worktree "$@" ;;
   *)
-    echo "Usage: $0 {preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>}" >&2
+    echo "Usage: $0 {preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|validate-triage <triage.json>}" >&2
     exit 2
     ;;
 esac

@@ -168,7 +168,7 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
 
 ```json
 {
-  "verdict": "ready|needs-info|reject",
+  "verdict": "ready|needs-info|duplicate|blocked|closed",
   "type": "feat|fix|chore|docs",
   "scope": "<feature-name>",
   "language": "es|en",
@@ -183,7 +183,7 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
     }
   ],
   "security_review_required": false,
-  "estimated_complexity": "S|M|L",
+  "estimated_complexity": "simple|medium|complex",
   "plan": [
     {"id": "schema-rut", "desc": "Agregar columna rut a ta_persona + migración", "done": false},
     {"id": "remote-fn",  "desc": "Actualizar create_persona/update_persona con rut", "done": false},
@@ -191,6 +191,8 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
   ]
 }
 ```
+
+Tras escribir `.b7/triage.json`, **validar mecánicamente** contra el schema antes de seguir: `bash scripts/guardrails.sh validate-triage .b7/triage.json`. Si sale exit 4 (verdict/complexity fuera del enum, falta un required, o clave desconocida por `additionalProperties:false`), el triage es inválido — corregirlo y re-validar; no continuar con un artefacto que los sub-skills no van a poder consumir.
 
 El `plan[]` es la lista accionable que el orquestador planifica **antes de implementar** y verifica **al cierre** (gate DoD #6). Mantener 3–8 items; nada de micro-tareas. Los sub-agentes marcan progreso con:
 
@@ -204,7 +206,7 @@ Si `verdict != "ready"`: comentar en el issue (en su idioma — `language` del J
 
 Si `security_review_required: true`: forzar `--no-pr` y marcar para revisión humana en el reporte.
 
-Si `estimated_complexity == "L"` y NO se paso `--force-complex`: comentar y bailar (excede el alcance del bot). Con `--force-complex` (lo pasa b10-ship tras confirmacion humana explicita): continuar, pero registrar en el sticky y el run-report que el run corre fuera del alcance default — los budgets siguen aplicando.
+Si `estimated_complexity == "complex"` y NO se paso `--force-complex`: comentar y bailar (excede el alcance del bot). Con `--force-complex` (lo pasa b10-ship tras confirmacion humana explicita): continuar, pero registrar en el sticky y el run-report que el run corre fuera del alcance default — los budgets siguen aplicando.
 
 ### 2. Worktree headless — PASO OBLIGATORIO #1
 

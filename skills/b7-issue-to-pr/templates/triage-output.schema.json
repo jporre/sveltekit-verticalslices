@@ -8,8 +8,8 @@
   "properties": {
     "verdict": {
       "type": "string",
-      "enum": ["ready", "needs-info", "reject"],
-      "description": "ready = b7 sigue. needs-info/reject = b7 baila."
+      "enum": ["ready", "needs-info", "duplicate", "blocked", "closed"],
+      "description": "Vocabulario canonico de b1-triage-issue. ready = b7 sigue. needs-info/duplicate/blocked/closed = b7 baila."
     },
     "type": {
       "type": "string",
@@ -74,8 +74,17 @@
     },
     "estimated_complexity": {
       "type": "string",
-      "enum": ["S", "M", "L"],
-      "description": "S: <5 archivos, <300 líneas. M: <15 archivos, <800 líneas. L: por encima -- bot baila."
+      "enum": ["simple", "medium", "complex"],
+      "description": "Vocabulario canonico de b1. simple: <5 archivos, <300 líneas. medium: <15 archivos, <800 líneas. complex: por encima -- bot baila salvo --force-complex."
+    },
+    "user_directives": {
+      "type": "string",
+      "description": "Texto libre que el usuario pasó junto al número de issue (--directives). Refina el scope de implementación; no altera la obligatoriedad de los pasos de b7."
+    },
+    "blocked_by": {
+      "type": "array",
+      "items": {"type": "number"},
+      "description": "Números de issue que bloquean a este. Poblado cuando verdict=blocked."
     },
     "blockers": {
       "type": "array",

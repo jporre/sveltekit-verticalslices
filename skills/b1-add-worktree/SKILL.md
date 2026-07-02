@@ -40,6 +40,12 @@ $ARGUMENTS
 
 4. **Ensure clean working tree**: Before running the script, check `git status`. If there are uncommitted changes, commit them first (ask the user for confirmation). The script will abort if the tree is dirty, so this step prevents failures.
 
+4b. **Env-check runtimes + DB — MANDATORY**: Before creating the worktree, verify the environment blockers that make `setup-worktree.sh` fail late (missing `pnpm`/`node`, DB unreachable). Run only the runtime and DB checks of b7's `env-check` (via `B_ENV_CHECKS=bin,db`); it emits one `B_ENV name=<check> status=ok|fail|warn hint=<action>` line per check and exits `19` if any hard check fails. If it exits non-zero, stop and report — do not attempt the worktree.
+
+   ```bash
+   B_ENV_CHECKS=bin,db bash "${CLAUDE_PLUGIN_ROOT:-...}/skills/b7-issue-to-pr/scripts/guardrails.sh" env-check
+   ```
+
 5. **Run the script — MANDATORY**: You MUST invoke `setup-worktree.sh` exactly as shown. Do NOT call `git worktree add` directly, do NOT recreate the steps inline, do NOT skip ahead by symlinking `.env` or running `pnpm install` yourself. The script handles worktree creation, symlinks every `.env*` file, picks a free dev port, generates a `dev.sh` shim, installs dependencies, and opens a terminal — all of those are required for the worktree to be "ready for dev/test".
 
    ```bash

@@ -37,7 +37,8 @@ MB="$(git merge-base "$BASE" HEAD 2>/dev/null)" || { echo "ERROR: base-ref inval
 # git diff NO lista archivos untracked (nuevos sin `git add`); los sumamos como A
 # para que el check funcione tanto pre-commit (b2) como sobre commits (b6).
 CHANGED="$(git diff --name-status "$MB")"
-UNTRACKED="$(git ls-files --others --exclude-standard | sed 's/^/A\t/')"
+TAB="$(printf '\t')"
+UNTRACKED="$(git ls-files --others --exclude-standard | sed "s/^/A${TAB}/")"
 [ -n "$UNTRACKED" ] && CHANGED="${CHANGED:+$CHANGED
 }${UNTRACKED}"
 

@@ -158,6 +158,13 @@ cmd_preflight() {
     return 18
   fi
 
+  # Codegraph: probe INFORMATIVO (nunca gate — decision del owner). Emite la linea
+  # CODEGRAPH_STATUS=...; los sub-skills eligen codegraph_* vs rg segun el status.
+  local cg_probe="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/codegraph-probe.sh"
+  if [ -x "$cg_probe" ]; then
+    bash "$cg_probe" "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" || true
+  fi
+
   echo "preflight OK: issue #$issue eligible; open bot PRs=$open_count/$B7_MAX_OPEN_PRS"
   return 0
 }
@@ -347,6 +354,26 @@ Spec completa: skills/b2-build-feature/references/slice-spec.md (en el plugin).
 - \`\$effect\` con Chart.js / similares (loop infinito)
 - Wrapping de \`error()\`/\`redirect()\` en try/catch
 - Re-exportar tipos por compat sin uso real
+EOF
+
+  # Codegraph: probe informativo (nunca gate). El status decide la herramienta de
+  # exploracion que usan los sub-skills; se deja escrito en el snapshot.
+  local cg_probe cg_line
+  cg_probe="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/codegraph-probe.sh"
+  if [ -x "$cg_probe" ]; then
+    cg_line="$(bash "$cg_probe" "$repo_root" 2>/dev/null | tail -1)"
+  fi
+  cg_line="${cg_line:-CODEGRAPH_STATUS=missing db_age_days=-1}"
+  cat >> "$out" <<EOF
+
+## Codegraph
+Estado (probe informativo, nunca gate): \`$cg_line\`
+
+Regla: si el status **no es \`ok\`** (\`stale\`/\`missing\`/\`broken\`), usar \`rg\`/grep para
+ubicar simbolos/rutas y **NO** invocar las tools \`codegraph_*\` (devolverian datos
+stale o fallarian). Solo con status \`ok\` preferir \`codegraph_search\`/\`codegraph_context\`
+(mas rapido que grep; suele evitar el fan-out de Explore). El probe SIEMPRE sale 0:
+el status es recomendacion, no error.
 EOF
 
   echo "context-snapshot: wrote $out"

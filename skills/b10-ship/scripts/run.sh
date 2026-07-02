@@ -25,6 +25,7 @@ ASSERT_CLEAN="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh"
 SETUP_WT="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh"
 PUBLISH_DOCS="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh"
 VERDICT_SH="$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh"
+CG_PROBE="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/codegraph-probe.sh"
 LOCK_STALE_SECS="${B10_LOCK_STALE_SECS:-21600}"
 HEARTBEAT_STALE_SECS="${B10_HEARTBEAT_STALE_SECS:-7200}"
 
@@ -53,6 +54,9 @@ cmd_preflight() {
   grep -q 'backpressure' "$B8_GUARD" || { echo "b10: guardrails.sh perdio el subcomando backpressure" >&2; missing=1; }
   [ "$missing" -eq 0 ] || return 2
   bash "$B8_GUARD" backpressure || return $?
+  # Codegraph: probe INFORMATIVO (nunca gate). Emitir la linea para el operador;
+  # los sub-skills eligen codegraph_* vs rg segun el status.
+  [ -x "$CG_PROBE" ] && bash "$CG_PROBE" "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" || true
   echo "B10_PREFLIGHT=ok"
 }
 

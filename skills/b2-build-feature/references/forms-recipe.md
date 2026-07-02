@@ -38,7 +38,7 @@ export const get_items = query(async () => {
 const upsertSchema = z.object({
   id: z.string().optional(),
   nombre: z.string().min(1, 'Nombre requerido'),
-  activo: z.boolean().default(false),        // Checkbox
+  activo: z.coerce.boolean(),                 // Checkbox via hidden input (string -> bool)
   categoria: z.string().min(1, 'Elegi una categoria'), // Select
   plan: z.enum(['free', 'pro'], { message: 'Elegi un plan' }),  // RadioGroup
   vence: z.string().min(1, 'Fecha requerida'), // Calendar/date -> YYYY-MM-DD
@@ -157,7 +157,8 @@ input the form actually submits. Errors come from `fields.categoria.issues()`.
 ## 3. Checkbox (shadcn) — bind + hidden input
 
 `Checkbox` renders a `button[role=checkbox]`. Bind the boolean, mirror into a hidden input.
-Schema field is `z.boolean()`.
+A hidden input carries a **string**, so the schema field is `z.coerce.boolean()` (send `'true'`
+when checked, `''` when not — `Boolean('true') === true`, `Boolean('') === false`).
 
 ```svelte
 <script lang="ts">
@@ -175,9 +176,9 @@ Schema field is `z.boolean()`.
 {/each}
 ```
 
-> Boolean coercion: an empty string is falsy for `z.boolean()` via SvelteKit's checkbox
-> coercion — send `'true'` when checked, `''` otherwise. For a single boolean without the
-> shadcn styling, a native `<input {...fields.activo.as('checkbox')}>` needs no bridge.
+> For a single boolean without the shadcn styling, prefer a native
+> `<input {...fields.activo.as('checkbox')}>` with a plain `z.boolean()` schema — SvelteKit
+> does real boolean coercion for `type=checkbox` and no bridge is needed.
 
 ---
 

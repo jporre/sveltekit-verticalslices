@@ -12,6 +12,14 @@ $ARGUMENTS
 
 **Flag `--auto`** (para orquestadores como b7/b10 — modo desatendido): no ofrecer acciones interactivas en el Paso 5; publicar el reporte directo como comentario del PR (con el marker de veredicto) y terminar con la linea `B6_VERDICT`.
 
+**Flag `--light`** (revision acotada para PRs chicos): reduce la profundidad de lectura sin cambiar el reporte ni el veredicto. **Modo efectivo = flag O size-gate**: el `pr-context.sh` emite la seccion `=== REVIEW_MODE ===` con `light` cuando `additions+deletions < 300 && changedFiles < 5`, sino `full`; si se pasa `--light`, se fuerza `light` aunque el gate diga `full`. En modo `light`:
+
+- **Area 2** (calidad de codigo): revisar solo los hunks del diff; NO leer los archivos completos.
+- **Areas 3 y 4** (seguridad, anti-patrones): usar solo las listas inline de este SKILL; NO leer los archivos `references/*`.
+- **Area 5** (duplicacion): revisar solo funciones NUEVAS exportadas; saltar el barrido de zonas de alto riesgo.
+
+El reporte, el marker `<!-- b6:verdict -->` y la linea `B6_VERDICT` son **identicos en ambos modos** (los parsers de b7/b9/b10 no cambian); en `light` la cabecera del reporte agrega `modo: light`.
+
 # SvelteKit PR Review
 
 Revisa un pull request existente en GitHub con foco en calidad, seguridad, y patrones correctos de SvelteKit/Svelte 5.
@@ -34,13 +42,16 @@ Ejecuta el script que recopila todo el contexto del PR:
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
-bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/pr-context.sh" <PR_NUMBER>
+# Agregar `--light` como segundo arg si el usuario/orquestador paso ese flag (fuerza modo light).
+bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/pr-context.sh" <PR_NUMBER> [--light]
 ```
 
 Lee el output completo. El script entrega:
 
+- **REVIEW_MODE**: `light` o `full` (size-gate + flag). Determina la profundidad de las Areas 2–5 (ver flag `--light` arriba).
 - **PR_META**: titulo, descripcion, autor, stats
 - **PR_FILES**: archivos cambiados
+- **PR_DIFF_STAT**: diffstat per-archivo (solo en modo `full`)
 - **PR_DIFF**: el diff completo
 - **PR_COMMITS**: historial de commits
 - **CLASSIFY_FILES**: archivos clasificados por tipo (LOAD_SERVER, REMOTE_FUNCTION, API_ENDPOINT, SVELTE_COMPONENT, etc.)
@@ -84,6 +95,8 @@ Si el body esta vacio o es un placeholder, es un BLOCKER.
 
 Lee los archivos cambiados con atencion. Para archivos `.svelte` y `.ts` relevantes, lee el archivo completo (no solo el diff) para entender el contexto.
 
+> **Modo `light`:** revisar solo los hunks del diff; NO leer los archivos completos.
+
 Evalua:
 
 1. **Simplicidad (lente de la escalera perezosa)**: El codigo es directo o hay sobre-ingenieria? Lente — ¿pasaron de largo un peldaño que aguantaba? (¿una abstraccion nueva donde la stdlib/SvelteKit/una dep ya instalada bastaba? ¿un service layer para CRUD simple? ¿una dependencia nueva para lo que son unas lineas?). Banderas concretas:
@@ -116,6 +129,8 @@ Evalua:
 
 Lee `references/security-checklist.md` para los patrones detallados. Revisa CADA archivo segun su clasificacion:
 
+> **Modo `light`:** usar solo las listas inline de esta area; NO leer `references/security-checklist.md`.
+
 **Para archivos LOAD_SERVER y LAYOUT_SERVER** (`+page.server.ts`, `+layout.server.ts`):
 
 - Tiene verificacion de `locals.user`?
@@ -147,6 +162,8 @@ Lee `references/security-checklist.md` para los patrones detallados. Revisa CADA
 
 Lee `references/sveltekit-antipatterns.md` para la lista completa. Busca estos patrones en el diff:
 
+> **Modo `light`:** usar solo la lista inline de esta area; NO leer `references/sveltekit-antipatterns.md`.
+
 **En archivos SVELTE_COMPONENT** (`.svelte`):
 
 1. `goto()` para navegacion simple (deberia ser `href`)
@@ -172,6 +189,8 @@ Cada anti-patron encontrado es al menos WARNING (BLOCKER si causa bugs).
 ### Area 5: Funcionalidad duplicada
 
 El PR puede introducir funciones que ya existen en el codebase con otro nombre o forma ligeramente distinta. Este problema es especialmente comun en proyectos donde multiples desarrolladores (o LLMs) agregan codigo sin conocer lo que ya existe.
+
+> **Modo `light`:** revisar solo funciones NUEVAS exportadas; saltar el barrido completo de zonas de alto riesgo.
 
 **Zonas de alto riesgo** donde la duplicacion es mas frecuente:
 
@@ -213,7 +232,7 @@ Presenta el reporte con este formato exacto:
 ```markdown
 # PR Review: #<NUMBER> — <TITLE>
 
-**Autor**: <author> | **Branch**: <head> → <base> | **Archivos**: <N> | **+<additions> / -<deletions>**
+**Autor**: <author> | **Branch**: <head> → <base> | **Archivos**: <N> | **+<additions> / -<deletions>**<!-- si REVIEW_MODE=light, agregar: --> | **modo: light**
 
 ---
 

@@ -106,7 +106,7 @@ gh pr view "$PR" --json comments,reviews \
 
 - Si **≥1** → review presente. Extraer el marker `<!-- b6:verdict=... blockers=N warnings=M -->` (ultimo si hay varios): si `blockers > 0` sin resolver, PARA y reportá.
 - Si **0** → no hubo review. **Ofrecé correrlo ahora** (`Skill b-pipeline:b6-pr-review` con el número de PR). No mergees sin review.
-- **Frescura**: si PASO 1.5 commiteo/pusheo commits nuevos (`SYNCED=1`), el review existente no los cubre — re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto"` antes de seguir.
+- **Frescura**: si PASO 1.5 commiteo/pusheo commits nuevos (`SYNCED=1`), el review existente no los cubre — re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"` antes de seguir. El commit de sync suele ser chico; `--light` combina con el size-gate para no re-revisar full una rama ya aprobada.
 
 ## PASO 3: Resumen pre-merge
 

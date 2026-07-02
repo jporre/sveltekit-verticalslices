@@ -283,6 +283,7 @@ Invocar `b2-build-feature` **vía sub-agente** (`Agent(subagent_type=general-pur
 - Ruta a `.b7/screens/`
 - Ruta a `.b7/context.md`
 - Indicación: respetar layout colocado (feature en `src/routes/<feature>/`), usar Remote Functions Pattern, no introducir state global, errores con `error(STATUS, {message,code})`.
+- Si alguna pantalla del triage tiene form de crear/editar: pointer a `$PLUGIN_ROOT/skills/b2-build-feature/references/forms-recipe.md` (campos nativos vs shadcn no-nativos con hidden-input, `issues()`/aria-invalid siempre visibles, regla `disabled={submitting}` NUNCA `disabled={!isFormValid}`).
 
 Después de cada pasada del sub-agente, ejecutar el bloque de validación. **Skip-by-scope** primero:
 

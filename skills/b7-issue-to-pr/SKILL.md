@@ -42,8 +42,8 @@ git -C "$REPO_MAIN" status --porcelain                  # vacío
 # 4. PR draft abierto y labels del issue sincronizadas
 gh pr list --head "$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD)" --json number,isDraft,url
 gh issue view <N> --json labels -q '.labels[].name'     # contiene "in-review", no "ready"/"auto-pr"
-# 5. b6-pr-review ejecutado, veredicto publicado en el PR (marker durable)
-gh pr view <PR> --json body,comments,reviews | grep -qi 'b6:verdict\|auto-review\|b6-pr-review'
+# 5. b6-pr-review ejecutado, veredicto publicado en el PR (lector unico del marker)
+bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR>   # exit 0 obligatorio (exit 3 = sin review)
 # 6. Plan estructurado completo (todos los items done o plan vacío)
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh" plan-check --worktree "$WORKTREE"   # exit 0 obligatorio
 # 7. Worktree limpio post-commit (NADA fuera del commit — exit 0 obligatorio)
@@ -441,13 +441,13 @@ Cuando el PR mergea, el `Closes #<issue>` cierra el issue automáticamente — n
 Apenas el PR está abierto (incluso draft), invocar `b6-pr-review "<PR> --auto"`. **b6 en modo `--auto` publica el reporte por si mismo** (`gh pr comment` con el marker `<!-- b6:verdict=... -->`) — NO volver a postearlo desde aca (doble posteo). Verificar que quedo publicado:
 
 ```bash
-gh pr view <PR> --json comments -q '.comments[].body' | grep -q 'b6:verdict' \
-  || echo "WARN: b6 no publico el veredicto — postear .b7/review/pr-<PR>.md como fallback"
+bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR> \
+  || echo "WARN: b6 no publico el veredicto (exit 3) — postear .b7/review/pr-<PR>.md como fallback"
 ```
 
-Reglas:
-- Findings `severity: high|critical` → re-iterar implementación (volver a paso 4) si el budget lo permite; si no, escalar a humano y marcar el run como `needs-human-review` en el reporte.
-- Findings `severity: medium|low` → quedan visibles en el PR como sugerencias; no bloquean.
+Reglas (el veredicto b6 se computa de los counts; leer el marker con `verdict.sh read`, nunca parsear a mano):
+- `blockers > 0` en el `B6_VERDICT` → re-iterar implementación (volver a paso 4) si el budget lo permite; si no, escalar a humano y marcar el run como `needs-human-review` en el reporte.
+- `blockers == 0` con `warnings > 0` → quedan visibles en el PR como sugerencias; no bloquean.
 - Saltarse este paso solo si `--no-pr` (porque no hay PR que revisar).
 
 ### 9. Run report

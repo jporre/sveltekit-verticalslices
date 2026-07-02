@@ -112,6 +112,19 @@ Lee los archivos cambiados con atencion. Para archivos `.svelte` y `.ts` relevan
 
 > **Modo `light`:** revisar solo los hunks del diff; NO leer los archivos completos.
 
+**Paso mecánico primero (antes del juicio LLM):** correr `check-slice.sh` sobre la rama del PR.
+Valida la conformidad estructural del slice-spec que no requiere criterio (feature nuevo
+bajo `src/lib/features/`, `data.remote.ts`, `*.remote.ts` bajo `src/lib/server/`, slice
+nuevo sin `<feature>.md`):
+
+```bash
+bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh" "$(gh pr view "$PR" --json baseRefName -q .baseRefName)"
+# → SLICE_CHECK ok | SLICE_CHECK violations=<n>
+```
+
+Cada `VIOLATION` es un finding de arquitectura (BLOCKER/WARNING según el punto 2 de abajo).
+El juicio LLM cubre lo que el script no ve (duplicación, indirección, código muerto).
+
 Evalua:
 
 1. **Simplicidad (lente de la escalera perezosa)**: El codigo es directo o hay sobre-ingenieria? Lente — ¿pasaron de largo un peldaño que aguantaba? (¿una abstraccion nueva donde la stdlib/SvelteKit/una dep ya instalada bastaba? ¿un service layer para CRUD simple? ¿una dependencia nueva para lo que son unas lineas?). Banderas concretas:

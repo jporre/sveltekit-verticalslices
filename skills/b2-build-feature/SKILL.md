@@ -168,6 +168,19 @@ Only add more files — all colocated in the same folder — when justified:
 
 ### Phase 2: Build
 
+**Feature NUEVO: arrancá del esqueleto por script — no improvises la estructura.**
+`scaffold-slice.sh` crea el slice colocado mínimo compilable (`+page.svelte`,
+`<feature>.remote.ts`, `<feature>.md`) siguiendo `references/slice-spec.md` (regla 99%,
+sin `ui/`, sin `data.remote.ts` genérico, sin capa service):
+
+```bash
+bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/scaffold-slice.sh" <feature> [--route-group <g>]
+# → SCAFFOLD_OK dir=src/routes/<feature> files=<csv>
+```
+
+Después rellenás esos archivos (pasos siguientes). Para editar un feature legacy
+existente NO scaffoldees: seguí su patrón interno.
+
 Write files in this exact order. Use absolute paths, avoid cd.
 
 **Step 1: Types** (`types.ts`)
@@ -323,6 +336,14 @@ When a feature needs more screens, split into colocated sibling components and s
 
 Code that compiles but hasn't been tested in a browser is NOT done.
 
+0. **Conformidad del slice (mecánico)** — antes de type-check, corré:
+   ```bash
+   bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh"
+   # → SLICE_CHECK ok | SLICE_CHECK violations=<n>
+   ```
+   Cualquier `VIOLATION` (feature nuevo bajo `src/lib/features/`, `data.remote.ts`,
+   `*.remote.ts` bajo `src/lib/server/`, slice nuevo sin `<feature>.md`) se corrige
+   ANTES de seguir. Es la misma verificación que corre b6 en el review.
 1. `pnpm check:machine` — zero errors in YOUR files before proceeding
 2. `pnpm format`
 3. Run MCP `svelte-autofixer` on each `.svelte` file you created/modified
@@ -354,13 +375,15 @@ After verification passes:
    - **Feature legacy tocado SIN `.md`** → generarlo esta primera vez que un issue lo toca.
 
 2. **Update CHANGELOG.md** — add entry under new date section
-3. **Commit on the branch** — invoke `Skill b-pipeline:b3-git-commit` (pass the issue
+3. **Gate final de conformidad** — re-correr `check-slice.sh` (paso 0 de Phase 3);
+   debe salir `SLICE_CHECK ok`. Con violaciones NO se commitea.
+4. **Commit on the branch** — invoke `Skill b-pipeline:b3-git-commit` (pass the issue
    number if any: it adds the `Refs #N`, stages only your files with intelligent
    grouping, and runs the mandatory clean-tree gate). Do NOT hand-write `git add` +
    `git commit` — two competing commit procedures is how messages drift and files
    get staged by accident.
 
-4. **Report to user** — summarize what was built, what was tested, what's ready for merge. If working from an issue, remind to use `Closes #<N>` in the PR body (the `b4-pull-request` skill will handle this if given the issue number)
+5. **Report to user** — summarize what was built, what was tested, what's ready for merge. If working from an issue, remind to use `Closes #<N>` in the PR body (the `b4-pull-request` skill will handle this if given the issue number)
 
 ## Golden Rules
 0. Commit your changes

@@ -343,14 +343,24 @@ Read `references/verification-checklist.md` for the detailed process.
 
 After verification passes:
 
-1. **Update CHANGELOG.md** — add entry under new date section
-2. **Commit on the branch** — invoke `Skill b-pipeline:b3-git-commit` (pass the issue
+1. **Write/update the feature doc `<feature>.md`** — colocado en `src/routes/<feature>/<feature>.md`.
+   Es la primera parada de debug (ver `references/slice-spec.md`). No es opcional:
+   - **Feature NUEVO** → crear `<feature>.md` con las 6 secciones del slice-spec:
+     **Proposito** (2-3 lineas, lenguaje de usuario), **Pantallas y rutas** (que se ve, donde),
+     **Remote functions** (nombre + una linea de contrato c/u), **Datos** (tablas/vistas que toca),
+     **Decisiones** (por que asi, atajos `ponytail:` relevantes), **Problemas conocidos**.
+   - **Feature EXISTENTE con `.md`** → actualizarlo en ESTE PR si el cambio altera contratos
+     (remote functions, datos) o pantallas.
+   - **Feature legacy tocado SIN `.md`** → generarlo esta primera vez que un issue lo toca.
+
+2. **Update CHANGELOG.md** — add entry under new date section
+3. **Commit on the branch** — invoke `Skill b-pipeline:b3-git-commit` (pass the issue
    number if any: it adds the `Refs #N`, stages only your files with intelligent
    grouping, and runs the mandatory clean-tree gate). Do NOT hand-write `git add` +
    `git commit` — two competing commit procedures is how messages drift and files
    get staged by accident.
 
-3. **Report to user** — summarize what was built, what was tested, what's ready for merge. If working from an issue, remind to use `Closes #<N>` in the PR body (the `b4-pull-request` skill will handle this if given the issue number)
+4. **Report to user** — summarize what was built, what was tested, what's ready for merge. If working from an issue, remind to use `Closes #<N>` in the PR body (the `b4-pull-request` skill will handle this if given the issue number)
 
 ## Golden Rules
 0. Commit your changes

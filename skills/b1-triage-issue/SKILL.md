@@ -79,6 +79,13 @@ Spanish issue → Spanish comment. English → English. Mixed → use the body's
 
 Only reach this step when Step 2 didn't short-circuit. The goal is grounding, not exhaustive exploration.
 
+**4a-doc. Read the feature doc FIRST (antes del grep).** Si el issue es un bug o cambio sobre un feature EXISTENTE, leer su doc colocado `src/routes/<feature>/<feature>.md` (o el `docs/` legacy si el feature vive bajo `src/lib/features/`) ANTES de grepear entidades. El `.md` es la primera parada de debug: da proposito, pantallas/rutas, remote functions, datos y problemas conocidos sin escanear codigo. Si existe, citarlo en el triage (seccion Archivos / Files) y usarlo para acotar el grep de 4a. Si no existe, seguir con 4a normal.
+
+```bash
+# El nombre del feature suele salir de las entidades del issue.
+fd -g '<feature>.md' src/routes 2>/dev/null || find src/routes -name '<feature>.md'
+```
+
 **4a. Extract entities.** Pull 1-3 nouns the issue is about (e.g., "productos", "ventas", "auth", "campaigns"). For each, one targeted grep:
 
 ```bash

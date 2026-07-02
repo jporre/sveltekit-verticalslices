@@ -171,6 +171,15 @@ If any step found issues:
 
 After all verification passes, close out the work:
 
+### Feature doc (`<feature>.md`)
+
+Confirmar que existe `src/routes/<feature>/<feature>.md` (primera parada de debug):
+
+- Feature NUEVO → creado con las 6 secciones del slice-spec (Proposito, Pantallas y rutas,
+  Remote functions, Datos, Decisiones, Problemas conocidos).
+- Feature EXISTENTE con `.md` → actualizado si el cambio altero contratos o pantallas.
+- Feature legacy sin `.md` → generado esta primera vez que se toca.
+
 ### Update CHANGELOG
 
 Add entry to `CHANGELOG.md` under a new date section:
@@ -205,6 +214,7 @@ Never say "done" without stating the testing status.
 Before marking feature as complete, confirm ALL of these:
 
 - [ ] Working on a branch (NOT master)
+- [ ] Doc del feature `<feature>.md` presente (feature nuevo) o actualizada (contratos/pantallas cambiados)
 - [ ] `pnpm check:machine` passes with zero errors in feature files
 - [ ] `pnpm format` has been run
 - [ ] All `.svelte` files pass `svelte-autofixer`

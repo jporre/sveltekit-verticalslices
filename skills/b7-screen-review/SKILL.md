@@ -31,6 +31,7 @@ $ARGUMENTS
 | `criteria_file` | `.b7/screens/BandejaTareasPage.md` | sí |
 | `out_dir` | `.b7/review` | sí |
 | `states` | `golden,empty,error` | no (default `golden`) |
+| `worktree` | `/Users/x/worktrees/6-foo` | no — si viene, el pre-flight gatea con `verify-port` (server debe servir ESE worktree, no master); si falta, cae a `curl` (modo standalone) |
 | `auth_cookie` | _(deprecado)_ | no — ya no se inyecta; se reusa la sesión del Chrome real |
 
 ## Output (contrato con b7)
@@ -75,7 +76,14 @@ Si `ToolSearch` no devuelve las tools (extensión no conectada), abortar con `ve
 
 ### 1. Pre-flight rápido
 
-- El dev server del worktree lo levanta **b7** (paso 5.0) en `$PORT`. Verificar que responde: `curl -fsS http://localhost:<port>/ >/dev/null` (3 reintentos, 2s entre c/u). Si no responde, abortar con `verdict: fail` y `findings: [{severity:error, message:"dev server no responde en port X (¿b7 paso 5.0 lo levantó?)"}]`.
+- El dev server del worktree lo levanta **b7** (paso 5.0) en `$PORT`. Verificar que responde y que sirve el checkout correcto:
+  - **Si vino `worktree`** (invocado por b7): gatear con `verify-port` — confirma que el proceso que escucha en `<port>` tiene su cwd EN ese worktree, no en master. Esto previene el incidente de revisar pantallas contra master cuando un dev server viejo ocupa el puerto:
+    ```bash
+    PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+    bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "<port>" "<worktree>"
+    ```
+    Exit 40 (nadie escucha) o 41 (lo sirve otro cwd) → abortar con `verdict: fail` y `findings: [{severity:error, message:"verify-port fallo: :<port> no sirve el worktree (¿b7 paso 5.0 lo levantó? ¿dev server viejo en el puerto?)"}]`.
+  - **Si NO vino `worktree`** (modo standalone): `curl -fsS http://localhost:<port>/ >/dev/null` (3 reintentos, 2s entre c/u). Si no responde, abortar con `verdict: fail` y `findings: [{severity:error, message:"dev server no responde en port X"}]`.
 - Crear `<out_dir>` si no existe.
 - Leer `<criteria_file>` (markdown plano del triage). Extraer los `acceptance_criteria_visual` como lista checkable.
 

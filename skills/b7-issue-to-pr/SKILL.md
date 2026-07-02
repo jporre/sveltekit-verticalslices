@@ -344,10 +344,15 @@ for i in $(seq 1 20); do
   if curl -fsS "http://localhost:${PORT}/" >/dev/null 2>&1; then echo "dev server UP en :${PORT}"; break; fi
   sleep 2
 done
-curl -fsS "http://localhost:${PORT}/" >/dev/null 2>&1 || { echo "WARN: dev server no levantó — screens se omiten con nota"; }
+# Gate DURO: no basta con que algo responda en el puerto — tiene que ser ESTE
+# worktree. verify-port compara el cwd del proceso listener con $WORKTREE
+# (exit 40 = nadie escucha, exit 41 = lo sirve otro checkout, p.ej. master).
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "$PORT" "$WORKTREE" \
+  || { echo "WARN: verify-port fallo (:${PORT} no sirve el worktree) — screens se omiten con nota"; }
 ```
 
-Si el dev server no levanta tras los reintentos, omitir el review visual con una nota explícita en el run-report (no abortar el run completo) y saltar a 5.9 (no hay nada que apagar si el `pid` no quedó vivo).
+Si `verify-port` sale non-zero (nadie escucha, o el puerto lo sirve otro cwd que no es el worktree), omitir el review visual con una nota explícita en el run-report (no abortar el run completo) y saltar a 5.9 (no hay nada que apagar si el `pid` no quedó vivo). **No revisar pantallas contra un server que no sea el del worktree** — ese fue el incidente que este gate previene (screen-review contra master).
 
 #### 5.1 Auth: reusar la sesión del Chrome real
 
@@ -367,7 +372,7 @@ Para cada pantalla, lanzar **un sub-agente** con `b7-screen-review` en paralelo 
 Agent(
   subagent_type="general-purpose",
   description="Visual review <ScreenName>",
-  prompt="Use skill b7-screen-review with: screen=<Name> route=<route> port=<PORT> criteria_file=.b7/screens/<Name>.md out_dir=.b7/review states=golden. Reusá la sesión del Chrome real (claude-in-chrome) — no hagas login. Cargá primero las MCP tools de claude-in-chrome con ToolSearch. Output: .b7/review/<Name>.json + .b7/review/<Name>-*.png"
+  prompt="Use skill b7-screen-review with: screen=<Name> route=<route> port=<PORT> worktree=$WORKTREE criteria_file=.b7/screens/<Name>.md out_dir=.b7/review states=golden. Reusá la sesión del Chrome real (claude-in-chrome) — no hagas login. Cargá primero las MCP tools de claude-in-chrome con ToolSearch. Output: .b7/review/<Name>.json + .b7/review/<Name>-*.png"
 )
 ```
 

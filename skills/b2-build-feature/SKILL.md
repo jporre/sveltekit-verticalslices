@@ -377,6 +377,7 @@ After verification passes:
 | Running verification                          | `references/verification-checklist.md` |
 | Feature has 4+ screens                        | `references/complex-features.md`       |
 | URL-synced page state (filter/tab/month)      | `references/url-synced-state.md`       |
+| Screen has a create/edit form (`form()` + shadcn) | `references/forms-recipe.md`        |
 | Screen lists/filters/exports DB records       | `bt1-data-table` skill — invoke it, do NOT hand-roll the table |
 | Remote function details / forms               | `using-remote-functions` skill         |
 | Drizzle / Postgres table patterns             | `postgresql-table-design` skill        |

@@ -98,14 +98,15 @@ git -C "$WORKTREE" push origin "$BRANCH"
 ## PASO 2: Gate de revisión (¿corrió b6?)
 
 ```bash
-# El veredicto puede vivir en comentarios O en reviews (un review COMMENTED no
-# aparece en .comments). Buscar el marker en ambos canales:
-gh pr view "$PR" --json comments,reviews \
-  --jq '[(.comments[]?.body, .reviews[]?.body) | select(test("b6:verdict|b6-pr-review|Auto-review";"i"))] | length'
+# Lector unico del marker (cubre comentarios Y reviews). NO parsear el marker a mano.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read "$PR"
+# exit 0 -> imprime: B6_VERDICT verdict=.. blockers=N warnings=M pr=P
+# exit 3 -> sin marker (no hubo review)
 ```
 
-- Si **≥1** → review presente. Extraer el marker `<!-- b6:verdict=... blockers=N warnings=M -->` (ultimo si hay varios): si `blockers > 0` sin resolver, PARA y reportá.
-- Si **0** → no hubo review. **Ofrecé correrlo ahora** (`Skill b-pipeline:b6-pr-review` con el número de PR). No mergees sin review.
+- **exit 0** → review presente. Del `B6_VERDICT`: si `blockers > 0` sin resolver, PARA y reportá.
+- **exit 3** → no hubo review. **Ofrecé correrlo ahora** (`Skill b-pipeline:b6-pr-review` con el número de PR). No mergees sin review.
 - **Frescura**: si PASO 1.5 commiteo/pusheo commits nuevos (`SYNCED=1`), el review existente no los cubre — re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"` antes de seguir. El commit de sync suele ser chico; `--light` combina con el size-gate para no re-revisar full una rama ya aprobada.
 
 ## PASO 3: Resumen pre-merge

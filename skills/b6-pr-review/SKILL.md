@@ -75,6 +75,21 @@ Analiza el diff y los archivos cambiados en las cinco areas de revision. Para ca
 - **SUGGESTION**: Mejora opcional. Estilo, simplificacion, oportunidades de refactor.
 - **OK**: El area esta bien. Confirma brevemente por que.
 
+**Formato de finding — OBLIGATORIO (una linea, al principio de linea):** cada
+BLOCKER, WARNING y SUGGESTION se escribe como una linea que arranca con `- **SEVERIDAD**:`
+
+```
+- **BLOCKER**: <archivo:linea> <descripcion en una linea>
+- **WARNING**: <archivo:linea> <descripcion en una linea>
+- **SUGGESTION**: <archivo:linea> <descripcion en una linea>
+```
+
+`verdict.sh` **computa el veredicto contando estas lineas** (`grep -cE '^- \*\*BLOCKER\*\*:'`),
+no interpreta prosa. Por eso: un hallazgo por linea, sin la severidad suelta en
+medio de un parrafo, y la tabla resumen usa celdas (`| Codigo | BLOCKER |`) que NO
+empiezan con `- **` — asi no se doble-cuentan. El veredicto NO es juicio libre del
+modelo: sale de la regla `blockers>0 -> request-changes; warnings>0 -> approve-with-changes; sino approve`.
+
 ---
 
 ### Area 1: Calidad del PR (redaccion y comprensibilidad)
@@ -276,21 +291,37 @@ Presenta el reporte con este formato exacto:
 <!-- b6:verdict=approve|approve-with-changes|request-changes blockers=N warnings=M -->
 ```
 
-El marker HTML de la ultima linea es el **canal durable del veredicto**: queda en el comentario del PR en GitHub, sobrevive crashes de sesion, y los orquestadores (b9-close, b10-ship) lo re-leen con `gh pr view --json comments,reviews` (cubre tambien reportes viejos publicados como review). Incluirlo SIEMPRE al publicar el reporte en GitHub.
+El marker HTML de la ultima linea es el **canal durable del veredicto**: queda en el comentario del PR en GitHub, sobrevive crashes de sesion, y los orquestadores (b9-close, b10-ship, b7) lo re-leen con `verdict.sh read <pr>` (lector unico; cubre comentarios y reviews). Incluirlo SIEMPRE al publicar el reporte en GitHub.
 
-Ademas, terminar el output de terminal SIEMPRE con la linea machine-readable:
+**No escribir el marker a mano.** Escribir el cuerpo del reporte con findings de una
+linea, guardarlo en `/tmp/pr-review.md`, y dejar que `verdict.sh` compute y estampe
+el marker desde los counts:
 
+```bash
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+VERDICT="$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh"
+# 1) estampar el marker computado (blockers>0 -> request-changes; warnings>0 -> approve-with-changes; sino approve)
+bash "$VERDICT" stamp /tmp/pr-review.md      # imprime B6_VERDICT ... y anexa el marker
+# 2) verificar coherencia marker<->counts<->regla (exit 4 = mismatch; corregir el reporte, no el marker)
+bash "$VERDICT" check /tmp/pr-review.md
 ```
-B6_VERDICT verdict=approve|approve-with-changes|request-changes blockers=N warnings=M pr=<numero>
-```
+
+`stamp` emite la linea machine-readable `B6_VERDICT verdict=... blockers=N warnings=M`; terminar el output de terminal con ella (agregando `pr=<numero>`).
 
 ## Paso 5: Publicar / ofrecer acciones
 
-**Con `--auto` (desatendido):** publicar el reporte directo y terminar:
+**Con `--auto` (desatendido):** escribir el reporte a `/tmp/pr-review.md`, estampar +
+verificar el marker, y recien ahi publicar:
 
 ```bash
+# 1) el cuerpo del reporte (findings de una linea) ya esta en /tmp/pr-review.md
+bash "$VERDICT" stamp /tmp/pr-review.md   # anexa el marker computado
+bash "$VERDICT" check /tmp/pr-review.md   # exit 4 = mismatch -> corregir el reporte antes de publicar
+# 2) publicar (el marker ya viaja en el archivo)
 gh pr comment <N> --body-file /tmp/pr-review.md
 ```
+
+Ningun otro paso escribe `/tmp/pr-review.md`: este skill es el unico productor.
 
 > IMPORTANTE: usar `gh pr comment`, NO `gh pr review --comment` — un review COMMENTED aparece en `--json reviews` y NO en `--json comments`, y los parsers del pipeline (b9-close PASO 2, b10 `b6_marker`) leen ambos pero el canal canonico es el comentario. Ademas `--approve`/`--request-changes` NO funcionan sobre PRs propios (GitHub bloquea self-review) y los PRs del flujo b se crean con el token del usuario. El veredicto viaja en el marker `<!-- b6:verdict=... -->`, no en el review state de GitHub.
 

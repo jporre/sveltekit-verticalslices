@@ -23,6 +23,7 @@ B8_GUARD="$PLUGIN_ROOT/skills/b8-swarm/scripts/guardrails.sh"
 ASSERT_CLEAN="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh"
 SETUP_WT="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh"
 PUBLISH_DOCS="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh"
+VERDICT_SH="$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh"
 LOCK_STALE_SECS="${B10_LOCK_STALE_SECS:-21600}"
 HEARTBEAT_STALE_SECS="${B10_HEARTBEAT_STALE_SECS:-7200}"
 
@@ -41,10 +42,11 @@ cmd_preflight() {
   fi
   # Smoke test del contrato de scripts compartidos (rotura silenciosa por refactor).
   local missing=0
-  for f in "$B8_GUARD" "$ASSERT_CLEAN" "$SETUP_WT" "$PUBLISH_DOCS"; do
+  for f in "$B8_GUARD" "$ASSERT_CLEAN" "$SETUP_WT" "$PUBLISH_DOCS" "$VERDICT_SH"; do
     [ -f "$f" ] || { echo "b10: FALTA script compartido: $f" >&2; missing=1; }
   done
   grep -q 'issue-comment' "$PUBLISH_DOCS" || { echo "b10: publish-docs.sh perdio el subcomando issue-comment" >&2; missing=1; }
+  grep -q 'cmd_read' "$VERDICT_SH" || { echo "b10: verdict.sh perdio el subcomando read" >&2; missing=1; }
   grep -q 'backpressure' "$B8_GUARD" || { echo "b10: guardrails.sh perdio el subcomando backpressure" >&2; missing=1; }
   [ "$missing" -eq 0 ] || return 2
   bash "$B8_GUARD" backpressure || return $?
@@ -107,11 +109,16 @@ find_worktree() {
   done
 }
 
-# Veredicto b6: marker en comentarios Y reviews (reviews COMMENTED no aparecen en .comments).
+# Veredicto b6: delega en el lector unico verdict.sh (cubre comentarios Y reviews).
+# Reformatea la linea B6_VERDICT al mismo formato B10_B6 de antes, ahora con warnings=M.
 b6_marker() {
-  local pr="$1"
-  gh pr view "$pr" --json comments,reviews --jq '(.comments[].body, .reviews[].body)' 2>/dev/null \
-    | grep -oE 'b6:verdict=[a-z-]+ blockers=[0-9]+' | tail -1 || true
+  local pr="$1" line v b w
+  line="$(bash "$VERDICT_SH" read "$pr" 2>/dev/null || true)"   # exit 3 (sin marker) -> line vacia
+  [ -n "$line" ] || return 0
+  v="$(echo "$line" | grep -oE 'verdict=[a-z-]+' | cut -d= -f2)"
+  b="$(echo "$line" | grep -oE 'blockers=[0-9]+' | cut -d= -f2)"
+  w="$(echo "$line" | grep -oE 'warnings=[0-9]+' | cut -d= -f2)"
+  [ -n "$v" ] && echo "b6:verdict=$v blockers=$b warnings=$w"
 }
 
 cmd_needs_info_check() {

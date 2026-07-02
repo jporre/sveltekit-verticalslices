@@ -2,6 +2,7 @@
 # Guardrails for b7-issue-to-pr.
 #
 # Subcommands:
+#   env-check                          — validate runtimes/MCP/gh-token/DB before any phase; exit 19 on fail
 #   preflight <issue-number>           — run before anything else; exits non-zero if unsafe to proceed
 #   check-budget <worktree-dir>        — verify files-changed / lines-added under cap; exits non-zero if exceeded
 #   acquire-lock [owner-pid]           — take the b7 lock (writes owner pid, default $PPID); exits non-zero if held
@@ -21,6 +22,13 @@
 #   B7_BUDGET_LINES    (default 1500)
 #   B7_BOT_LABEL       (default auto-pr-bot)
 #   B7_LOCK_STALE_SECS (default 7200)  — lock older than this (mtime) is stale; matches b10's 2h zombie threshold
+#
+# env-check knobs:
+#   B_ENV_CHECKS          (default "bin,mcp,gh,db,codegraph") — subset de checks a correr (coma-separado)
+#   B_ENV_SKIP_MCP        (1 = saltar el check MCP; NUNCA setear dentro del loop por-issue de b8)
+#   B_ENV_REQUIRED_MCP    (default "svelte") — servers MCP cuyo estado Failed/Needs-auth es FAIL (resto warn)
+#   B_ENV_MCP_CACHE_SECS  (default 300) — TTL del cache de `claude mcp list` en <state-dir>/env-mcp.txt
+#   B_ENV_CODEGRAPH_STALE_DAYS (default 7) — dias tras los cuales la db de codegraph se reporta stale (warn)
 
 set -euo pipefail
 
@@ -79,6 +87,10 @@ cmd_preflight() {
 
   local sd
   sd="$(ensure_state_dir)"
+
+  # Env-check PRIMERO: runtimes/MCP/gh-token/DB antes de cualquier fase (issue #7).
+  # Detecta en segundos los blockers de entorno que hoy matan sesiones completas.
+  cmd_env_check || return $?
 
   # Kill-switch file
   if [ -f "$sd/b7.STOP" ]; then
@@ -615,7 +627,150 @@ print(f"validate-triage OK: {triage_path}")
 PY
 }
 
+# env-check: dueño unico de la validacion de entorno. Emite una linea por check
+#   B_ENV name=<check> status=ok|fail|warn hint=<accion>
+# y sale 19 SOLO si algun check es fail. Nunca imprime valores de .env (solo host/port
+# del DB, explicitamente permitido por el AC del issue #7). Diseñado para correr como
+# primer paso de los preflights de b7/b10/b8 y (subset bin+db) antes del worktree en b1.
+#
+# Checks (seleccionables via B_ENV_CHECKS): bin, mcp, gh, db, codegraph.
+cmd_env_check() {
+  local fail=0
+  local checks="${B_ENV_CHECKS:-bin,mcp,gh,db,codegraph}"
+  _want() { case ",$checks," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
+
+  # (1) Runtimes: fail si falta un binario duro; warn para los opcionales.
+  if _want bin; then
+    local b
+    for b in node pnpm git gh jq python3 lsof; do
+      if command -v "$b" >/dev/null 2>&1; then
+        echo "B_ENV name=bin:$b status=ok hint=-"
+      else
+        echo "B_ENV name=bin:$b status=fail hint=falta en PATH; instalar $b"
+        fail=1
+      fi
+    done
+    for b in agent-browser nc; do
+      if command -v "$b" >/dev/null 2>&1; then
+        echo "B_ENV name=bin:$b status=ok hint=-"
+      else
+        echo "B_ENV name=bin:$b status=warn hint=opcional; instalar $b si se usa"
+      fi
+    done
+  fi
+
+  # (2) MCP: cache de `claude mcp list`; fail solo si un server REQUERIDO esta caido
+  # o pide auth. Skippable con B_ENV_SKIP_MCP=1 (NUNCA dentro del loop por-issue).
+  if _want mcp; then
+    if [ "${B_ENV_SKIP_MCP:-0}" = "1" ]; then
+      echo "B_ENV name=mcp status=warn hint=skip (B_ENV_SKIP_MCP=1)"
+    elif ! command -v claude >/dev/null 2>&1; then
+      echo "B_ENV name=mcp status=warn hint=claude CLI ausente; no se pudo listar MCP"
+    else
+      local sd cache ttl
+      sd="$(ensure_state_dir)"
+      cache="$sd/env-mcp.txt"
+      ttl="${B_ENV_MCP_CACHE_SECS:-300}"
+      if [ ! -f "$cache" ] || [ "$(lock_age_secs "$cache")" -gt "$ttl" ]; then
+        claude mcp list > "$cache" 2>&1 || true
+      fi
+      local required="${B_ENV_REQUIRED_MCP:-svelte}" srv line
+      for srv in $required; do
+        line="$(grep -iE "(^|[[:space:]])${srv}[: ]" "$cache" 2>/dev/null | head -1 || true)"
+        if [ -z "$line" ]; then
+          echo "B_ENV name=mcp:$srv status=warn hint=server requerido no aparece en 'claude mcp list'"
+        elif printf '%s' "$line" | grep -qiE 'fail|not connected|needs? auth|authenticat|✗|✘'; then
+          echo "B_ENV name=mcp:$srv status=fail hint=reconectar/autenticar server MCP '$srv'"
+          fail=1
+        else
+          echo "B_ENV name=mcp:$srv status=ok hint=-"
+        fi
+      done
+      # Otros servers con problema: warn informativo (no bloquean).
+      local other
+      other="$(grep -iE 'fail|not connected|needs? auth|✗|✘' "$cache" 2>/dev/null \
+        | grep -viE "($(printf '%s' "$required" | tr ' ' '|'))" | head -3 || true)"
+      if [ -n "$other" ]; then
+        echo "B_ENV name=mcp:otros status=warn hint=servers no-requeridos con problemas (informativo)"
+      fi
+    fi
+  fi
+
+  # (3) gh token: exige un login resoluble.
+  if _want gh; then
+    local login
+    if login="$(gh api user -q .login 2>/dev/null)" && [ -n "$login" ]; then
+      echo "B_ENV name=gh-token status=ok hint=autenticado como $login"
+    else
+      echo "B_ENV name=gh-token status=fail hint=gh auth login (token invalido/ausente)"
+      fail=1
+    fi
+  fi
+
+  # (4) DB: host/port de DATABASE_URL via python3 SIN imprimir el valor crudo
+  # (stderr suprimido; el script atrapa toda excepcion y no emite el URL). nc -z -w3.
+  if _want db; then
+    if [ -z "${DATABASE_URL:-}" ]; then
+      echo "B_ENV name=db status=warn hint=DATABASE_URL no seteada; skip check DB"
+    else
+      local hp
+      hp="$(python3 -c 'import os
+from urllib.parse import urlparse
+try:
+    u = urlparse(os.environ["DATABASE_URL"])
+    h = u.hostname or ""
+    p = u.port or 5432
+    if h:
+        print(h, p)
+except Exception:
+    pass' 2>/dev/null || true)"
+      if [ -z "$hp" ]; then
+        echo "B_ENV name=db status=warn hint=DATABASE_URL sin host parseable; skip"
+      elif ! command -v nc >/dev/null 2>&1; then
+        echo "B_ENV name=db status=warn hint=nc ausente; no se pudo probar ${hp% *}:${hp#* }"
+      else
+        local dbhost="${hp% *}" dbport="${hp#* }"
+        if nc -z -w3 "$dbhost" "$dbport" >/dev/null 2>&1; then
+          echo "B_ENV name=db status=ok hint=tcp $dbhost:$dbport alcanzable"
+        else
+          echo "B_ENV name=db status=fail hint=sin TCP a $dbhost:$dbport (DB caida/red)"
+          fail=1
+        fi
+      fi
+    fi
+  fi
+
+  # (5) codegraph: SOLO warn informativo si la db esta stale. NUNCA gate (decision del owner).
+  if _want codegraph; then
+    local repo_root cg dbf
+    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    cg="$repo_root/.codegraph"
+    if [ ! -d "$cg" ]; then
+      echo "B_ENV name=codegraph status=ok hint=sin .codegraph (opcional)"
+    else
+      dbf="$(find "$cg" -maxdepth 2 -name '*.db' -type f 2>/dev/null | head -1 || true)"
+      if [ -z "$dbf" ]; then
+        echo "B_ENV name=codegraph status=warn hint=.codegraph sin db; init pendiente (informativo)"
+      else
+        local age_days=$(( $(lock_age_secs "$dbf") / 86400 ))
+        if [ "$age_days" -gt "${B_ENV_CODEGRAPH_STALE_DAYS:-7}" ]; then
+          echo "B_ENV name=codegraph status=warn hint=db stale (${age_days}d); correr codegraph update (informativo)"
+        else
+          echo "B_ENV name=codegraph status=ok hint=db fresca (${age_days}d)"
+        fi
+      fi
+    fi
+  fi
+
+  if [ "$fail" -ne 0 ]; then
+    echo "env-check: uno o mas checks FAIL — abortando antes de gastar la sesion" >&2
+    return 19
+  fi
+  return 0
+}
+
 case "${1:-}" in
+  env-check)        shift; cmd_env_check "$@" ;;
   preflight)        shift; cmd_preflight "$@" ;;
   validate-triage)  shift; cmd_validate_triage "$@" ;;
   check-budget)     shift; cmd_check_budget "$@" ;;
@@ -629,7 +784,7 @@ case "${1:-}" in
   verify-worktree)  shift; cmd_verify_worktree "$@" ;;
   verify-port)      shift; cmd_verify_port "$@" ;;
   *)
-    echo "Usage: $0 {preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|verify-port <port> <worktree>|validate-triage <triage.json>}" >&2
+    echo "Usage: $0 {env-check|preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|verify-port <port> <worktree>|validate-triage <triage.json>}" >&2
     exit 2
     ;;
 esac

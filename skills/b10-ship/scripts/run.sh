@@ -13,13 +13,14 @@ set -euo pipefail
 #   needs-info-check <issue>  emite B10_NEEDS_INFO_ANSWERED=true|false|unknown
 #   janitor                   worktrees b7 con heartbeat >2h y sin b7.lock vivo (candidatos a zombie)
 #
-# Exit codes: 0 ok | 2 uso | 12 gh auth | 17 backpressure | 18 tree sucio | 20 killswitch | 21 lock
+# Exit codes: 0 ok | 2 uso | 12 gh auth | 17 backpressure | 18 tree sucio | 19 env-check | 20 killswitch | 21 lock
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Plugin root derivado desde la ubicacion del script (.../skills/b10-ship/scripts).
 # Portable: funciona en cualquier instalacion del plugin, no solo ~/.claude/skills.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 B8_GUARD="$PLUGIN_ROOT/skills/b8-swarm/scripts/guardrails.sh"
+B7_GUARD="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh"
 ASSERT_CLEAN="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh"
 SETUP_WT="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh"
 PUBLISH_DOCS="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh"
@@ -35,6 +36,8 @@ cmd_preflight() {
     echo "b10: kill-switch activo en $sd" >&2; return 20
   fi
   gh auth status >/dev/null 2>&1 || { echo "b10: gh auth fallo" >&2; return 12; }
+  # Env-check: runtimes/MCP/gh-token/DB antes de cualquier fase (issue #7; exit 19 si falla).
+  bash "$B7_GUARD" env-check || return $?
   # b7/b8 abortan con tree sucio en el repo principal: detectarlo ACA, no a mitad de build.
   if [ -n "$(git status --porcelain 2>/dev/null || true)" ]; then
     echo "b10: working tree del repo principal sucio — commitear/stashear antes de correr el pipeline" >&2

@@ -16,12 +16,17 @@
 #   12 gh auth fail
 #   17 backpressure
 #   18 working tree dirty
+#   19 env-check fail (runtimes/MCP/gh-token/DB) — delegado a b7 guardrails env-check
 #   20 kill-switch active
 #   21 lock held by another b8
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Plugin root derivado desde la ubicacion del script (.../skills/b8-swarm/scripts).
+# Portable: mismo patron que b10 run.sh. Necesario para invocar el env-check de b7.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+B7_GUARD="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh"
 
 state_dir() {
   local d="${CLAUDE_PROJECT_DIR:-}"
@@ -93,6 +98,9 @@ cmd_preflight() {
     echo "b8: working tree is dirty" >&2
     return 18
   fi
+  # Env-check inicial (con cache MCP; SIN B_ENV_SKIP_MCP — este es el preflight, no el
+  # loop por-issue). Detecta blockers de runtime/MCP/gh/DB antes de arrancar el swarm.
+  bash "$B7_GUARD" env-check || return $?
   cmd_backpressure || return $?
   return 0
 }

@@ -8,6 +8,22 @@
   Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
 -->
 
+### docs(pipeline): contrato de ruteo b7/b8/b10 + tabla README + retirar b3-security (#26)
+
+Tres descriptions se disputaban el prompt "resuelve el issue N" con endpoints distintos (b7 decia "considerar siempre que se mencione issue N", b10 "ship issue N", b8 "SIEMPRE que pidan varias issues") y el router de skills ruteaba por azar. Ahora el contrato es explicito y sin solape: b10-ship es la ENTRADA DEFAULT para trabajo issue-shaped ("resuelve/trabaja/arregla el issue N"), b7-issue-to-pr solo entra directo cuando piden parar en el PR draft (y declara que NO mergea), b8-swarm queda en 3 frases (que/cuando/limite: solo clusters del mismo scope, NO mergea, issues no relacionadas van una por una) y b2 baja a 1 frase que preserva los Two Entry Points y cede el ruteo a los orquestadores. README §7 colapsa ~48 lineas de prosa drifteada a una tabla etapa -> skill -> quien-invoca -> gate, mas nota de numeracion (prefijos = orden de creacion: dos b1, dos b7, sin b5, un solo b3; directorios no se renombran). `skills/b3-security/` se elimina (huerfano: ningun orquestador lo encadenaba y arrastraba contenido muerto tipo la tabla admin@test.com en un proyecto OAuth-only); su unico contenido exclusivo, `requireAnyPermission`, se porta al checklist de b6 como apendice "Patrones de referencia", y se quitan los 2 bullets MongoDB stale del checklist. El Area 3 de b6 colapsa a pointer + tabla clasificacion -> severidad (el mapping BLOCKER sobrevive exactamente una vez); la fila security de b2 pasa a ruta relativa del checklist.
+
+**Archivos clave**:
+- `skills/b7-issue-to-pr/SKILL.md`, `skills/b10-ship/SKILL.md`, `skills/b8-swarm/SKILL.md`, `skills/b2-build-feature/SKILL.md` — descriptions con contrato de ruteo sin solape (cuando SI y cuando NO invocar cada uno)
+- `README.md` — §7 prosa -> tabla + nota de numeracion; fila b3-security fuera de §6
+- `skills/b3-security/SKILL.md` — BORRADO (huerfano)
+- `skills/b6-pr-review/references/security-checklist.md` — apendice requireAnyPermission; bullets MongoDB fuera
+- `skills/b6-pr-review/SKILL.md` — Area 3 = pointer al checklist + tabla clasificacion -> severidad
+
+**Riesgos / consideraciones**:
+Bajo, solo docs/frontmatter. verdict.sh intacto: la tabla del Area 3 usa celdas (`| ... | BLOCKER |`) que no arrancan con `- **`, asi que no altera el conteo `grep -cE '^- \*\*BLOCKER\*\*:'`; las instrucciones de formato del reporte quedan byte-identicas. Grep de b3-security post-cambio: cero referencias activas (solo historia en CHANGELOG). Los 5 PASOS OBLIGATORIOS, B7_DONE y budgets de b7 no cambian — solo la parte de ruteo de su description.
+
+**Links**: [issue #26](https://github.com/jporre/sveltekit-verticalslices/issues/26)
+
 ### refactor(b7): adelgazar SKILL.md a ~400 lineas, corregir drift 4v5 pasos, borrar usage.html (#25)
 
 b7 corre como fork y pagaba sus 718 lineas en CADA issue, con el mandato anti-abandono repetido 6+ veces y drift "los 4 pasos" vs "CINCO PASOS" que dejaba ambiguo el set obligatorio. SKILL.md baja a ~650 lineas (la meta de ~400-500 quedo corta: los contratos mergeados post-issue en #43/#44/#45 — lane S, gates de evidencia/regresion, impact drift — se conservan integros): las 6 ocurrencias de "los 4 pasos" pasan a "los 5 pasos", se borran las secciones redundantes "Anti-patron: parches inline en master" y "NO PARAR AQUI" (contenido unico fusionado a "Que NO hacer" y al paso 6), los headers 6/8/8b quedan alineados al numero de PASO OBLIGATORIO del frontmatter (#3 commit, #4 PR+labels), y la lista canonica de puntos de heartbeat vive solo en el paso 2. Dos bloques bash copy-paste se scriptean en `guardrails.sh`: `worktree-env <dir>` (emite WORKTREE/BRANCH/PORT eval-safe desde `.b7/worktree-ready.json`, reemplaza el eval/sed/awk inline) y `dev-server start|stop <worktree>` (nohup dev.sh + pid + poll ~30s con WARN sin abortar; stop idempotente; mismos paths `.b7/dev-server.*` que consumen b8/b9). `docs/usage.html` (628 lineas, cero referencias) se borra. README §7 Step 3 se alinea con los 5 pasos reales (commit es #3, PR+labels #4, b6-review #5).

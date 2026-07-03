@@ -169,34 +169,17 @@ Evalua:
 
 ### Area 3: Seguridad
 
-Lee `references/security-checklist.md` para los patrones detallados. Revisa CADA archivo segun su clasificacion:
+Patrones detallados y el apendice `requireAnyPermission`: `references/security-checklist.md`. Revisa CADA archivo segun su clasificacion (CLASSIFY_FILES) con esta tabla:
 
-> **Modo `light`:** usar solo las listas inline de esta area; NO leer `references/security-checklist.md`.
+> **Modo `light`:** usar solo la tabla y la lista inline de esta area; NO leer `references/security-checklist.md`.
 
-**Para archivos LOAD_SERVER y LAYOUT_SERVER** (`+page.server.ts`, `+layout.server.ts`):
+| Clasificacion | Verificacion requerida | Si falta |
+| --- | --- | --- |
+| LOAD_SERVER / LAYOUT_SERVER (`+page.server.ts`, `+layout.server.ts`) | check de `locals.user` antes de devolver datos protegidos (excepcion: paginas explicitamente publicas) | BLOCKER |
+| REMOTE_FUNCTION (`*.remote.ts`) | cada `query`/`form`/`command` llama `requireUser()` o `requirePermission('verbo:sustantivo')` como primera operacion (formato `verbo:sustantivo`, sin roles hardcodeados) | BLOCKER |
+| API_ENDPOINT (`+server.ts`) | `locals.user` o API key | BLOCKER |
 
-- Tiene verificacion de `locals.user`?
-- Si devuelve datos protegidos sin auth check, es BLOCKER
-- Excepcion: paginas explicitamente publicas
-
-**Para archivos REMOTE_FUNCTION** (`*.remote.ts`):
-
-- Cada `query`, `form`, y `command` llama a `requireUser()` o `requirePermission('verbo:sustantivo')`?
-- Si una remote function no tiene verificacion, es BLOCKER
-- Los permisos usan el formato correcto `verbo:sustantivo`?
-
-**Para archivos API_ENDPOINT** (`+server.ts`):
-
-- Verifican `locals.user` o API key?
-- Si no hay verificacion, es BLOCKER
-
-**Para TODO el diff**:
-
-- Hay secrets, API keys, o passwords hardcodeados?
-- Se usa `$env/static/private` o `$env/dynamic/private` para secretos?
-- Los errores usan el formato estructurado `{ message, code }`?
-- No hay `throw new Error()` donde deberia ser `error(status, { message, code })`?
-- No hay variables mutables a nivel de modulo en `.server.ts` (data leak entre usuarios)?
+**Para TODO el diff**: sin secrets/API keys/passwords hardcodeados (usar `$env/static/private` o `$env/dynamic/private`); errores con formato estructurado `{ message, code }` (no `throw new Error()` donde deberia ser `error(status, { message, code })`); sin variables mutables a nivel de modulo en `.server.ts` (data leak entre usuarios).
 
 ---
 

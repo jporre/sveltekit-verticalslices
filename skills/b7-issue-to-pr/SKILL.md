@@ -196,6 +196,18 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
 
 Tras escribir `.b7/triage.json`, **validar mecánicamente** contra el schema antes de seguir: `bash scripts/guardrails.sh validate-triage .b7/triage.json`. Si sale exit 4 (verdict/complexity fuera del enum, falta un required, o clave desconocida por `additionalProperties:false`), el triage es inválido — corregirlo y re-validar; no continuar con un artefacto que los sub-skills no van a poder consumir.
 
+**Gate de evidencia para bugs (deterministico, via jq).** El subset de `validate-triage` no evalua el `if/then` del schema (`type=fix` exige `evidence`), asi que b7 lo aplica aca: un `fix` sin `evidence.observed` se trata como needs-info y baila — un bug sin artefacto observado no debe consumir un run de implementacion.
+
+```bash
+if [ "$(jq -r '.type' .b7/triage.json)" = "fix" ] \
+   && [ -z "$(jq -r '.evidence.observed // empty' .b7/triage.json)" ]; then
+  echo "GATE_FAIL fix sin evidence.observed — se trata como needs-info"
+  # comentar en el issue (idioma = .language) que falta evidencia observable, liberar lock, salir 0.
+fi
+```
+
+Mismo trato que `verdict != "ready"`: comentar en el issue (en su idioma) que falta la evidencia observable del bug y bailar. No abrir worktree ni PR.
+
 El `plan[]` es la lista accionable que el orquestador planifica **antes de implementar** y verifica **al cierre** (gate DoD #6). Mantener 3–8 items; nada de micro-tareas. Los sub-agentes marcan progreso con:
 
 ```bash

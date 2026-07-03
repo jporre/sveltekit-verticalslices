@@ -66,6 +66,42 @@ User wants a CRUD screen for products. Comments #3 and #5 narrowed the scope: in
 4. Browser verification.
 ```
 
+## Ready bug (Spanish, con Evidencia)
+
+Para un `type: fix` marcado ready, la seccion `### Evidencia` es obligatoria: cita el artefacto observado en Step 4e (error exacto, salida, o `path:linea` de la causa). Sin evidencia observada el veredicto correcto es needs-info — b7 baila un `fix` sin `evidence.observed`.
+
+```markdown
+## Evaluacion de Issue
+
+**Estado**: Listo para desarrollo
+
+### Entendimiento
+
+El guardado de venta falla cuando el total es 0: la pantalla queda cargando y no persiste. Reproducido localmente.
+
+### Evidencia
+
+Observado al correr el flujo con total 0:
+
+    POST /sales 500 — TypeError: Cannot read properties of undefined (reading 'toFixed')
+        at formatTotal (src/routes/sales/sales.remote.ts:42)
+
+Fuente: `src/routes/sales/sales.remote.ts:42` — `formatTotal` asume `total` definido; con carrito vacio llega `undefined`.
+
+### Archivos afectados
+
+- `src/routes/sales/sales.remote.ts` — `formatTotal` (linea 42), falta guarda de `total` nulo/0.
+
+### Complejidad estimada
+
+**Simple** — fix acotado a una funcion (1 archivo).
+
+### Plan
+
+1. Guardar `total ?? 0` antes de `toFixed` en `formatTotal`.
+2. Verificar guardado con total 0 en navegador.
+```
+
 ## Needs-clarification issue (Spanish)
 
 ```markdown

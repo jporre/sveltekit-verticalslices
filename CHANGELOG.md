@@ -39,7 +39,20 @@ classify-run asigna lane S/M/L; carril S usa render mecanico de screens, agente 
 
 **Links**: [issue #16](https://github.com/jporre/sveltekit-verticalslices/issues/16) · [PR #—](—) · [run report](—)
 
+### feat — triage de bugs con evidencia observable + gate anti-fabricacion (#17)
 
+Endurece el triage de `type: fix`: un bug ya no es `ready` por afirmar un sintoma, necesita al menos un artefacto observado. b1-triage gana Step 4e evidence-first (error exacto / salida / `path:linea` en `evidence.observed`, o degrada a needs-info con la verificacion pendiente como pregunta), un probe de codegraph inline en Step 4 con fallback rg y `grounding_source`, y un gate anti-fabricacion en `files_likely` (paths existentes deben venir de output de herramienta; archivos nuevos van como glob marcado). El schema compartido gana `evidence {observed, source}`, `grounding_source` y un `if type==fix then required evidence`. b7 agrega un gate deterministico via jq en el paso 1: `fix` sin `evidence.observed` se trata como needs-info y baila antes de abrir worktree/PR.
+
+**Archivos clave**:
+- `skills/b7-issue-to-pr/templates/triage-output.schema.json` — `evidence`, `grounding_source`, `if/then` fix→evidence, nueva description de `files_likely`
+- `skills/b1-triage-issue/SKILL.md` — Step 4 probe codegraph + gate anti-fabricacion, Step 4e evidence-first, Step 7 seccion Evidencia
+- `skills/b1-triage-issue/references/comment-templates.md` — ejemplo Ready bug con `### Evidencia` citando output observado
+- `skills/b7-issue-to-pr/SKILL.md` — paso 1 gate jq (fix sin evidence.observed → needs-info)
+
+**Riesgos / consideraciones**:
+El subset de `validate-triage` (guardrails.sh) no evalua `if/then`; la obligatoriedad de `evidence` para bugs la aplica el gate jq de b7. Verificado: schema parsea, `validate-triage` sigue OK sobre triages existentes y rechaza claves desconocidas, el gate jq baila un `fix` sin `evidence.observed` y deja pasar uno con evidencia.
+
+**Links**: [issue #17](https://github.com/jporre/sveltekit-verticalslices/issues/17)
 
 ### perf — batch de llamadas gh en topologia de epics (#15)
 

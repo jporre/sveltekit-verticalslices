@@ -417,6 +417,7 @@ state = {
   "milestone_screens": "⏳",
   "milestone_commit": "⏳",
   "milestone_pr": "⏳",
+  "plan_block": "_Pendiente de triage._",
   "screens_block": "_Pendiente de triage._",
   "screens_table": "_Pendiente._",
   "screens_gallery": "_Pendiente._",
@@ -464,7 +465,6 @@ state = {
   "risks_block": "—",
   "type_label": "—",
   "updated_at": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-  "started_utc": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
   "finished_utc": "—",
   "run_id": "—",
   "remote_fns": "—",
@@ -472,6 +472,17 @@ state = {
   "iter_status": "—",
   "final_iter_status": "—",
   "pr_title": title or f"b7: issue #{issue}",
+  # Claves consumidas por los templates que antes no existian en el scaffold
+  # (renderizaban vacio via envsubst sin error). Sembradas con placeholder "—".
+  "scope": "—",
+  "screen_name": "—",
+  "screen_route": "—",
+  "screen_user_journey": "—",
+  "screen_verdict": "—",
+  "cache_note": "—",
+  "migration_note": "—",
+  "perm_new": "—",
+  "bail_reason": "—",
 }
 with open(out, "w") as f:
   json.dump(state, f, ensure_ascii=False, indent=2)

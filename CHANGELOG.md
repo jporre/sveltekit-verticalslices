@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### fix — codegraph-probe.sh: cache-key por $ROOT + smoke grep solo stderr (#37)
+
+Corrige dos falsos positivos del probe informativo de CodeGraph (findings del review post-merge de PR #36, ninguno bloqueaba pero degradaban a estados enganosos):
+
+- **cache-key**: `state_dir()` derivaba el slug del cache de `CLAUDE_PROJECT_DIR` (constante en la sesion) en vez de `$ROOT`. Dos roots distintos (worktree vs repo principal, o dos worktrees) compartian el mismo archivo de cache y un status contaminaba al otro dentro del TTL. Ahora el slug deriva SIEMPRE de `$ROOT` -> un cache por root.
+- **smoke grep**: el grep de `broken` corria sobre stdout+stderr, asi cualquier resultado de la query `"the"` con `Error:`/`fatal`/etc. en el codigo reportaba un backend sano como roto. Ahora solo el exit-code y stderr deciden `broken` (stdout de la query -> `/dev/null`).
+
+**Pantallas afectadas**: — (fix de infra, sin UI)
+
+**Archivos clave**:
+- `skills/b1-add-worktree/scripts/codegraph-probe.sh` — `state_dir()` + smoke query
+
+**Riesgos / consideraciones**: Sin riesgos identificados. El probe sigue saliendo 0 siempre; solo cambia como se deriva la cache-key y que fd alimenta la deteccion de rotura. Verificado con tests: 2 roots -> 2 caches distintos; `rc=0` con `Error:` en resultados -> `ok`; stderr con `SQLITE_CANTOPEN` + `rc=1` -> `broken`.
+
+**Links**: [issue #37](https://github.com/jporre/sveltekit-verticalslices/issues/37) · [PR #48](https://github.com/jporre/sveltekit-verticalslices/pull/48)
+
 ## [1.4.0] — 2026-07-03
 
 ### epic — Auditoria b-pipeline tier 2: 25 mejoras verificadas (#27)

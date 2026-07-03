@@ -43,6 +43,26 @@ for k, v in data.items():
     print(f"export {key}={shlex.quote(val)}")
 ')"
 
+# Gate: detectar ${VARS} del template que NO tienen clave en state.json.
+# envsubst las renderizaria vacias sin avisar (blank silencioso). Un placeholder
+# "—" es una clave PRESENTE con valor guion — eso NO es undefined y no gatea.
+# Exit 4 listando las variables sin respaldo en state.json.
+undefined="$(python3 -c '
+import json, re, sys
+with open("'"$STATE"'") as f:
+    data = json.load(f)
+present = {k.upper() for k in data.keys()}
+tpl = open("'"$TEMPLATE"'").read()
+used = set(re.findall(r"\$\{([A-Z_][A-Z0-9_]*)\}", tpl))
+missing = sorted(used - present)
+print("\n".join(missing))
+')"
+if [ -n "$undefined" ]; then
+  echo "render-report.sh: UNDEFINED template vars (no key in $STATE):" >&2
+  echo "$undefined" | sed 's/^/  - /' >&2
+  exit 4
+fi
+
 # envsubst respeta las vars ya exportadas. Variables no definidas quedan vacías
 # (no como literal "${FOO}") gracias a `envsubst < template`.
 mkdir -p "$(dirname "$OUT")"

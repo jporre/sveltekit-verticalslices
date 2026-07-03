@@ -10,7 +10,9 @@
 #   pr-body            — escribe .b7/pr-body.md (consumido por b4-pull-request)
 #   all                — todos los anteriores
 #   aborted            — variante para cierre de aborto (marca el sticky con ⛔)
-#   bailed             — variante para bail (verdict != ready)
+#   bailed [reason]    — variante para bail (verdict != ready); setea bail_reason
+#   state-set k=v ...  — setea claves (whitelist=claves del state; auto-toca updated_at)
+#   milestone <n> [N]  — avanza milestone_*/status/status_emoji/iter_count
 #   plan-render        — renderiza .b7/triage.json plan[] → state.plan_block (idempotente)
 #   plan-done <id>     — marca plan item por id como done=true en .b7/triage.json
 #   plan-check         — exit 0 si plan.every(done) o plan=[]; exit 5 si quedan pendientes
@@ -26,9 +28,9 @@ SKILL_DIR="$(dirname "$SCRIPT_DIR")"
 TEMPLATES="$SKILL_DIR/templates"
 
 SUB=""
-SUB_ARG=""
 STATE_PATH=""
 WORKTREE="${PWD}"
+POSARGS=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -36,15 +38,14 @@ while [ $# -gt 0 ]; do
     --worktree) WORKTREE="$2"; shift 2 ;;
     -*)         echo "publish-docs.sh: unknown flag: $1" >&2; exit 2 ;;
     *)
-      if   [ -z "$SUB" ];     then SUB="$1"
-      elif [ -z "$SUB_ARG" ]; then SUB_ARG="$1"
-      else echo "publish-docs.sh: extra arg: $1" >&2; exit 2
-      fi
+      if [ -z "$SUB" ]; then SUB="$1"; else POSARGS+=("$1"); fi
       shift ;;
   esac
 done
+# Compat: primer arg posicional (usado por plan-done <id>, bailed <reason>).
+SUB_ARG="${POSARGS[0]:-}"
 
-[ -z "$SUB" ]        && { echo "Usage: $0 {changelog|issue-comment|pr-body|all|aborted|bailed} [--state PATH] [--worktree DIR]" >&2; exit 2; }
+[ -z "$SUB" ]        && { echo "Usage: $0 {changelog|issue-comment|pr-body|all|aborted|bailed|state-set|milestone|plan-render|plan-done|plan-check} [--state PATH] [--worktree DIR]" >&2; exit 2; }
 [ -z "$STATE_PATH" ] && STATE_PATH="$WORKTREE/.b7/state.json"
 [ ! -f "$STATE_PATH" ] && { echo "publish-docs.sh: state json not found: $STATE_PATH" >&2; exit 3; }
 
@@ -215,6 +216,78 @@ print(f"publish-docs/plan-check: ok ({len(plan)} items, all done or empty)")
 PY
 }
 
+# Setea claves en state.json. Whitelist = claves ya existentes en el state del
+# run (rechaza claves desconocidas para atrapar typos que renderizarian vacio).
+# Auto-actualiza updated_at. Uso: state-set key=value [key=value ...]
+cmd_state_set() {
+  [ $# -eq 0 ] && { echo "publish-docs/state-set: usage: state-set key=value [key=value ...]" >&2; return 2; }
+  python3 - "$STATE_PATH" "$@" <<'PY'
+import json, sys, datetime, pathlib
+state_p = sys.argv[1]
+pairs = sys.argv[2:]
+d = json.loads(pathlib.Path(state_p).read_text())
+allowed = set(d.keys())
+unknown, updates = [], {}
+for p in pairs:
+    if "=" not in p:
+        print(f"publish-docs/state-set: bad pair (need key=value): {p}", file=sys.stderr)
+        sys.exit(2)
+    k, v = p.split("=", 1)
+    if k not in allowed:
+        unknown.append(k)
+    else:
+        updates[k] = v
+if unknown:
+    print("publish-docs/state-set: unknown key(s) not in state.json: " + ", ".join(unknown), file=sys.stderr)
+    sys.exit(6)
+d.update(updates)
+d["updated_at"] = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+pathlib.Path(state_p).write_text(json.dumps(d, ensure_ascii=False, indent=2))
+print("publish-docs/state-set: set " + ", ".join(updates.keys()))
+PY
+}
+
+# Avanza un milestone del run. Mapea el nombre a las claves milestone_*/status/
+# status_emoji/status_label/iter_count. Uso: milestone <name> [N]
+#   started | triage-done | worktree-ready | iter-green <N> |
+#   screens-reviewed | committed | pr-opened
+cmd_milestone() {
+  local name="${1:-}" n="${2:-}"
+  [ -z "$name" ] && { echo "publish-docs/milestone: usage: milestone <name> [N]" >&2; return 2; }
+  python3 - "$STATE_PATH" "$name" "$n" <<'PY'
+import json, sys, datetime, pathlib
+state_p, name, n = sys.argv[1], sys.argv[2], sys.argv[3]
+d = json.loads(pathlib.Path(state_p).read_text())
+DONE = "✅"
+def running(label):
+    d["status"] = "running"; d["status_emoji"] = "🚧"; d["status_label"] = label
+if name == "started":
+    d["status"] = "started"; d["status_emoji"] = "🚧"; d["status_label"] = "En curso"
+elif name == "triage-done":
+    d["milestone_triage"] = DONE; running("Triage listo")
+elif name == "worktree-ready":
+    d["milestone_worktree"] = DONE; running("Worktree listo")
+elif name == "iter-green":
+    d["milestone_impl"] = DONE; running("Implementacion verde")
+    if n:
+        if not n.isdigit():
+            print(f"publish-docs/milestone: iter-green needs numeric N, got '{n}'", file=sys.stderr); sys.exit(2)
+        d["iter_count"] = int(n)
+elif name == "screens-reviewed":
+    d["milestone_screens"] = DONE; running("Pantallas revisadas")
+elif name == "committed":
+    d["milestone_commit"] = DONE; running("Commit hecho")
+elif name == "pr-opened":
+    d["milestone_pr"] = DONE
+    d["status"] = "pr-open"; d["status_emoji"] = "✅"; d["status_label"] = "PR abierto"
+else:
+    print(f"publish-docs/milestone: unknown milestone '{name}'", file=sys.stderr); sys.exit(2)
+d["updated_at"] = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+pathlib.Path(state_p).write_text(json.dumps(d, ensure_ascii=False, indent=2))
+print(f"publish-docs/milestone: {name}" + (f" (N={n})" if n else ""))
+PY
+}
+
 cmd_all() {
   cmd_plan_render || true
   cmd_changelog || true
@@ -237,13 +310,16 @@ PY
 }
 
 cmd_bailed() {
-  python3 - "$STATE_PATH" <<'PY'
+  local reason="${1:-}"
+  python3 - "$STATE_PATH" "$reason" <<'PY'
 import json, sys
-p = sys.argv[1]
+p, reason = sys.argv[1], sys.argv[2]
 with open(p) as f: d = json.load(f)
 d["status"] = "bailed"
 d["status_emoji"] = "🚪"
 d["status_label"] = "El bot baileó"
+if reason:
+    d["bail_reason"] = reason
 with open(p, "w") as f: json.dump(d, f, ensure_ascii=False, indent=2)
 PY
   cmd_issue_comment || true
@@ -255,7 +331,9 @@ case "$SUB" in
   pr-body)       cmd_pr_body ;;
   all)           cmd_all ;;
   aborted)       cmd_aborted ;;
-  bailed)        cmd_bailed ;;
+  bailed)        cmd_bailed "$SUB_ARG" ;;
+  state-set)     cmd_state_set ${POSARGS[@]+"${POSARGS[@]}"} ;;
+  milestone)     cmd_milestone ${POSARGS[@]+"${POSARGS[@]}"} ;;
   plan-render)   cmd_plan_render ;;
   plan-done)     cmd_plan_done "$SUB_ARG" ;;
   plan-check)    cmd_plan_check ;;

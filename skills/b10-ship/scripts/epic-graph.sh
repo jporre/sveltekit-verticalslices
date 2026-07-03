@@ -18,8 +18,14 @@ set -euo pipefail
 EPIC="$1"
 REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 
-NUMBERS="$(gh api "repos/${REPO}/issues/${EPIC}/sub_issues" --paginate --jq '.[].number' 2>/dev/null | sort -un || true)"
+# Path nativo: UNA sola llamada al endpoint REST sub_issues, que ya devuelve los
+# objetos completos (number/title/state/labels/body). Antes se descartaba todo
+# salvo .number y se re-pegaba un `gh issue view` por sub-issue (N+1 procesos gh).
+SUBS_JSON="$(gh api "repos/${REPO}/issues/${EPIC}/sub_issues" --paginate 2>/dev/null || true)"
+NUMBERS="$(printf '%s' "$SUBS_JSON" | jq -r '.[].number' 2>/dev/null | sort -un || true)"
+NATIVE=1
 if [ -z "$NUMBERS" ]; then
+  NATIVE=0
   echo "WARN: #$EPIC sin sub-issues nativos — fallback a numeros referenciados en el body" >&2
   NUMBERS="$(gh issue view "$EPIC" --json body --jq .body | grep -oE '#[0-9]+' | tr -d '#' | sort -un | grep -v "^${EPIC}$" || true)"
 fi
@@ -30,10 +36,20 @@ trap 'rm -f "$TMP"' EXIT
 # Primer registro: el epic mismo (puede ser tambien el item de cierre, ej #271).
 gh issue view "$EPIC" --json number,title,state,labels,body >> "$TMP"
 echo >> "$TMP"
-for n in $NUMBERS; do
-  gh issue view "$n" --json number,title,state,labels,body >> "$TMP"
-  echo >> "$TMP"
-done
+if [ "$NATIVE" = 1 ]; then
+  # NDJSON directo del call ya hecho, sin un view por sub-issue. CRITICO:
+  # state|ascii_upcase — el REST devuelve "open"/"closed" y epic-state.sh:82
+  # filtra == "OPEN". labels se reducen a [{name}] para igualar la forma que
+  # emitia `gh issue view` (el parser python solo lee l["name"]).
+  printf '%s' "$SUBS_JSON" | jq -c \
+    '.[] | {number, title, state:(.state|ascii_upcase), labels:[.labels[]|{name}], body}' >> "$TMP"
+else
+  # Fallback por body: sin objetos nativos, seguir con un view por numero.
+  for n in $NUMBERS; do
+    gh issue view "$n" --json number,title,state,labels,body >> "$TMP"
+    echo >> "$TMP"
+  done
+fi
 
 EPIC="$EPIC" python3 - "$TMP" <<'PY'
 import json, os, re, sys

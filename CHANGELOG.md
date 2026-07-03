@@ -8,6 +8,45 @@
   Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
 -->
 
+### perf —  (#15)
+
+Batch de llamadas gh: epic-graph 28->3, epic-diff 103->3 sobre un epic de 25 sub-issues; deps de run.sh via una query graphql aliaseada; b9 PASO 4 fusiona dos --paginate en uno.
+<!--
+  SUMMARY_TECHNICAL: 1-3 frases técnicas. Qué se cambió y por qué.
+  Ej: "Agrega remote function get_tareas_by_estado y nueva pantalla BandejaTareasPage para reemplazar el filtrado client-side que escalaba mal a >2k tareas."
+-->
+
+**Pantallas afectadas**: —
+<!-- "BandejaTareasPage (/tareas), DetalleTareaPage (/tareas/[id])" o "—" si no hay -->
+
+**Archivos clave**:
+—
+<!--
+  - `src/routes//.remote.ts` — nueva query + permission check
+  - `src/routes//+page.svelte` — UI principal
+-->
+
+**Riesgos / consideraciones**:
+Bajo. Outputs verificados byte-identicos vs version previa sobre epic #27. Un dep inexistente en run.sh degrada a 'sin deps abiertas' (misma tolerancia previa).
+<!--
+  - Migración requerida: 
+  - Permiso nuevo registrado: 
+  - Posible impacto en cache: 
+  - "Sin riesgos identificados" si nada aplica.
+-->
+
+**Métricas del run**: 0 iter · 4 archivos · 40 líneas netas · —
+
+**Links**: [issue #15](https://github.com/jporre/sveltekit-verticalslices/issues/15) · [PR #—](—) · [run report](—)
+
+
+
+<!--
+  Entrada CHANGELOG generada por b7-issue-to-pr.
+  Tono: técnico-analítico para devs futuros leyendo historia.
+  Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
+-->
+
 ### feat(screen-review): mint-dev-session.sh — sesión dev scriptada (#14)
 
 Nuevo `mint-dev-session.sh` (mint/verify/cleanup) que inserta una sesión válida en la DB del worktree para que screen-review pase el muro OAuth sin login manual. `mint` genera token base64url, deriva sessionId = sha256(token) hex (patrón Lucia v3), inserta en `app.user_session` (24h) vía node del worktree, y emite SOLO la línea `B7_SESSION_COOKIE=auth-session=<token>`. `verify` clasifica 200/permiso/inválida; `cleanup` borra por hash. b7-screen-review des-deprecа `auth_cookie` e inyecta la cookie via `document.cookie` en el mismo origen; b7-issue-to-pr 5.1 intenta mint+verify con fallback limpio al Chrome real y 5.9 hace cleanup siempre.

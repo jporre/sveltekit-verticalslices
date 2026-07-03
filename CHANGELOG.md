@@ -39,7 +39,63 @@ classify-run asigna lane S/M/L; carril S usa render mecanico de screens, agente 
 
 **Links**: [issue #16](https://github.com/jporre/sveltekit-verticalslices/issues/16) · [PR #—](—) · [run report](—)
 
+### feat — flag data_table por pantalla cablea bt1-data-table en el build (#20)
 
+Cierra el gap de ruteo: el skill `bt1-data-table` solo se mencionaba en la tabla de skills auxiliares de b2, sin que triage ni los prompts de build de b7/b8 lo referenciaran. Se agrega la propiedad opcional `data_table: boolean` por pantalla en el contrato de triage y se propaga hasta los prompts de implementacion. b1 marca `data_table: true` cuando la pantalla lista datos tabulares (columnas, orden, filtros o paginacion en el acceptance criteria); b7 (paso 4) y b8 (prompt de build) inyectan una clausula condicional: para esas pantallas el sub-agente invoca `bt1-data-table` via Skill tool si esta disponible, con fallback documentado a shadcn Table + paginacion server-side segun tamano. Solo schema y texto de prompts, sin logica nueva.
+
+**Archivos clave**:
+- `skills/b7-issue-to-pr/templates/triage-output.schema.json` — propiedad `data_table: boolean` (default false) por pantalla con description del criterio
+- `skills/b1-triage-issue/SKILL.md` — criterio para marcar `data_table` al poblar pantallas tabulares
+- `skills/b7-issue-to-pr/SKILL.md` — paso 4: clausula condicional `data_table=true` en el prompt del sub-agente
+- `skills/b8-swarm/SKILL.md` — misma clausula en el prompt de build secuencial
+
+**Riesgos / consideraciones**:
+Bajo. `data_table` es opcional con default `false`: triage que no lo emite conserva el comportamiento actual y validate-triage pasa con y sin el flag (schema parsea con `json.load`). No hay ruteo forzado — el sub-agente cae al fallback shadcn Table si el skill no esta disponible.
+
+**Links**: [issue #20](https://github.com/jporre/sveltekit-verticalslices/issues/20)
+
+### feat — vocabulario de states alineado + estado invalid-submit en screen-review (#19)
+
+Screen-review ya no se limita al golden path. Se alinea el vocabulario de `states_required` entre el triage schema y screen-review, y se agrega el estado `invalid-submit`: submit con requeridos vacios debe mostrar errores visibles; si el boton submit esta `disabled` y por eso no aparece ningun error, es el anti-patron de la receta de forms (`disabled={submitting}`, nunca `disabled={!isFormValid}`) y se marca `passed: false`. El enum de `states_required` pasa a `[golden, empty, loading, error, success, permission-denied, invalid-submit]` con default `[golden]`, y b7 deja de hardcodear `states=golden`: pasa los `states_required` reales de cada pantalla con fallback golden.
+
+**Archivos clave**:
+- `skills/b7-issue-to-pr/templates/triage-output.schema.json` — enum + default `[golden]` + description exigiendo `invalid-submit` en forms de crear/editar
+- `skills/b7-screen-review/SKILL.md` — Step 3: estado `invalid-submit` (submit vacio → errores visibles; disabled sin errores = passed:false) + mapeo legacy (`success` ≡ `golden`, `permission-denied` → not-evaluated)
+- `skills/b7-issue-to-pr/SKILL.md` — prompt del sub-agente pasa `states_required` con fallback golden; ejemplo de triage con `states_required: [golden, invalid-submit]`
+
+**Riesgos / consideraciones**:
+Bajo. Solo schema y documentacion de skills, sin codigo ejecutable. Triage sin `states_required` conserva el comportamiento actual (golden) via el default del schema y el fallback del prompt. Schema parsea con `json.load`.
+
+**Links**: [issue #19](https://github.com/jporre/sveltekit-verticalslices/issues/19)
+
+### feat — gate de test de regresion para runs type:fix (#18)
+
+Todo run `type: fix` debe incluir un test de regresion (el que falla sin el fix y pasa con el). b7 inyecta un item `regression-test` al `plan[]` cuando el triage es `fix`, gateado por `plan-check` (DoD #6) sin logica nueva; DoD gana un check #8 que degrada el run a `needs-human-review` (sin abortar) si el diff `master..HEAD` no toca ningun archivo `.(test|spec).`. Un waiver explicito (`plan-done regression-test` con `note: waived: <razon>`) cierra el item pero mantiene el status en `needs-human-review` para que un humano confirme. b6 detecta el mismo caso en el PR: `pr-context.sh` emite `FIX_REGRESSION_GATE` con `FIX_WITHOUT_TEST=true` cuando el headRef es `fix/*` y el diff no toca tests, y el Area 2 emite un WARNING pidiendo el test o justificacion.
+
+**Archivos clave**:
+- `skills/b7-issue-to-pr/SKILL.md` — paso 1 inyecta `regression-test` al plan[] + documenta waiver; DoD check #8 (`FIX_SIN_TEST` → needs-human-review)
+- `skills/b6-pr-review/scripts/pr-context.sh` — seccion `FIX_REGRESSION_GATE` con `FIX_WITHOUT_TEST` al final de CLASSIFY_FILES
+- `skills/b6-pr-review/SKILL.md` — Paso 1 lista `FIX_REGRESSION_GATE`; Area 2 emite WARNING si `FIX_WITHOUT_TEST=true`
+
+**Riesgos / consideraciones**:
+Bajo. El gate b7 es la fuente deterministica (inyeccion al plan + DoD #8); b6 es una segunda red en el PR, no bloquea (WARNING). La deteccion de test es por patron `.(test|spec).` — un proyecto con otra convencion de nombres de test escaparia el gate. `bash -n` OK sobre `pr-context.sh`.
+
+**Links**: [issue #18](https://github.com/jporre/sveltekit-verticalslices/issues/18)
+
+### feat — triage de bugs con evidencia observable + gate anti-fabricacion (#17)
+
+Endurece el triage de `type: fix`: un bug ya no es `ready` por afirmar un sintoma, necesita al menos un artefacto observado. b1-triage gana Step 4e evidence-first (error exacto / salida / `path:linea` en `evidence.observed`, o degrada a needs-info con la verificacion pendiente como pregunta), un probe de codegraph inline en Step 4 con fallback rg y `grounding_source`, y un gate anti-fabricacion en `files_likely` (paths existentes deben venir de output de herramienta; archivos nuevos van como glob marcado). El schema compartido gana `evidence {observed, source}`, `grounding_source` y un `if type==fix then required evidence`. b7 agrega un gate deterministico via jq en el paso 1: `fix` sin `evidence.observed` se trata como needs-info y baila antes de abrir worktree/PR.
+
+**Archivos clave**:
+- `skills/b7-issue-to-pr/templates/triage-output.schema.json` — `evidence`, `grounding_source`, `if/then` fix→evidence, nueva description de `files_likely`
+- `skills/b1-triage-issue/SKILL.md` — Step 4 probe codegraph + gate anti-fabricacion, Step 4e evidence-first, Step 7 seccion Evidencia
+- `skills/b1-triage-issue/references/comment-templates.md` — ejemplo Ready bug con `### Evidencia` citando output observado
+- `skills/b7-issue-to-pr/SKILL.md` — paso 1 gate jq (fix sin evidence.observed → needs-info)
+
+**Riesgos / consideraciones**:
+El subset de `validate-triage` (guardrails.sh) no evalua `if/then`; la obligatoriedad de `evidence` para bugs la aplica el gate jq de b7. Verificado: schema parsea, `validate-triage` sigue OK sobre triages existentes y rechaza claves desconocidas, el gate jq baila un `fix` sin `evidence.observed` y deja pasar uno con evidencia.
+
+**Links**: [issue #17](https://github.com/jporre/sveltekit-verticalslices/issues/17)
 
 ### perf — batch de llamadas gh en topologia de epics (#15)
 

@@ -28,7 +28,27 @@
     "files_likely": {
       "type": "array",
       "items": {"type": "string"},
-      "description": "Globs probables. Ayuda a b2 a no explorar ciegamente."
+      "description": "Paths verificados via herramienta (codegraph/rg/fd) que existen en el repo; globs solo para archivos que aun no existen y hay que crear (marcar el intento). NO inventar paths: un path existente debe venir de output de herramienta, no de memoria. Ayuda a b2 a no explorar ciegamente."
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Artefacto observado que confirma el sintoma/causa de un bug. Obligatorio cuando type=fix (ver if/then al final del schema). Poblado en Step 4e de b1-triage-issue. b7 baila (trata como needs-info) si type=fix y falta evidence.observed.",
+      "required": ["observed"],
+      "properties": {
+        "observed": {
+          "type": "string",
+          "description": "Cita textual del artefacto observado: mensaje de error exacto, salida de comando, linea de log, o snippet de codigo que reproduce/explica el bug. No parafrasear: pegar lo observado."
+        },
+        "source": {
+          "type": "string",
+          "description": "Origen del artefacto: comando corrido, path:linea, URL de CI, o comentario #N del issue. Permite reproducir la observacion."
+        }
+      }
+    },
+    "grounding_source": {
+      "type": "string",
+      "description": "Herramienta que aterrizo files_likely y evidence: 'codegraph' si .codegraph existe y se uso, 'rg' fallback, o 'issue' si solo del cuerpo. Deja rastro de como se verificaron los paths."
     },
     "screens": {
       "type": "array",
@@ -61,8 +81,14 @@
           },
           "states_required": {
             "type": "array",
-            "items": {"type": "string", "enum": ["empty", "loading", "error", "success", "permission-denied"]},
-            "default": ["empty", "loading", "success"]
+            "items": {"type": "string", "enum": ["golden", "empty", "loading", "error", "success", "permission-denied", "invalid-submit"]},
+            "default": ["golden"],
+            "description": "Estados que screen-review debe ejercitar. Vocabulario alineado con b7-screen-review Step 3. Pantalla con form de crear/editar DEBE incluir 'invalid-submit' (submit con requeridos vacios debe mostrar errores visibles). Fallback: ['golden']."
+          },
+          "data_table": {
+            "type": "boolean",
+            "default": false,
+            "description": "true cuando la pantalla lista datos tabulares — el acceptance_criteria_visual menciona columnas, orden, filtros o paginacion. Rutea el build al skill bt1-data-table (fallback: shadcn Table + paginacion server-side segun tamano). Omitir o false si la pantalla no muestra una tabla de datos."
           }
         }
       }
@@ -125,5 +151,13 @@
       "maxLength": 500,
       "description": "Resumen en idioma del issue. Reusable en comentarios y release notes."
     }
+  },
+  "if": {
+    "properties": {"type": {"const": "fix"}},
+    "required": ["type"]
+  },
+  "then": {
+    "required": ["evidence"],
+    "description": "type=fix exige evidencia observable. El subset de validate-triage (guardrails.sh) no evalua if/then; el gate deterministico vive en b7 SKILL.md paso 1 (jq): fix sin evidence.observed se trata como needs-info y baila."
   }
 }

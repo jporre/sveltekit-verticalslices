@@ -55,6 +55,7 @@ Lee el output completo. El script entrega:
 - **PR_DIFF**: el diff completo
 - **PR_COMMITS**: historial de commits
 - **CLASSIFY_FILES**: archivos clasificados por tipo (LOAD_SERVER, REMOTE_FUNCTION, API_ENDPOINT, SVELTE_COMPONENT, etc.)
+- **FIX_REGRESSION_GATE**: `FIX_WITHOUT_TEST=true|false` — true cuando el PR es `fix/*` y el diff no toca ningun archivo `.(test|spec).` (gate de regresion; ver Area 2)
 
 ## Paso 2: Leer CLAUDE.md del proyecto
 
@@ -124,6 +125,17 @@ bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh" "$(gh 
 
 Cada `VIOLATION` es un finding de arquitectura (BLOCKER/WARNING según el punto 2 de abajo).
 El juicio LLM cubre lo que el script no ve (duplicación, indirección, código muerto).
+
+**Gate de regresion (mecanico, del contexto):** si `FIX_REGRESSION_GATE` trae
+`FIX_WITHOUT_TEST=true`, el PR es un `fix/*` que no toca ningun test. Emitir un
+WARNING pidiendo el test de regresion (el que falla sin el fix y pasa con el) o una
+justificacion explicita de por que no aplica:
+
+```
+- **WARNING**: <PR> fix sin test de regresion — agregar un test que falle sin el fix, o justificar por que no aplica
+```
+
+Con `FIX_WITHOUT_TEST=false` (o PR no-`fix/*`) no hay finding por este gate.
 
 Evalua:
 

@@ -90,6 +90,17 @@ Spanish issue → Spanish comment. English → English. Mixed → use the body's
 
 Only reach this step when Step 2 didn't short-circuit. The goal is grounding, not exhaustive exploration.
 
+**4-probe. Probe codegraph antes de grepear (fallback rg siempre disponible).** No confiar en "existe `.codegraph/`": la db puede estar rota o stale. Correr el probe compartido; el `CODEGRAPH_STATUS` elige la via de grounding y se anota en `grounding_source` del triage.
+
+```bash
+bash "$CLAUDE_PLUGIN_ROOT/skills/b1-add-worktree/scripts/codegraph-probe.sh" .   # -> CODEGRAPH_STATUS=ok|stale|missing|broken
+```
+
+- `ok` → usar `codegraph_search "<entidad>"` en el main loop para aterrizar paths reales; `grounding_source: "codegraph"`.
+- `stale`/`missing`/`broken` → NO invocar tools `codegraph_*` (datos stale o fallan); usar el `rg` de 4a como fallback; `grounding_source: "rg"`. El probe SIEMPRE sale 0; codegraph es recomendacion, nunca gate.
+
+**Gate anti-fabricacion en `files_likely`.** Todo path que exista en el repo DEBE venir del output de una herramienta (codegraph/rg/fd), no de memoria. Un archivo que aun no existe y hay que crear va como glob marcado (ej. `src/routes/<feature>/+page.svelte (nuevo)`). No listar un path existente sin haberlo visto en un output. Si no se pudo verificar ningun path, dejar `files_likely: []` y decirlo en el triage.
+
 **4a-doc. Read the feature doc FIRST (antes del grep).** Si el issue es un bug o cambio sobre un feature EXISTENTE, leer su doc colocado `src/routes/<feature>/<feature>.md` (o el `docs/` legacy si el feature vive bajo `src/lib/features/`) ANTES de grepear entidades. El `.md` es la primera parada de debug: da proposito, pantallas/rutas, remote functions, datos y problemas conocidos sin escanear codigo. Si existe, citarlo en el triage (seccion Archivos / Files) y usarlo para acotar el grep de 4a. Si no existe, seguir con 4a normal.
 
 ```bash
@@ -116,6 +127,13 @@ gh search issues "<2-3 keywords> repo:$(gh repo view --json nameWithOwner -q .na
 ```
 
 One `gh search issues` covers both issues and PRs by relevance — replaces separate `gh issue list` + `gh pr list` calls.
+
+**4e. Evidence-first (solo bugs / `type: fix`).** Un bug no es `ready` por afirmar un sintoma: hace falta al menos **un artefacto observado** que confirme sintoma y causa. Antes de marcar ready un `fix`, obtener evidencia observable y guardarla en `evidence` del triage:
+
+- `evidence.observed` — cita textual del artefacto: mensaje de error exacto, salida de comando, linea de log, o snippet de codigo (path:linea) que reproduce/explica el bug. Pegar lo observado, no parafrasear.
+- `evidence.source` — de donde salio: comando corrido, `path:linea`, URL de CI, o comentario `#N`.
+
+Si NO se logra observar el sintoma ni ubicar la causa en codigo, degradar a **needs-info**: la verificacion pendiente pasa a ser una pregunta concreta (ej. "No pude reproducir el error; pega la salida exacta de `<comando>` o el stack trace"). Un `fix` sin `evidence.observed` no avanza: b7 tiene un gate deterministico (jq) que lo trata como needs-info y baila.
 
 ## Step 5: Evaluate quality and risk
 
@@ -148,6 +166,8 @@ Acción cuando el issue es horizontal:
 - Si es parte de un feature más grande mal cortado, recomendar pasar el contexto por **b0** (que slicea en vertical + arma el epic) en vez de buildearlo tal cual.
 
 **Excepción — concerns transversales:** auth, db, storage, notificaciones y audit son infra genuinamente transversal, no features. Un issue legítimamente backend (ej. "agregar índice a `taVentas`", "rotar el secreto de storage") NO es un mal slice — no exige pantalla. Marcar estos como `ready` normal; el `## Pantalla(s)` del body se reemplaza por `## Remote functions / endpoints` (mismo criterio que b0). La regla horizontal aplica a **features de producto** partidas por capa, no a infra transversal.
+
+**Flag `data_table` por pantalla:** al poblar cada pantalla del contrato de triage, marcar `data_table: true` cuando la pantalla lista datos tabulares — su `acceptance_criteria_visual` menciona columnas, orden, filtros o paginacion. Rutea el build al skill `bt1-data-table` (ver `triage-output.schema.json`). Omitir o `false` si la pantalla no muestra una tabla de datos.
 
 ### Risk checklist (conditional — only flag what the affected files trigger)
 
@@ -209,6 +229,8 @@ Compact structure:
 **Complejidad / Complexity**: simple | medium | complex — one-line justification (simple = 3-5 files, medium = 5-8, complex = 8-15).
 
 **Riesgos / Risks**: only the bullets the Step 5 checklist triggered. Omit the section entirely if none.
+
+**Evidencia / Evidence** (solo bugs / `type: fix`): cita el artefacto observado de Step 4e — error exacto, salida de comando, o `path:linea` de la causa — con su fuente. Omitir la seccion si el issue no es un bug. Un `fix` marcado ready SIN esta seccion es incoherente: o hay evidencia, o el veredicto es needs-info.
 
 **Plan**: numbered steps (ready)
    — OR —

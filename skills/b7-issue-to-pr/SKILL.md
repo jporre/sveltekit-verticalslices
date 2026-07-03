@@ -48,9 +48,16 @@ bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR>   # exit 0 
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh" plan-check --worktree "$WORKTREE"   # exit 0 obligatorio
 # 7. Worktree limpio post-commit (NADA fuera del commit — exit 0 obligatorio)
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
+# 8. Gate de regresion: un fix cuyo diff no toca ningun test degrada a needs-human-review (NO aborta)
+if [ "$(jq -r '.type' "$WORKTREE/.b7/triage.json")" = "fix" ] \
+   && ! git -C "$WORKTREE" diff --name-only master..HEAD | grep -qE '\.(test|spec)\.'; then
+  echo "FIX_SIN_TEST — fix sin test de regresion; status=needs-human-review"
+fi
 ```
 
 Si el check 7 sale 6 (codigo sin commitear), volver a invocar `b3-git-commit` en el worktree y pushear — el run NO esta terminado con trabajo fuera del commit. Si sale 7 (artefactos persistentes que `--fix` no pudo excluir), listarlos en el run-report como warning y continuar — mismo criterio que b9 PASO 1.5: los artefactos no invalidan el run.
+
+Si el check 8 imprime `FIX_SIN_TEST`, el run no aborta pero su status final es `needs-human-review` (no `ok`): un fix que no toca tests necesita que un humano confirme que la ausencia de regresion es aceptable. Si hubo waiver explicito (`plan-done regression-test` con `note: waived: <razon>`), la degradacion es la misma — el status va a `needs-human-review` con la razon en el reporte.
 
 **Ultima linea OBLIGATORIA del run** (la parsean orquestadores como b10-ship; fallback de ellos: `gh pr list --search "Closes #N"` + labels del issue):
 
@@ -181,7 +188,8 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
       "route": "/tareas",
       "user_journey": "Usuario abre /tareas, filtra por estado, ...",
       "acceptance_criteria_visual": ["Tabla muestra ...", "Botón ..."],
-      "success_metrics": ["Filtro responde <200ms", "..."]
+      "success_metrics": ["Filtro responde <200ms", "..."],
+      "states_required": ["golden", "invalid-submit"]
     }
   ],
   "security_review_required": false,
@@ -196,6 +204,18 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
 
 Tras escribir `.b7/triage.json`, **validar mecánicamente** contra el schema antes de seguir: `bash scripts/guardrails.sh validate-triage .b7/triage.json`. Si sale exit 4 (verdict/complexity fuera del enum, falta un required, o clave desconocida por `additionalProperties:false`), el triage es inválido — corregirlo y re-validar; no continuar con un artefacto que los sub-skills no van a poder consumir.
 
+**Gate de evidencia para bugs (deterministico, via jq).** El subset de `validate-triage` no evalua el `if/then` del schema (`type=fix` exige `evidence`), asi que b7 lo aplica aca: un `fix` sin `evidence.observed` se trata como needs-info y baila — un bug sin artefacto observado no debe consumir un run de implementacion.
+
+```bash
+if [ "$(jq -r '.type' .b7/triage.json)" = "fix" ] \
+   && [ -z "$(jq -r '.evidence.observed // empty' .b7/triage.json)" ]; then
+  echo "GATE_FAIL fix sin evidence.observed — se trata como needs-info"
+  # comentar en el issue (idioma = .language) que falta evidencia observable, liberar lock, salir 0.
+fi
+```
+
+Mismo trato que `verdict != "ready"`: comentar en el issue (en su idioma) que falta la evidencia observable del bug y bailar. No abrir worktree ni PR.
+
 El `plan[]` es la lista accionable que el orquestador planifica **antes de implementar** y verifica **al cierre** (gate DoD #6). Mantener 3–8 items; nada de micro-tareas. Los sub-agentes marcan progreso con:
 
 ```bash
@@ -203,6 +223,25 @@ scripts/publish-docs.sh plan-done <id> --worktree "$WORKTREE"
 ```
 
 Cada `plan-done` re-renderiza `state.plan_block` y queda reflejado en el sticky comment del issue en el próximo `publish-docs.sh issue-comment` (o `all`). Si al cerrar quedan items pendientes, `plan-check` sale 5 y el run no es válido.
+
+**Gate de regresion para bugs (deterministico, via jq).** Si `type == fix`, inyectar un item `regression-test` al `plan[]` antes de implementar — asi el gate DoD #6 (`plan-check`) obliga a que exista un test de regresion sin logica nueva. Solo agregarlo si no esta ya presente:
+
+```bash
+if [ "$(jq -r '.type' .b7/triage.json)" = "fix" ] \
+   && ! jq -e '.plan[] | select(.id=="regression-test")' .b7/triage.json >/dev/null 2>&1; then
+  tmp=$(mktemp)
+  jq '.plan += [{"id":"regression-test","desc":"Test que falla sin el fix y pasa con el","done":false}]' \
+    .b7/triage.json > "$tmp" && mv "$tmp" .b7/triage.json
+fi
+```
+
+**Waiver explicito.** Si el fix genuinamente no admite test (p.ej. cambio de infra sin harness), cerrar el item con una razon y degradar el run a `needs-human-review` — nunca marcarlo `done` en silencio:
+
+```bash
+scripts/publish-docs.sh plan-done regression-test --worktree "$WORKTREE"   # note: waived: <razon>
+```
+
+El waiver deja `plan-check` en verde (item done) pero el status final del run es `needs-human-review`, no `ok`: un humano confirma que la ausencia de test es aceptable. La razon del waiver va en el sticky comment y el run-report.
 
 Si `verdict != "ready"`: comentar en el issue (en su idioma — `language` del JSON) que el bot bailó, liberar lock, salir 0.
 
@@ -289,7 +328,7 @@ Antes de implementar, para cada `screen` del triage producir un esqueleto en `.b
 
 - Layout en términos de componentes shadcn-svelte (`Card.Root`, `Table.Root`, `Tabs.Root`, etc.)
 - Lista de remote functions necesarias (`get_*`, `create_*`, `update_*`)
-- Estados a mostrar: empty, loading, error, success
+- Estados a mostrar: los `states_required` de la pantalla en el triage (golden, empty, loading, error, success, permission-denied, invalid-submit); fallback `golden` si el triage no los trae
 - Dónde vive cada archivo (todo colocado en `src/routes/<feature>/...`)
 
 Esto es entrada para b2 y para la revisión visual posterior. **Texto plano, no markdown rico** — no consume tokens reformateando.
@@ -323,6 +362,7 @@ Invocar `b2-build-feature` **vía sub-agente** (`Agent(subagent_type=general-pur
 - Ruta a `.b7/context.md`
 - Indicación: respetar layout colocado (feature en `src/routes/<feature>/`), usar Remote Functions Pattern, no introducir state global, errores con `error(STATUS, {message,code})`.
 - Si alguna pantalla del triage tiene form de crear/editar: pointer a `$PLUGIN_ROOT/skills/b2-build-feature/references/forms-recipe.md` (campos nativos vs shadcn no-nativos con hidden-input, `issues()`/aria-invalid siempre visibles, regla `disabled={submitting}` NUNCA `disabled={!isFormValid}`).
+- Si alguna pantalla del triage trae `data_table: true`: instruir al sub-agente a invocar el skill `bt1-data-table` (via Skill tool) para esa tabla si esta disponible; fallback documentado si no lo esta: shadcn Table + paginacion server-side segun tamano del dataset.
 
 Después de cada pasada del sub-agente, ejecutar el bloque de validación. **Skip-by-scope** primero:
 
@@ -452,7 +492,7 @@ Para cada pantalla, lanzar **un sub-agente** con `b7-screen-review` en paralelo 
 Agent(
   subagent_type="general-purpose",
   description="Visual review <ScreenName>",
-  prompt="Use skill b7-screen-review with: screen=<Name> route=<route> port=<PORT> worktree=$WORKTREE criteria_file=.b7/screens/<Name>.md out_dir=.b7/review states=golden auth_cookie=<AUTH_COOKIE>. Si viene auth_cookie inyectala (paso 2a del skill); si no, reusá la sesión del Chrome real (paso 2b) — no hagas login. Cargá primero las MCP tools de claude-in-chrome con ToolSearch. Output: .b7/review/<Name>.json + .b7/review/<Name>-*.png"
+  prompt="Use skill b7-screen-review with: screen=<Name> route=<route> port=<PORT> worktree=$WORKTREE criteria_file=.b7/screens/<Name>.md out_dir=.b7/review states=<states_required de la pantalla, join por coma; fallback golden> auth_cookie=<AUTH_COOKIE>. Si viene auth_cookie inyectala (paso 2a del skill); si no, reusá la sesión del Chrome real (paso 2b) — no hagas login. Cargá primero las MCP tools de claude-in-chrome con ToolSearch. Output: .b7/review/<Name>.json + .b7/review/<Name>-*.png"
 )
 ```
 

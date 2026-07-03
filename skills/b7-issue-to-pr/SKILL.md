@@ -357,15 +357,39 @@ bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "$PO
 
 Si `verify-port` sale non-zero (nadie escucha, o el puerto lo sirve otro cwd que no es el worktree), omitir el review visual con una nota explícita en el run-report (no abortar el run completo) y saltar a 5.9 (no hay nada que apagar si el `pid` no quedó vivo). **No revisar pantallas contra un server que no sea el del worktree** — ese fue el incidente que este gate previene (screen-review contra master).
 
-#### 5.1 Auth: reusar la sesión del Chrome real
+#### 5.1 Auth: sesión scriptada (preferido) con fallback al Chrome real
 
-La app exige login (OAuth Google/Microsoft) y **no** se hace login interactivo automatizado. La estrategia es **reusar el Chrome real del usuario**: `claude-in-chrome` opera el navegador real, donde el usuario ya tiene (o puede abrir) una sesión válida contra el dev server del worktree.
+La app exige login (OAuth Google/Microsoft) y **no** se hace login interactivo automatizado. Dos caminos, en orden:
 
-Antes de lanzar los sub-agentes, dejar UNA línea en el run-report y en el sticky comment del issue:
+**A. Intentar sesión scriptada (`mint-dev-session.sh`).** Inserta una fila de sesión válida en la DB del worktree y devuelve la cookie — sin ritual manual. Requiere `B7_SESSION_USER_ID` o `B7_SESSION_EMAIL` en el entorno del run:
+
+```bash
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+MINT="$PLUGIN_ROOT/skills/b7-screen-review/scripts/mint-dev-session.sh"
+AUTH_COOKIE=""
+if COOKIE_LINE=$(bash "$MINT" mint "$WORKTREE" 2>>"$WORKTREE/.b7/dev-server.log"); then
+  AUTH_COOKIE="${COOKIE_LINE#B7_SESSION_COOKIE=}"   # -> auth-session=<token>
+  # Verificar contra una ruta protegida real del feature (usar la route de la 1a pantalla):
+  if B7_SESSION_COOKIE="$AUTH_COOKIE" bash "$MINT" verify "http://localhost:${PORT}<primera-route>"; then
+    echo "auth scriptada OK — se pasa auth_cookie a los sub-agentes"
+  else
+    echo "verify no dio 200 — descarto la cookie, caigo al Chrome real"
+    AUTH_COOKIE=""
+  fi
+else
+  echo "mint no disponible (sin B7_SESSION_USER_ID/EMAIL o DATABASE_URL) — fallback al Chrome real"
+fi
+```
+
+`mint` sale 3 (fallback limpio) si faltan `B7_SESSION_USER_ID`/`B7_SESSION_EMAIL` o `DATABASE_URL` — **no** es error; simplemente no hay cookie y se sigue con el flujo B.
+
+**B. Fallback: reusar el Chrome real del usuario.** Si no hubo cookie, `claude-in-chrome` opera el navegador real donde el usuario ya tiene (o puede abrir) una sesión válida. Dejar UNA línea en el run-report y en el sticky comment del issue:
 
 > Para revisar las pantallas, abrí `http://localhost:<port>/` en tu Chrome y logueate una vez. Las capturas reusan esa sesión.
 
-Si una pantalla vuelve `auth-required` (redirección a login), **no** es `fail` del feature: marcar la pantalla como `not-evaluated (login pendiente en Chrome)` en el run-report y seguir. Solo cuenta como `fail` un criterio visual incumplido con sesión válida.
+Si una pantalla vuelve `auth-required` (redirección a login, sin cookie), **no** es `fail` del feature: marcar la pantalla como `not-evaluated (login pendiente en Chrome)` en el run-report y seguir. Solo cuenta como `fail` un criterio visual incumplido con sesión válida.
+
+> Restricción conocida (fuera de alcance de #14): la cookie es host-scoped (`localhost`). Si b7 y b8-swarm mintean en paralelo contra el mismo host, la última cookie pisa a las demás. Wiring de mint en b8-swarm es follow-up.
 
 #### 5.2 Lanzar un sub-agente por pantalla
 
@@ -375,9 +399,11 @@ Para cada pantalla, lanzar **un sub-agente** con `b7-screen-review` en paralelo 
 Agent(
   subagent_type="general-purpose",
   description="Visual review <ScreenName>",
-  prompt="Use skill b7-screen-review with: screen=<Name> route=<route> port=<PORT> worktree=$WORKTREE criteria_file=.b7/screens/<Name>.md out_dir=.b7/review states=golden. Reusá la sesión del Chrome real (claude-in-chrome) — no hagas login. Cargá primero las MCP tools de claude-in-chrome con ToolSearch. Output: .b7/review/<Name>.json + .b7/review/<Name>-*.png"
+  prompt="Use skill b7-screen-review with: screen=<Name> route=<route> port=<PORT> worktree=$WORKTREE criteria_file=.b7/screens/<Name>.md out_dir=.b7/review states=golden auth_cookie=<AUTH_COOKIE>. Si viene auth_cookie inyectala (paso 2a del skill); si no, reusá la sesión del Chrome real (paso 2b) — no hagas login. Cargá primero las MCP tools de claude-in-chrome con ToolSearch. Output: .b7/review/<Name>.json + .b7/review/<Name>-*.png"
 )
 ```
+
+Pasar `auth_cookie=<AUTH_COOKIE>` solo si 5.1-A dio una cookie válida (verify=200); si `AUTH_COOKIE` quedó vacío, omitir el param y el sub-agente cae al Chrome real.
 
 `b7-screen-review` produce por pantalla:
 - `<Name>.json`: `{verdict: pass|fail|warn, findings: [...], screenshots: [...]}`
@@ -385,11 +411,16 @@ Agent(
 
 Si alguna pantalla retorna `fail` (criterio visual incumplido con sesión válida), devolver findings al loop de implementación (paso 4) y rebudgetear iteración. Si retorna `warn` o `not-evaluated`, agregar al PR como nota pero seguir.
 
-#### 5.9 Apagar el dev server
+#### 5.9 Apagar el dev server y borrar la sesión scriptada
 
-Pase lo que pase con el review, apagar el server que se levantó en 5.0:
+Pase lo que pase con el review, apagar el server que se levantó en 5.0 **y** borrar SIEMPRE la sesión que se minteó en 5.1-A (si la hubo). El cleanup es idempotente: sin `.b7/dev-session.json` no hace nada.
 
 ```bash
+# Borrar la sesión scriptada (idempotente; no falla si no se minteó ninguna).
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+bash "$PLUGIN_ROOT/skills/b7-screen-review/scripts/mint-dev-session.sh" cleanup "$WORKTREE" || true
+
+# Apagar el dev server.
 [ -f "$WORKTREE/.b7/dev-server.pid" ] && kill "$(cat "$WORKTREE/.b7/dev-server.pid")" 2>/dev/null || true
 rm -f "$WORKTREE/.b7/dev-server.pid"
 ```

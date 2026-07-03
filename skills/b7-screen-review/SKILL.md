@@ -32,7 +32,7 @@ $ARGUMENTS
 | `out_dir` | `.b7/review` | sí |
 | `states` | `golden,empty,error` | no (default `golden`) |
 | `worktree` | `/Users/x/worktrees/6-foo` | no — si viene, el pre-flight gatea con `verify-port` (server debe servir ESE worktree, no master); si falta, cae a `curl` (modo standalone) |
-| `auth_cookie` | _(deprecado)_ | no — ya no se inyecta; se reusa la sesión del Chrome real |
+| `auth_cookie` | `auth-session=QZHi...` | no — si viene, se inyecta via `document.cookie` para pasar el muro OAuth sin login manual (la genera b7 con `mint-dev-session.sh`); si falta, se reusa la sesión del Chrome real |
 
 ## Output (contrato con b7)
 
@@ -87,9 +87,27 @@ Si `ToolSearch` no devuelve las tools (extensión no conectada), abortar con `ve
 - Crear `<out_dir>` si no existe.
 - Leer `<criteria_file>` (markdown plano del triage). Extraer los `acceptance_criteria_visual` como lista checkable.
 
-### 2. Sesión browser — reusar el Chrome real logueado
+### 2. Sesión browser
 
-`claude-in-chrome` opera el **Chrome real** del usuario, donde ya hay (o debería haber) una sesión válida contra el dev server. **No** se inyecta cookie ni se hace login automatizado.
+Hay dos modos según venga o no `auth_cookie`.
+
+#### 2a. CON `auth_cookie` (sesión scriptada — preferido cuando b7 la pasa)
+
+b7 usa `mint-dev-session.sh` para insertar una sesión válida en la DB del worktree y te pasa `auth_cookie=auth-session=<token>`. Inyectarla en el **mismo origen** del dev server y navegar en la MISMA tab:
+
+1. `mcp__claude-in-chrome__tabs_context_mcp` primero (regla del MCP server).
+2. `tabs_create_mcp` con `http://localhost:<port>/login` (aterrizar en una ruta del **mismo origen** — `document.cookie` es host-scoped, hay que estar en el host antes de setearla).
+3. Inyectar la cookie via `javascript_tool` en esa tab:
+   ```js
+   // auth_cookie ya viene como "auth-session=<token>"
+   document.cookie = "<auth_cookie>; path=/; SameSite=Lax";
+   ```
+4. **Re-navegar en la misma tab** a `http://localhost:<port><route>` (la cookie ya viaja en el request). No abrir tab nueva — perdería la cookie recién seteada.
+5. `read_page` y confirmar que NO redirige a login. Si aún redirige, la cookie no prendió (host equivocado / sesión expirada): marcar `verdict: warn`, criterios `not-evaluated`, finding `{severity: info, message: "auth_cookie no prendió — revisar mint-dev-session.sh / verify"}`, y terminar.
+
+#### 2b. SIN `auth_cookie` (reusar el Chrome real logueado)
+
+`claude-in-chrome` opera el **Chrome real** del usuario, donde ya hay (o debería haber) una sesión válida contra el dev server. **No** se hace login automatizado.
 
 1. `mcp__claude-in-chrome__tabs_context_mcp` primero (regla del MCP server).
 2. `tabs_create_mcp` con `http://localhost:<port><route>`.
@@ -168,7 +186,7 @@ Cerrar la tab via `tabs_close_mcp`. NO cerrar otras tabs del usuario.
 ## Anti-patrones (importante)
 
 - **No** disparar dialogs (alert/confirm/prompt) — bloquean al MCP server.
-- **No** hacer login interactivo ni inyectar cookies. Se reusa la sesión del Chrome real. Si la ruta redirige a login → `warn` + criterios `not-evaluated` + nota para que el usuario se loguee y re-corra.
+- **No** hacer login interactivo (OAuth). Con `auth_cookie` se inyecta la sesión scriptada (paso 2a); sin ella se reusa la sesión del Chrome real (paso 2b). Si la ruta redirige a login sin cookie → `warn` + criterios `not-evaluated` + nota para que el usuario se loguee y re-corra.
 - **No** intentar resolver bugs encontrados — solo reportar. La iteración la maneja b7.
 - **No** abrir 5 tabs en paralelo desde acá — la paralelización es por sub-agente, no por tab.
 - **No** asumir que el dev server está corriendo — verificar siempre.

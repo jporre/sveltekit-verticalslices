@@ -167,6 +167,8 @@ Acción cuando el issue es horizontal:
 
 **Excepción — concerns transversales:** auth, db, storage, notificaciones y audit son infra genuinamente transversal, no features. Un issue legítimamente backend (ej. "agregar índice a `taVentas`", "rotar el secreto de storage") NO es un mal slice — no exige pantalla. Marcar estos como `ready` normal; el `## Pantalla(s)` del body se reemplaza por `## Remote functions / endpoints` (mismo criterio que b0). La regla horizontal aplica a **features de producto** partidas por capa, no a infra transversal.
 
+**Flag `data_table` por pantalla:** al poblar cada pantalla del contrato de triage, marcar `data_table: true` cuando la pantalla lista datos tabulares — su `acceptance_criteria_visual` menciona columnas, orden, filtros o paginacion. Rutea el build al skill `bt1-data-table` (ver `triage-output.schema.json`). Omitir o `false` si la pantalla no muestra una tabla de datos.
+
 ### Risk checklist (conditional — only flag what the affected files trigger)
 
 Walk this once using the file list from 4c. Each row produces at most one bullet in the evaluation comment IF its trigger fires. Most issues fire zero or one — that's expected.

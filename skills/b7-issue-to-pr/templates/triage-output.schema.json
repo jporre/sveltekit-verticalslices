@@ -84,6 +84,11 @@
             "items": {"type": "string", "enum": ["golden", "empty", "loading", "error", "success", "permission-denied", "invalid-submit"]},
             "default": ["golden"],
             "description": "Estados que screen-review debe ejercitar. Vocabulario alineado con b7-screen-review Step 3. Pantalla con form de crear/editar DEBE incluir 'invalid-submit' (submit con requeridos vacios debe mostrar errores visibles). Fallback: ['golden']."
+          },
+          "data_table": {
+            "type": "boolean",
+            "default": false,
+            "description": "true cuando la pantalla lista datos tabulares — el acceptance_criteria_visual menciona columnas, orden, filtros o paginacion. Rutea el build al skill bt1-data-table (fallback: shadcn Table + paginacion server-side segun tamano). Omitir o false si la pantalla no muestra una tabla de datos."
           }
         }
       }

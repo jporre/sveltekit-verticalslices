@@ -187,6 +187,8 @@ for (const n of A.issues) {                       // SECUENCIAL: comparten workt
   const out = await agent(
     `Implementá el issue #${n} en el worktree COMPARTIDO ${A.worktree} (rama ${A.branch}). ` +
     `Usá b2-build-feature leyendo ${A.worktree}/.b7/triage-${n}.json. Feature colocado en src/routes + Remote Functions. ` +
+    `Para toda pantalla con data_table:true en el triage, invocá el skill bt1-data-table (via Skill tool) si esta disponible; ` +
+    `fallback: shadcn Table + paginacion server-side segun tamano. ` +
     `Validá (check:machine/lint/test, skip-by-scope). Al verde, commiteá SOLO los cambios de este ` +
     `issue con b3-git-commit, scope (#${n}). Si NO llegás a verde dentro del budget: revertí tus ` +
     `cambios sin commitear (git checkout -- . && git clean -fd) y devolvé status:failed — no dejes ` +

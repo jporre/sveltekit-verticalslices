@@ -362,6 +362,7 @@ Invocar `b2-build-feature` **vía sub-agente** (`Agent(subagent_type=general-pur
 - Ruta a `.b7/context.md`
 - Indicación: respetar layout colocado (feature en `src/routes/<feature>/`), usar Remote Functions Pattern, no introducir state global, errores con `error(STATUS, {message,code})`.
 - Si alguna pantalla del triage tiene form de crear/editar: pointer a `$PLUGIN_ROOT/skills/b2-build-feature/references/forms-recipe.md` (campos nativos vs shadcn no-nativos con hidden-input, `issues()`/aria-invalid siempre visibles, regla `disabled={submitting}` NUNCA `disabled={!isFormValid}`).
+- Si alguna pantalla del triage trae `data_table: true`: instruir al sub-agente a invocar el skill `bt1-data-table` (via Skill tool) para esa tabla si esta disponible; fallback documentado si no lo esta: shadcn Table + paginacion server-side segun tamano del dataset.
 
 Después de cada pasada del sub-agente, ejecutar el bloque de validación. **Skip-by-scope** primero:
 

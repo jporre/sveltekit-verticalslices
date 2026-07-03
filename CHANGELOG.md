@@ -39,6 +39,21 @@ classify-run asigna lane S/M/L; carril S usa render mecanico de screens, agente 
 
 **Links**: [issue #16](https://github.com/jporre/sveltekit-verticalslices/issues/16) · [PR #—](—) · [run report](—)
 
+### feat — flag data_table por pantalla cablea bt1-data-table en el build (#20)
+
+Cierra el gap de ruteo: el skill `bt1-data-table` solo se mencionaba en la tabla de skills auxiliares de b2, sin que triage ni los prompts de build de b7/b8 lo referenciaran. Se agrega la propiedad opcional `data_table: boolean` por pantalla en el contrato de triage y se propaga hasta los prompts de implementacion. b1 marca `data_table: true` cuando la pantalla lista datos tabulares (columnas, orden, filtros o paginacion en el acceptance criteria); b7 (paso 4) y b8 (prompt de build) inyectan una clausula condicional: para esas pantallas el sub-agente invoca `bt1-data-table` via Skill tool si esta disponible, con fallback documentado a shadcn Table + paginacion server-side segun tamano. Solo schema y texto de prompts, sin logica nueva.
+
+**Archivos clave**:
+- `skills/b7-issue-to-pr/templates/triage-output.schema.json` — propiedad `data_table: boolean` (default false) por pantalla con description del criterio
+- `skills/b1-triage-issue/SKILL.md` — criterio para marcar `data_table` al poblar pantallas tabulares
+- `skills/b7-issue-to-pr/SKILL.md` — paso 4: clausula condicional `data_table=true` en el prompt del sub-agente
+- `skills/b8-swarm/SKILL.md` — misma clausula en el prompt de build secuencial
+
+**Riesgos / consideraciones**:
+Bajo. `data_table` es opcional con default `false`: triage que no lo emite conserva el comportamiento actual y validate-triage pasa con y sin el flag (schema parsea con `json.load`). No hay ruteo forzado — el sub-agente cae al fallback shadcn Table si el skill no esta disponible.
+
+**Links**: [issue #20](https://github.com/jporre/sveltekit-verticalslices/issues/20)
+
 ### feat — vocabulario de states alineado + estado invalid-submit en screen-review (#19)
 
 Screen-review ya no se limita al golden path. Se alinea el vocabulario de `states_required` entre el triage schema y screen-review, y se agrega el estado `invalid-submit`: submit con requeridos vacios debe mostrar errores visibles; si el boton submit esta `disabled` y por eso no aparece ningun error, es el anti-patron de la receta de forms (`disabled={submitting}`, nunca `disabled={!isFormValid}`) y se marca `passed: false`. El enum de `states_required` pasa a `[golden, empty, loading, error, success, permission-denied, invalid-submit]` con default `[golden]`, y b7 deja de hardcodear `states=golden`: pasa los `states_required` reales de cada pantalla con fallback golden.

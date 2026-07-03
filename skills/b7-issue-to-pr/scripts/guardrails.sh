@@ -8,6 +8,8 @@
 #   acquire-lock [owner-pid]           — take the b7 lock (writes owner pid, default $PPID); exits non-zero if held
 #   release-lock                       — remove the lock file
 #   heartbeat <worktree-dir>           — write .b7/heartbeat (UTC) and touch the lock (keeps it fresh)
+#   dev-server start|stop <worktree-dir> — start: nohup ./dev.sh (log/pid en .b7/), poll ~30s, WARN sin abortar si no responde; stop: kill del pid (idempotente)
+#   worktree-env <worktree-dir>        — emite WORKTREE=/BRANCH=/PORT= (eval-safe) desde .b7/worktree-ready.json
 #   state-dir                          — print the b7 state dir (creates it if missing) and exit
 #   cache-issue <issue-number> <out-dir> — cache `gh issue view` JSON to <out-dir>/issue.json (idempotent)
 #   context-snapshot <out-dir>         — write <out-dir>/context.md with stack/aliases/colocated layout (no LLM)
@@ -563,6 +565,37 @@ HINT
   return 0
 }
 
+cmd_worktree_env() {
+  # worktree-env <worktree-dir> — emite lineas WORKTREE=<dir> BRANCH=<branch> PORT=<port>
+  # (eval-safe) leyendo el marker .b7/worktree-ready.json que siembra setup-worktree.sh.
+  # Reemplaza el parseo inline (eval/sed/awk) de la linea WORKTREE_READY en SKILL.md.
+  local dir="${1:-}"
+  if [ -z "$dir" ] || [ ! -d "$dir" ]; then
+    echo "worktree-env: usage: worktree-env <worktree-dir>" >&2
+    return 2
+  fi
+  local marker="$dir/.b7/worktree-ready.json"
+  if [ ! -f "$marker" ]; then
+    echo "worktree-env: missing $marker (worktree NOT created via b1-add-worktree)" >&2
+    return 30
+  fi
+  python3 - "$marker" <<'PY'
+import json, shlex, sys
+marker = sys.argv[1]
+try:
+    m = json.load(open(marker))
+except Exception as e:
+    print(f"worktree-env: invalid {marker}: {e}", file=sys.stderr)
+    sys.exit(30)
+for out_key, json_key in (("WORKTREE", "dir"), ("BRANCH", "branch"), ("PORT", "port")):
+    v = m.get(json_key)
+    if v in (None, ""):
+        print(f"worktree-env: missing '{json_key}' in {marker}", file=sys.stderr)
+        sys.exit(30)
+    print(f"{out_key}={shlex.quote(str(v))}")
+PY
+}
+
 cmd_verify_port() {
   # verify-port <port> <worktree-dir>
   # Confirma que quien escucha en <port> es un proceso cuyo cwd ES el worktree.
@@ -605,6 +638,73 @@ cmd_verify_port() {
   echo "  intruso pid=$pid cwd=${cwd:-desconocido}" >&2
   echo "  hint: mata ese proceso (kill $pid) o revisa que dev.sh use --strictPort" >&2
   return 41
+}
+
+cmd_dev_server() {
+  # dev-server start|stop <worktree-dir>
+  # start: nohup ./dev.sh > .b7/dev-server.log, pid en .b7/dev-server.pid (mismos
+  #        paths que consumen b8-swarm y b9-close), poll del puerto hasta ~30s.
+  #        Si no responde: WARN y exit 0 — NO aborta; el caller decide con
+  #        verify-port si omite las screens con nota.
+  # stop:  kill del pid si existe; idempotente y silencioso si no hay pid file.
+  local action="${1:-}" wt="${2:-}"
+  case "$action" in
+    start|stop) ;;
+    *)
+      echo "dev-server: usage: dev-server start|stop <worktree-dir>" >&2
+      return 2
+      ;;
+  esac
+  if [ -z "$wt" ] || [ ! -d "$wt" ]; then
+    echo "dev-server: missing or invalid worktree dir" >&2
+    return 2
+  fi
+
+  local pid_file="$wt/.b7/dev-server.pid"
+
+  if [ "$action" = "stop" ]; then
+    if [ -f "$pid_file" ]; then
+      kill "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null || true
+      rm -f "$pid_file"
+      echo "dev-server: stopped"
+    fi
+    return 0
+  fi
+
+  # start
+  if [ ! -x "$wt/dev.sh" ]; then
+    echo "dev-server: missing or non-executable $wt/dev.sh" >&2
+    return 2
+  fi
+  mkdir -p "$wt/.b7"
+
+  local port=""
+  if [ -f "$wt/.b7/worktree-ready.json" ]; then
+    port="$(python3 -c "import json; print(json.load(open('$wt/.b7/worktree-ready.json')).get('port',''))" 2>/dev/null || echo)"
+  fi
+
+  (
+    cd "$wt" || exit 1
+    nohup ./dev.sh > .b7/dev-server.log 2>&1 &
+    echo $! > .b7/dev-server.pid
+  )
+
+  if [ -z "$port" ]; then
+    echo "dev-server: WARN sin puerto conocido (falta .b7/worktree-ready.json) — no se pudo verificar arranque; log en $wt/.b7/dev-server.log" >&2
+    return 0
+  fi
+
+  # Poll hasta ~30s (vite + primera compilacion).
+  local i
+  for i in $(seq 1 15); do
+    if curl -fsS "http://localhost:${port}/" >/dev/null 2>&1; then
+      echo "DEV_SERVER_UP port=$port pid=$(cat "$pid_file" 2>/dev/null || echo '?')"
+      return 0
+    fi
+    sleep 2
+  done
+  echo "dev-server: WARN :$port no respondio tras ~30s — revisar $wt/.b7/dev-server.log (no aborta)" >&2
+  return 0
 }
 
 cmd_validate_triage() {
@@ -870,6 +970,8 @@ case "${1:-}" in
   acquire-lock)     shift; cmd_acquire_lock "$@" ;;
   release-lock)     shift; cmd_release_lock "$@" ;;
   heartbeat)        shift; cmd_heartbeat "$@" ;;
+  dev-server)       shift; cmd_dev_server "$@" ;;
+  worktree-env)     shift; cmd_worktree_env "$@" ;;
   state-dir)        shift; cmd_state_dir "$@" ;;
   cache-issue)      shift; cmd_cache_issue "$@" ;;
   context-snapshot) shift; cmd_context_snapshot "$@" ;;
@@ -877,7 +979,7 @@ case "${1:-}" in
   verify-worktree)  shift; cmd_verify_worktree "$@" ;;
   verify-port)      shift; cmd_verify_port "$@" ;;
   *)
-    echo "Usage: $0 {env-check|preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|verify-port <port> <worktree>|validate-triage <triage.json>|classify-run <triage.json> <state.json>}" >&2
+    echo "Usage: $0 {env-check|preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|dev-server start|stop <worktree>|worktree-env <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|verify-port <port> <worktree>|validate-triage <triage.json>|classify-run <triage.json> <state.json>}" >&2
     exit 2
     ;;
 esac

@@ -188,11 +188,11 @@ Inside the build phase, `b7-issue-to-pr` runs five non-skippable steps:
 
 1. **Create the worktree** (`b1-add-worktree`). Branch `feat/<issue>-<slug>` or `fix/<issue>-<slug>`. The main repo is never edited.
 2. **Post a sticky status comment** on the issue (marker `<!-- b7:status -->`) so the reporter knows the bot picked it up.
-3. **Build the feature**, screen by screen. The worktree's dev server is started on its own port; each screen is verified in your real Chrome via `b7-screen-review` (one parallel sub-agent per screen).
-4. **Commit** the work via `b3-git-commit` (conventional commits, grouped by theme).
-5. **Open a draft PR** via `b4-pull-request` with `Closes #<issue>`, release notes, technical changes, and screenshots; sync the issue labels (`ready`/`auto-pr` → `in-progress` → `in-review`).
+3. **Commit** the work via `b3-git-commit` (conventional commits, grouped by theme).
+4. **Open a draft PR** via `b4-pull-request` with `Closes #<issue>`, release notes, technical changes, and screenshots; sync the issue labels (`ready`/`auto-pr` → `in-progress` → `in-review`).
+5. **Run `b6-pr-review`** on the fresh PR and attach the verdict. High-severity findings cause it to re-iterate (within budget) or ask for a human.
 
-It then runs `b6-pr-review` on the fresh PR and attaches the verdict. High-severity findings cause it to re-iterate (within budget) or ask for a human.
+In between steps 2 and 3 the feature is built screen by screen: the worktree's dev server is started on its own port and each screen is verified in your real Chrome via `b7-screen-review` (one parallel sub-agent per screen).
 
 ### Step 4 — Verify
 

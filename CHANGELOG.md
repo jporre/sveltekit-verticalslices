@@ -8,6 +8,21 @@
   Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
 -->
 
+### refactor(b7): adelgazar SKILL.md a ~400 lineas, corregir drift 4v5 pasos, borrar usage.html (#25)
+
+b7 corre como fork y pagaba sus 718 lineas en CADA issue, con el mandato anti-abandono repetido 6+ veces y drift "los 4 pasos" vs "CINCO PASOS" que dejaba ambiguo el set obligatorio. SKILL.md baja a ~650 lineas (la meta de ~400-500 quedo corta: los contratos mergeados post-issue en #43/#44/#45 — lane S, gates de evidencia/regresion, impact drift — se conservan integros): las 6 ocurrencias de "los 4 pasos" pasan a "los 5 pasos", se borran las secciones redundantes "Anti-patron: parches inline en master" y "NO PARAR AQUI" (contenido unico fusionado a "Que NO hacer" y al paso 6), los headers 6/8/8b quedan alineados al numero de PASO OBLIGATORIO del frontmatter (#3 commit, #4 PR+labels), y la lista canonica de puntos de heartbeat vive solo en el paso 2. Dos bloques bash copy-paste se scriptean en `guardrails.sh`: `worktree-env <dir>` (emite WORKTREE/BRANCH/PORT eval-safe desde `.b7/worktree-ready.json`, reemplaza el eval/sed/awk inline) y `dev-server start|stop <worktree>` (nohup dev.sh + pid + poll ~30s con WARN sin abortar; stop idempotente; mismos paths `.b7/dev-server.*` que consumen b8/b9). `docs/usage.html` (628 lineas, cero referencias) se borra. README §7 Step 3 se alinea con los 5 pasos reales (commit es #3, PR+labels #4, b6-review #5).
+
+**Archivos clave**:
+- `skills/b7-issue-to-pr/SKILL.md` — 718 → ~650 lineas; drift 4v5 corregido; dedupe mandato/heartbeat; bloques dev-server/worktree-env reemplazados por llamadas de 1-2 lineas
+- `skills/b7-issue-to-pr/scripts/guardrails.sh` — NUEVOS subcomandos `dev-server start|stop` y `worktree-env`; `heartbeat` intacto (formato UTC que parsea b10)
+- `skills/b7-issue-to-pr/docs/usage.html` — BORRADO (huerfano)
+- `README.md` — §7 Step 3 alineado con los 5 PASO OBLIGATORIO
+
+**Riesgos / consideraciones**:
+Bajo. El formato del heartbeat no cambia (verificado con `date -j -u -f`); `dev-server` conserva los paths `.b7/dev-server.{log,pid}` que ya matan b9-close y usa b8-swarm; frontmatter description, B7_DONE, DoD checks 1-8 y budgets quedan byte-identicos. `worktree-env` exige el marker `worktree-ready.json` (exit 30 si falta) — mismo invariante que verify-worktree.
+
+**Links**: [issue #25](https://github.com/jporre/sveltekit-verticalslices/issues/25)
+
 ### refactor(pipeline): lib.sh — contratos inter-skill compartidos (find_pr, b6_verdict, label_event, blocked_by) (#24)
 
 Los contratos entre orquestadores vivian copy-pasteados y drifteaban: el lookup de PR por "Closes #N" existia en variantes (b9 usaba search server-side sin frontera de digitos + head -1), el sweep de events de labels estaba duplicado, y '## Blocked by' se parseaba con 2 gramaticas distintas — el sed inclusivo de run.sh capturaba el #N de la linea del heading siguiente (deps fantasma), mientras epic-graph.sh tenia el regex python correcto duplicado DOS veces en el mismo archivo. Nuevo `scripts/lib.sh` (raiz del plugin, sourceable, bash 3.2-safe) con 4 funciones: `bp_find_pr <issue> [open|merged]` (frontera `[^0-9]|$`: #261 no matchea #2610), `bp_b6_verdict <pr>` (delega en el lector unico verdict.sh read), `bp_label_event <issue|pr> <label>` (UNA llamada --paginate -> `actor<TAB>created_at`; comparacion de timestamps en el caller) y `bp_blocked_by` (stdin=body -> deps, lookahead NO inclusivo). `bash lib.sh selftest` corre los fixtures offline de bp_blocked_by (regresion: heading inmediato tras la seccion -> cero deps fantasma) y cmd_preflight lo suma a su smoke-test.

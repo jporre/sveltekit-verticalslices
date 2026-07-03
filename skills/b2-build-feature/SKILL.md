@@ -357,21 +357,32 @@ Code that compiles but hasn't been tested in a browser is NOT done.
    Cualquier `VIOLATION` (feature nuevo bajo `src/lib/features/`, `data.remote.ts`,
    `*.remote.ts` bajo `src/lib/server/`, slice nuevo sin `<feature>.md`) se corrige
    ANTES de seguir. Es la misma verificación que corre b6 en el review.
-1. `pnpm check:machine` — zero errors in YOUR files before proceeding
-2. `pnpm format`
-3. Run MCP `svelte-autofixer` on each `.svelte` file you created/modified
-4. **Browser test with `agent-browser`** — this is NOT optional:
+1. **Correr `verify.sh`** — los gates mecanicos como script (branch guard, `check:machine`,
+   `format`, grep anti-React scoped al diff, `test:unit` condicional, browser-gate):
+   ```bash
+   bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh"
+   # ultima linea: VERIFY_RESULT branch=ok check=ok react=ok test=ok|skipped browser=required|not-needed svelte_files=<csv>
+   # exit 3 rama master/main | 4 check:machine | 5 patron React (file:line) | 6 test:unit
+   ```
+   Si sale non-zero: corregir lo que reporta y re-correr hasta exit 0. No avanzar
+   con un gate en `fail`.
+2. **Autofixer** — correr MCP `svelte-autofixer` sobre cada archivo del csv
+   `svelte_files=` de la linea `VERIFY_RESULT`. Si reporta issues: corregir y volver
+   al paso 1 (verify.sh de nuevo — el fix puede romper types o formato).
+3. **Browser test con `agent-browser`** — SOLO si `VERIFY_RESULT` dice `browser=required`
+   (el diff toca `src/routes/**`, `*.svelte` o `*.remote.ts`). Con `browser=not-needed`
+   se omite dejando nota en el reporte. El walkthrough NO es opcional cuando es required:
    - Open the page, take a screenshot — does it render?
    - Check server terminal for errors (`grep -i error` on dev server output)
    - Test each operation: list loads, create works, edit pre-populates, delete removes
    - If the page has a form: test BOTH create and edit mode
-5. Fix any issues found, repeat from step 1
+4. Fix any issues found, repeat from step 1
 
 If you can't browser-test (no credentials, server down), tell the user explicitly:
 "I verified types and autofixer but could NOT browser-test because [reason]."
 Never claim a feature is done without stating what was and wasn't tested.
 
-Read `references/verification-checklist.md` for the detailed process.
+Read `references/verification-checklist.md` for the browser walkthrough how-to.
 
 ### Phase 4: Finalize
 
@@ -420,7 +431,7 @@ After verification passes:
 | React->Svelte doubts                          | `references/svelte5-not-react.md`      |
 | Tempted to add a layer/abstraction/dependency | `references/simplicity-ladder.md`      |
 | Need copy-paste templates                     | `references/feature-templates.md`      |
-| Running verification                          | `references/verification-checklist.md` |
+| Browser walkthrough (`browser=required`)      | `references/verification-checklist.md` |
 | Feature has 4+ screens                        | `references/complex-features.md`       |
 | URL-synced page state (filter/tab/month)      | `references/url-synced-state.md`       |
 | Screen has a create/edit form (`form()` + shadcn) | `references/forms-recipe.md`        |

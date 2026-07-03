@@ -8,6 +8,22 @@
   Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
 -->
 
+### feat(b2): verify.sh — el checklist de verificacion como script con exit codes y browser-gate por scope de diff (#23)
+
+La verificacion de b2 era prosa honor-system triplicada (SKILL.md, checklist, b7): el orden check→format→autofixer→browser se re-derivaba cada run, el grep anti-React era manual y nada delataba pasos saltados. Nuevo `verify.sh` (contrato estilo assert-clean.sh): branch guard (exit 3), `pnpm check:machine` (4), `pnpm format` (no-gate), grep anti-React SOLO en archivos cambiados con file:line (5), `test:unit` condicional al diff (6) y browser-gate required si el diff toca `src/routes/**`, `*.svelte` o `*.remote.ts`. Ultima linea machine-readable `VERIFY_RESULT branch= check= react= test= browser= svelte_files=<csv>`; autofixer y walkthrough siguen siendo pasos del modelo gatillados por esa linea. Phase 3 de b2 orquesta verify.sh→autofixer→browser; el checklist queda como how-to de agent-browser; b7 usa verify.sh como pasada final pre-commit sin tocar el skip-by-scope del loop.
+
+**Archivos clave**:
+- `skills/b2-build-feature/scripts/verify.sh` — NUEVO: 6 gates, exit codes 2-6, linea VERIFY_RESULT
+- `skills/b2-build-feature/SKILL.md` — Phase 3 pasa a verify.sh + autofixer sobre `svelte_files` + browser si `required`
+- `skills/b2-build-feature/references/verification-checklist.md` — Steps 0-3 y grep absorbidos; queda el walkthrough de agent-browser
+- `skills/b7-issue-to-pr/SKILL.md` — pasada final completa = verify.sh antes del paso 6 (commit)
+
+**Riesgos / consideraciones**:
+Bajo. El skip-by-scope del loop iterativo de b7 no cambia (sigue alimentando iter-logs/error-hash); verify.sh entra solo como pasada final. Criterios validados en repo sintetico: on:click introducido → exit 5 con file:line; diff solo `.remote.ts` → browser=required; diff sin UI ni tests → test=skipped, browser=not-needed, exit 0.
+
+**Links**: [issue #23](https://github.com/jporre/sveltekit-verticalslices/issues/23)
+
+
 ### feat(b2): Phase 1.5 impact check condicional + impact_files en el state de b7 (#22)
 
 Antes se modificaban simbolos existentes (helpers de `$lib`, `*.remote.ts` con consumidores, `schema.ts`) sin mirar quien los consume — drift silencioso hasta el review. b2 gana Phase 1.5 condicional: impact set por simbolo via `codegraph_impact` (probe `ok`) con fallback `rg -l`, skip explicito para greenfield y gate de scope-growth (archivos fuera del plan se agregan o se declara scope-growth antes de codear). b7 persiste el set en `.b7/state.json` campo `impact_files` via state-set (bullet en el prompt del agente del paso 4) y en 8c contrasta `git diff --name-only` contra impact_files+files_likely emitiendo la señal `IMPACT_DRIFT` (visible, NO gate).

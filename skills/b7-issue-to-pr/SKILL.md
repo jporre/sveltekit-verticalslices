@@ -395,7 +395,14 @@ Si alguno falla:
 3. Si el hash coincide con `.b7/iter-$((N-1))-<cmd>.hash` → **abort por no-progress**.
 4. Si no, alimentar al sub-agente solo el `.tail` (no el log completo) + delta del plan en `.b7/plan.md`.
 
-Parar el loop cuando todos los comandos habilitados estén verdes en una pasada final completa, OR cuando se trip un hard stop:
+Parar el loop cuando todos los comandos habilitados estén verdes en una pasada final completa, OR cuando se trip un hard stop. La pasada final completa es `verify.sh` de b2 (corre TODOS los gates: branch guard, check:machine, format, grep anti-React scoped al diff, test:unit condicional y browser-gate) — el skip-by-scope de arriba NO se toca: sigue gobernando las iteraciones y alimentando iter-logs/error-hash:
+
+```bash
+bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh"
+# exit 0 + VERIFY_RESULT ... = habilitado para el paso 6 (commit); exit 3-6 = volver al loop
+```
+
+Hard stops:
 
 | Hard stop          | Default | Acción |
 |--------------------|---------|--------|
@@ -521,7 +528,7 @@ rm -f "$WORKTREE/.b7/dev-server.pid"
 
 ### 6. Commit
 
-Si step 4 verde AND budgets OK AND screens pass/warn:
+Si step 4 verde (pasada final `verify.sh` exit 0) AND budgets OK AND screens pass/warn:
 
 - `b3-git-commit` agrupa cambios temáticos.
 - **Antes** de invocarlo, asegurar entrada en `CHANGELOG.md` usando `scripts/publish-docs.sh changelog` (lee `.b7/state.json`).

@@ -1,60 +1,16 @@
-# Verification Checklist
+# Verification Checklist — browser walkthrough
 
-Run this checklist after implementing every feature. Do not skip steps.
+Los gates mecanicos (branch guard, `check:machine`, `format`, grep anti-React
+scoped al diff, `test:unit` condicional, browser-gate) viven en
+`scripts/verify.sh` — exit codes 3-6 estables y ultima linea machine-readable
+`VERIFY_RESULT ... browser=required|not-needed svelte_files=<csv>`. El autofixer
+(sobre `svelte_files`) y este walkthrough siguen siendo pasos del modelo
+gatillados por esa linea (Phase 3 del SKILL.md).
 
-## Step 0: Branch Check
+Este documento es el how-to del browser test con `agent-browser`. Corre SOLO
+cuando verify.sh reporta `browser=required`.
 
-Before anything else, confirm you are NOT on master:
-
-```bash
-git branch --show-current
-```
-
-If it says `master` or `main`, STOP. Create a branch first:
-
-```bash
-git checkout -b feat/<feature-name>   # or fix/<description>
-```
-
-## Step 1: Type Check
-
-```bash
-pnpm check:machine
-```
-
-Fix ALL type errors before proceeding. Common fixes:
-
-- Missing imports: add the import
-- Wrong type: check InferSelectModel matches actual DB schema
-- Optional vs required: add `?` or handle null case
-- Remote function return type: ensure handler return matches expected type
-
-## Step 2: Format
-
-```bash
-pnpm format
-```
-
-This auto-fixes formatting. Run it once, no need to check output.
-
-## Step 3: Svelte Autofixer
-
-Run the MCP tool `svelte-autofixer` on EACH `.svelte` file you created or modified:
-
-```
-svelte-autofixer({ filePath: "src/routes/<feature>/+page.svelte" })
-```
-
-The autofixer catches:
-
-- Svelte 4 syntax (`on:click` -> `onclick`, `export let` -> `$props()`)
-- Missing rune declarations
-- Incorrect event handler syntax
-- Slot vs snippet issues
-
-If it reports issues, fix them and run again until clean.
-
-## Step 4: Browser Test
+## Browser Test
 
 ### Start dev server (serve THIS checkout, not master)
 
@@ -143,13 +99,13 @@ Look at the dev server log (dev-server.log) for:
 - Permission/auth errors
 - 500 responses
 
-## Step 5: Fix and Repeat
+## Fix and Repeat
 
 If any step found issues:
 
 1. Fix the code
-2. Go back to Step 1 (type check)
-3. Repeat until clean
+2. Re-correr `scripts/verify.sh` hasta exit 0
+3. Repeat the walkthrough until clean
 
 ## Common Issues and Quick Fixes
 
@@ -167,7 +123,7 @@ If any step found issues:
 | Console: "Cannot read properties of undefined" | Query returned null                 | Add null check or `?? []` fallback                 |
 | Infinite loop in $effect                       | Using $effect for derived state     | Replace with `$derived()`                          |
 
-## Step 6: Finalize
+## Finalize
 
 After all verification passes, close out the work:
 
@@ -213,16 +169,13 @@ Never say "done" without stating the testing status.
 
 Before marking feature as complete, confirm ALL of these:
 
-- [ ] Working on a branch (NOT master)
+- [ ] `scripts/verify.sh` exit 0 — `VERIFY_RESULT branch=ok check=ok react=ok test=ok|skipped` (branch, type check, format y grep anti-React absorbidos ahi)
 - [ ] Doc del feature `<feature>.md` presente (feature nuevo) o actualizada (contratos/pantallas cambiados)
-- [ ] `pnpm check:machine` passes with zero errors in feature files
-- [ ] `pnpm format` has been run
-- [ ] All `.svelte` files pass `svelte-autofixer`
-- [ ] Page loads in browser without console errors
+- [ ] All `.svelte` files (csv `svelte_files=` de VERIFY_RESULT) pass `svelte-autofixer`
+- [ ] Si `browser=required`: page loads in browser without console errors
 - [ ] All CRUD operations work (create, read, update, delete)
 - [ ] If feature has forms: BOTH create and edit mode tested
 - [ ] Server terminal shows no errors during testing
-- [ ] No React patterns in the code (grep for `useState`, `useEffect`, `onClick`, `on:click`)
 - [ ] CHANGELOG.md updated
 - [ ] Changes committed on feature branch
 - [ ] User informed of what was and wasn't tested

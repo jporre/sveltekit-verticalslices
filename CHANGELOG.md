@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-07-03
+
+### epic — Auditoria b-pipeline tier 2: 25 mejoras verificadas (#27)
+
+Cierra el epic #27 completo (25 sub-issues, PRs #38-#46 mas los 10 de la primera ola). Consolidado: contrato unico de triage con evidencia observable y gates anti-fabricacion (#2, #17), b6 con modo light, verdict.sh determinista y CHANGED_SYMBOLS con callers (#3, #4, #21), receta canonica de forms y ruteo bt1-data-table (#5, #20), gates de b7 (verify-port, env-check, regresion obligatoria en fixes, carril rapido S con sonnet) (#6, #7, #16, #18), doc feature.md cableada y scaffold/check-slice codificando slice-spec (#8, #9), codegraph siempre opcional con fallback rg (#10, #22), fin del hand-edit de state.json (#12), secretos nunca en plaintext via env-probe/block-env-dump (#13), mint-dev-session para el muro OAuth (#14), batch de llamadas gh 9-34x (#15), estados invalid-submit en screen-review (#19), verify.sh con exit codes y browser-gate (#23), lib.sh con contratos inter-skill compartidos (#24), b7 SKILL.md adelgazado y contrato de ruteo b7/b8/b10 en descriptions con b3-security retirado (#25, #26), y doble triage de b0 eliminado (#11). Las entradas siguientes de esta seccion corresponden a los sub-issues del epic.
+
+**Links**: [epic #27](https://github.com/jporre/sveltekit-verticalslices/issues/27) · revision completa en el comentario `## Revision de feature completo` del epic
+
 <!--
   Entrada CHANGELOG generada por b7-issue-to-pr.
   Tono: técnico-analítico para devs futuros leyendo historia.

@@ -398,7 +398,8 @@ Si alguno falla:
 Parar el loop cuando todos los comandos habilitados estén verdes en una pasada final completa, OR cuando se trip un hard stop. La pasada final completa es `verify.sh` de b2 (corre TODOS los gates: branch guard, check:machine, format, grep anti-React scoped al diff, test:unit condicional y browser-gate) — el skip-by-scope de arriba NO se toca: sigue gobernando las iteraciones y alimentando iter-logs/error-hash:
 
 ```bash
-bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh"
+# cwd DEBE ser el worktree — corrido desde el repo principal el gate evalua master y da falsos exit 3
+(cd "$WORKTREE" && bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh")
 # exit 0 + VERIFY_RESULT ... = habilitado para el paso 6 (commit); exit 3-6 = volver al loop
 ```
 

@@ -93,7 +93,8 @@ echo ""
 echo "=== CHANGED_SYMBOLS ==="
 # Simbolos exportados tocados por el diff (best-effort, JS/TS). Reusa $DIFF.
 # NEW = agregado sin version eliminada; MODIFIED = firma tocada (linea +/-) o
-# cuerpo tocado (contexto del hunk header — cubre modificaciones body-only).
+# cuerpo tocado (contexto del hunk header — cubre modificaciones body-only);
+# REMOVED = eliminado sin version agregada (el caso mas destructivo para callers).
 EXPORT_RE='export[[:space:]]+(async[[:space:]]+)?(function|const)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*'
 HUNK_RE='(function|const)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*'
 sym_names() { # $1: regex; stdin: lineas; stdout: nombres de simbolo unicos ordenados
@@ -104,10 +105,12 @@ REMOVED=$(echo "$DIFF" | grep -E '^[-]' | sym_names "$EXPORT_RE" || true)
 HUNK_CTX=$(echo "$DIFF" | grep -E '^@@ ' | sed -E 's/^@@[^@]*@@ ?//' | sym_names "$HUNK_RE" || true)
 NEW=$(comm -23 <(echo "$ADDED") <(echo "$REMOVED") | grep -v '^$' || true)
 SIG_MOD=$(comm -12 <(echo "$ADDED") <(echo "$REMOVED") | grep -v '^$' || true)
+GONE=$(comm -13 <(echo "$ADDED") <(echo "$REMOVED") | grep -v '^$' || true)
 MODIFIED=$(printf '%s\n%s\n' "$SIG_MOD" "$HUNK_CTX" | sort -u | comm -23 - <(echo "$NEW") | grep -v '^$' || true)
 if [ -n "$NEW" ]; then echo "$NEW" | sed 's/^/NEW: /'; fi
 if [ -n "$MODIFIED" ]; then echo "$MODIFIED" | sed 's/^/MODIFIED: /'; fi
-if [ -z "$NEW$MODIFIED" ]; then echo "(sin simbolos exportados detectados)"; fi
+if [ -n "$GONE" ]; then echo "$GONE" | sed 's/^/REMOVED: /'; fi
+if [ -z "$NEW$MODIFIED$GONE" ]; then echo "(sin simbolos exportados detectados)"; fi
 
 # CODEGRAPH: ok solo si el probe de b1 (informativo, nunca gate) responde ok;
 # cualquier otro estado (stale/missing/broken o sin probe) => absent.

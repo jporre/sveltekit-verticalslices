@@ -587,12 +587,16 @@ try:
 except Exception as e:
     print(f"worktree-env: invalid {marker}: {e}", file=sys.stderr)
     sys.exit(30)
+# Todo-o-nada: validar las 3 claves ANTES de emitir — un marker incompleto no
+# debe dejar claves parciales en stdout (el eval del caller las tomaria como validas).
+lines = []
 for out_key, json_key in (("WORKTREE", "dir"), ("BRANCH", "branch"), ("PORT", "port")):
     v = m.get(json_key)
     if v in (None, ""):
         print(f"worktree-env: missing '{json_key}' in {marker}", file=sys.stderr)
         sys.exit(30)
-    print(f"{out_key}={shlex.quote(str(v))}")
+    lines.append(f"{out_key}={shlex.quote(str(v))}")
+print("\n".join(lines))
 PY
 }
 

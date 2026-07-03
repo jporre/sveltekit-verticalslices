@@ -267,7 +267,9 @@ if [ -z "$LINE" ]; then
 fi
 # WORKTREE/BRANCH/PORT desde el marker .b7/worktree-ready.json (via guardrails.sh)
 WT_DIR="${LINE#WORKTREE_READY dir=}"; WT_DIR="${WT_DIR%% *}"
-eval "$(bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" worktree-env "$WT_DIR")"
+ENV_OUT="$(bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" worktree-env "$WT_DIR")" || {
+  echo "ABORT: worktree-env fallo (marker ausente o incompleto) — exit 30" >&2; exit 30; }
+eval "$ENV_OUT"
 export WORKTREE BRANCH PORT
 
 # Hard gate: refuse to continue if the worktree isn't fully provisioned.

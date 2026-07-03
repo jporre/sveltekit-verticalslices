@@ -83,7 +83,28 @@ Regla dura: **no agregar requisitos que no esten en la conversacion o el doc.** 
 
 ### Paso 2 — Aterrizar en el codebase (acotado)
 
-Para que los issues nombren rutas/entidades REALES (no inventadas), un grounding breve — mismo espiritu acotado que b1-triage (grounding, no exploracion exhaustiva):
+Para que los issues nombren rutas/entidades REALES (no inventadas), un grounding breve — mismo espiritu acotado que b1-triage (grounding, no exploracion exhaustiva).
+
+**Primero, un probe FUNCIONAL de codegraph** (no confiar en "existe `.codegraph/`": la db puede estar rota o stale). Correr el probe compartido y, si dice `ok`, confirmar con una query real de la **entidad 1**:
+
+```bash
+bash "$CLAUDE_PLUGIN_ROOT/skills/b1-add-worktree/scripts/codegraph-probe.sh" .   # -> CODEGRAPH_STATUS=ok|stale|missing|broken db_age_days=<n>
+codegraph query "<entidad-1>" -p .                                              # solo si status=ok: confirma que devuelve rutas usables
+```
+
+El probe SIEMPRE sale 0; el `CODEGRAPH_STATUS` elige la rama de grounding. `codegraph` es recomendacion con fallback, **nunca gate**.
+
+#### Rama A — status `ok`: codegraph en el main loop, CERO Explore agents
+
+Con la db usable, hacer **una query de codegraph por entidad en el main loop** (no delegar a subagentes):
+
+- `codegraph_search "<entidad>"` (o `codegraph query "<entidad>" -p .`) por cada entidad → rutas + tablas reales. Una sola consulta suele cubrir varias entidades relacionadas.
+- **NO** lanzar `Agent(Explore)`: la query directa es mas rapida y barata, y evita el fan-out (era hasta ~6 agentes por breakdown).
+- Confirmar nombres de scope reales para las labels (`scope:<area>`).
+
+#### Rama B — status `stale`/`missing`/`broken`: fallback rg + Explore
+
+Cuando el probe **no** da `ok`, usar `rg`/grep y Explore (y **NO** invocar tools `codegraph_*`: devolverian datos stale o fallarian):
 
 - Por cada entidad, un grep dirigido: `rg -l "<entidad>" src/routes src/lib/server/db/schema`.
 - Si ya existe la ruta/feature → el slice es enhancement de algo existente (afecta titulo y alcance), o puede ser **duplicate** (no crear).
@@ -95,8 +116,6 @@ Para entidades multiples o un codebase desconocido, delegar el grounding a `Agen
 - **4+ entidades:** lanzar varios `Agent(Explore)` **en paralelo** (todos en un mismo mensaje, un agente por entidad o par de entidades cohesivas), cada uno con encargo cerrado: "¿existe `src/routes/<area>`? ¿que tabla Drizzle la respalda? reporta paths exactos o 'no existe'". Read-only y disjuntos → seguro en paralelo, y corta el wall-clock de N busquedas secuenciales. Cap razonable: ~6 agentes.
 
 El grounding es read-only: no decide nada, solo devuelve paths reales para que el slicing nombre rutas/tablas que existen (o confirme que son nuevas). Consolidás los reportes en el main loop antes de slicear.
-
-> Si `.codegraph/` existe en el proyecto, preferir `codegraph_search` para ubicar entidades/rutas — mas rapido que grep, y suele evitar el fan-out (una consulta cubre varias entidades). Pasarle a cada Explore la instruccion de usar codegraph.
 
 ### Paso 3 — Slicear en vertical
 

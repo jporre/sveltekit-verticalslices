@@ -180,6 +180,14 @@ echo "Installing dependencies..."
 (cd "$WORKTREE_DIR" && pnpm install --frozen-lockfile)
 echo "Dependencies installed"
 
+# Codegraph: probe INFORMATIVO post-install, SIN sync. La db de codegraph esta
+# gitignored, asi que un worktree recien creado NO la tiene -> 'missing' es el
+# resultado correcto y esperado (no queremos indexar/sync aca). Nunca gate.
+CG_PROBE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/codegraph-probe.sh"
+if [ -x "$CG_PROBE" ]; then
+  echo "Codegraph: $(CODEGRAPH_PROBE_NO_SYNC=1 CODEGRAPH_PROBE_TTL=0 bash "$CG_PROBE" "$WORKTREE_DIR" 2>/dev/null | tail -1)"
+fi
+
 echo ""
 echo "Worktree ready at: $WORKTREE_DIR"
 echo "Branch:            $BRANCH_NAME"

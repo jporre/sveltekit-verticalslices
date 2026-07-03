@@ -188,7 +188,8 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
       "route": "/tareas",
       "user_journey": "Usuario abre /tareas, filtra por estado, ...",
       "acceptance_criteria_visual": ["Tabla muestra ...", "Botón ..."],
-      "success_metrics": ["Filtro responde <200ms", "..."]
+      "success_metrics": ["Filtro responde <200ms", "..."],
+      "states_required": ["golden", "invalid-submit"]
     }
   ],
   "security_review_required": false,
@@ -490,7 +491,7 @@ Para cada pantalla, lanzar **un sub-agente** con `b7-screen-review` en paralelo 
 Agent(
   subagent_type="general-purpose",
   description="Visual review <ScreenName>",
-  prompt="Use skill b7-screen-review with: screen=<Name> route=<route> port=<PORT> worktree=$WORKTREE criteria_file=.b7/screens/<Name>.md out_dir=.b7/review states=golden auth_cookie=<AUTH_COOKIE>. Si viene auth_cookie inyectala (paso 2a del skill); si no, reusá la sesión del Chrome real (paso 2b) — no hagas login. Cargá primero las MCP tools de claude-in-chrome con ToolSearch. Output: .b7/review/<Name>.json + .b7/review/<Name>-*.png"
+  prompt="Use skill b7-screen-review with: screen=<Name> route=<route> port=<PORT> worktree=$WORKTREE criteria_file=.b7/screens/<Name>.md out_dir=.b7/review states=<states_required de la pantalla, join por coma; fallback golden> auth_cookie=<AUTH_COOKIE>. Si viene auth_cookie inyectala (paso 2a del skill); si no, reusá la sesión del Chrome real (paso 2b) — no hagas login. Cargá primero las MCP tools de claude-in-chrome con ToolSearch. Output: .b7/review/<Name>.json + .b7/review/<Name>-*.png"
 )
 ```
 

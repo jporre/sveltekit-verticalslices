@@ -120,12 +120,15 @@ Esperar a que el DOM esté estable: `read_page` y verificar que no esté el spin
 
 ### 3. Recorrer estados
 
+Vocabulario de states alineado con `states_required` del triage schema. Mapeo de valores legacy: `success` ≡ `golden`; `permission-denied` → si no es simulable, marcar `not-evaluated` (no fallido).
+
 Para cada state en `states`:
 
 - **golden** — la pantalla con datos felices. Captura screenshot.
 - **empty** — vaciar datos: o navegar a `<route>?_b7=empty` (convención del proyecto si existe), o usar `javascript_tool` para limpiar localStorage/state, o evaluar el texto que aparece cuando no hay datos.
 - **error** — forzar error: bloquear network via DevTools, o llamar al endpoint que dispare `error(500)`. Si no se puede simular, marcar el criterio como `not-evaluated` (no como fallido).
 - **loading** — opcional, suele ser flaky.
+- **invalid-submit** — solo pantallas con form de crear/editar. Click en el botón submit SIN llenar los requeridos (no ingresar datos válidos). Criterio auto: los mensajes/bordes de error deben quedar visibles. Anti-patrón: si el botón submit está `disabled` y por eso NO aparece ningún error → `passed: false`, citando la regla dura de la receta de forms (`disabled={submitting}`, NUNCA `disabled={!isFormValid}` — ver `b2-build-feature/references/forms-recipe.md`). Si la pantalla no tiene form, `not-evaluated`.
 
 Para cada state:
 1. Tomar screenshot via `javascript_tool`:

@@ -81,8 +81,9 @@
           },
           "states_required": {
             "type": "array",
-            "items": {"type": "string", "enum": ["empty", "loading", "error", "success", "permission-denied"]},
-            "default": ["empty", "loading", "success"]
+            "items": {"type": "string", "enum": ["golden", "empty", "loading", "error", "success", "permission-denied", "invalid-submit"]},
+            "default": ["golden"],
+            "description": "Estados que screen-review debe ejercitar. Vocabulario alineado con b7-screen-review Step 3. Pantalla con form de crear/editar DEBE incluir 'invalid-submit' (submit con requeridos vacios debe mostrar errores visibles). Fallback: ['golden']."
           }
         }
       }

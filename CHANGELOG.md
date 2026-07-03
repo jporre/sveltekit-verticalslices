@@ -8,6 +8,22 @@
   Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
 -->
 
+### refactor(pipeline): lib.sh — contratos inter-skill compartidos (find_pr, b6_verdict, label_event, blocked_by) (#24)
+
+Los contratos entre orquestadores vivian copy-pasteados y drifteaban: el lookup de PR por "Closes #N" existia en variantes (b9 usaba search server-side sin frontera de digitos + head -1), el sweep de events de labels estaba duplicado, y '## Blocked by' se parseaba con 2 gramaticas distintas — el sed inclusivo de run.sh capturaba el #N de la linea del heading siguiente (deps fantasma), mientras epic-graph.sh tenia el regex python correcto duplicado DOS veces en el mismo archivo. Nuevo `scripts/lib.sh` (raiz del plugin, sourceable, bash 3.2-safe) con 4 funciones: `bp_find_pr <issue> [open|merged]` (frontera `[^0-9]|$`: #261 no matchea #2610), `bp_b6_verdict <pr>` (delega en el lector unico verdict.sh read), `bp_label_event <issue|pr> <label>` (UNA llamada --paginate -> `actor<TAB>created_at`; comparacion de timestamps en el caller) y `bp_blocked_by` (stdin=body -> deps, lookahead NO inclusivo). `bash lib.sh selftest` corre los fixtures offline de bp_blocked_by (regresion: heading inmediato tras la seccion -> cero deps fantasma) y cmd_preflight lo suma a su smoke-test.
+
+**Archivos clave**:
+- `scripts/lib.sh` — NUEVO: bp_find_pr, bp_b6_verdict, bp_label_event, bp_blocked_by + selftest con fixtures
+- `skills/b10-ship/scripts/run.sh` — find_pr propio y sed inclusivo de deps eliminados; b6_marker via bp_b6_verdict; lib.sh en el smoke de preflight
+- `skills/b10-ship/scripts/epic-graph.sh` — regex duplicado x2 eliminado; deps se resuelven via bp_blocked_by antes del python
+- `skills/b9-close/SKILL.md` — PASO 0 (bp_find_pr open/merged), PASO 2 (bp_b6_verdict), PASO 4 (bp_label_event)
+- `skills/b10-ship/SKILL.md` — staleness de epic-approved con snippet bp_label_event
+
+**Riesgos / consideraciones**:
+Bajo. Output de `epic-graph.sh 27` verificado byte-identico antes/despues del refactor (stdout y stderr). lib.sh NO impone set -e/-u al sourcearse (los snippets de SKILL.md corren sin modo estricto). Fuera de alcance declarado: epic-diff.sh conserva su predicado [Cc]loses (necesita campos extra) y las llamadas directas de b7/b6 a verdict.sh read (verdict.sh sigue siendo la fuente unica; bp_b6_verdict es el atajo para quien ya sourcea lib.sh).
+
+**Links**: [issue #24](https://github.com/jporre/sveltekit-verticalslices/issues/24)
+
 ### feat(b2): verify.sh — el checklist de verificacion como script con exit codes y browser-gate por scope de diff (#23)
 
 La verificacion de b2 era prosa honor-system triplicada (SKILL.md, checklist, b7): el orden check→format→autofixer→browser se re-derivaba cada run, el grep anti-React era manual y nada delataba pasos saltados. Nuevo `verify.sh` (contrato estilo assert-clean.sh): branch guard (exit 3), `pnpm check:machine` (4), `pnpm format` (no-gate), grep anti-React SOLO en archivos cambiados con file:line (5), `test:unit` condicional al diff (6) y browser-gate required si el diff toca `src/routes/**`, `*.svelte` o `*.remote.ts`. Ultima linea machine-readable `VERIFY_RESULT branch= check= react= test= browser= svelte_files=<csv>`; autofixer y walkthrough siguen siendo pasos del modelo gatillados por esa linea. Phase 3 de b2 orquesta verify.sh→autofixer→browser; el checklist queda como how-to de agent-browser; b7 usa verify.sh como pasada final pre-commit sin tocar el skip-by-scope del loop.

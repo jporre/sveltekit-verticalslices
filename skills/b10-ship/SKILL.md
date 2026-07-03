@@ -223,6 +223,17 @@ Postear el reporte como comentario en el epic (`## Revision de feature completo`
 
 **Staleness del label** (mismo criterio que `merge-approved` en b9): verificar que el evento `labeled` de `epic-approved` sea (a) de actor humano no-bot y (b) POSTERIOR al ultimo comentario `## Revision de feature completo`. Si el reporte es mas nuevo que el label (hubo re-revision tras cambios), remover el label y re-pedir aprobacion.
 
+```bash
+. "$PLUGIN_ROOT/scripts/lib.sh"                      # PLUGIN_ROOT resuelto en el loop principal
+APPROVAL=$(bp_label_event <EPIC> epic-approved)      # "actor<TAB>created_at" del ultimo labeled (vacio si no hubo)
+ACTOR="${APPROVAL%%$'\t'*}"; LABELED_AT="${APPROVAL#*$'\t'}"
+case "$ACTOR" in *"[bot]"|"") echo "sin aprobacion humana valida" ;; esac
+LAST_REVIEW=$(gh issue view <EPIC> --json comments \
+  --jq '[.comments[] | select(.body | contains("## Revision de feature completo")) | .createdAt] | max // empty')
+[ -n "$LAST_REVIEW" ] && [[ "$LAST_REVIEW" > "$LABELED_AT" ]] && \
+  { gh issue edit <EPIC> --remove-label epic-approved; echo "epic-approved STALE — re-pedir aprobacion"; }
+```
+
 **Al cerrar el epic completo:** entrada rollup en CHANGELOG (`### epic — <titulo> (#N)`) + `Skill informe-semanal "--feature <EPIC>"` (informe comercial consolidado, SIEMPRE en epics).
 
 ## Runs zombie

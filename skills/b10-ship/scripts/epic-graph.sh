@@ -17,6 +17,9 @@ set -euo pipefail
 [ -n "${1:-}" ] || { echo "Usage: $0 <epic>" >&2; exit 2; }
 EPIC="$1"
 REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+# Gramatica unica de '## Blocked by' (bp_blocked_by) — compartida con run.sh reconcile.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/../../..}/scripts/lib.sh"
 
 # Path nativo: UNA sola llamada al endpoint REST sub_issues, que ya devuelve los
 # objetos completos (number/title/state/labels/body). Antes se descartaba todo
@@ -31,8 +34,8 @@ if [ -z "$NUMBERS" ]; then
 fi
 [ -n "$NUMBERS" ] || { echo "ERROR: no encontre sub-issues para #$EPIC" >&2; exit 3; }
 
-TMP="$(mktemp)"
-trap 'rm -f "$TMP"' EXIT
+TMP="$(mktemp)"; DEPS_TMP="$(mktemp)"
+trap 'rm -f "$TMP" "$DEPS_TMP"' EXIT
 # Primer registro: el epic mismo (puede ser tambien el item de cierre, ej #271).
 gh issue view "$EPIC" --json number,title,state,labels,body >> "$TMP"
 echo >> "$TMP"
@@ -51,8 +54,18 @@ else
   done
 fi
 
-EPIC="$EPIC" python3 - "$TMP" <<'PY'
-import json, os, re, sys
+# deps por registro via bp_blocked_by ANTES del python: la gramatica vive solo
+# en lib.sh y el parser de abajo consume el campo "deps" ya resuelto.
+while IFS= read -r rec; do
+  [ -n "$rec" ] || continue
+  deps="$(printf '%s' "$rec" | jq -r '.body // ""' | bp_blocked_by | paste -sd, -)"
+  printf '%s' "$rec" | jq -c --arg d "$deps" \
+    '. + {deps: ($d | if . == "" then [] else split(",") | map(tonumber) end)}' >> "$DEPS_TMP"
+  echo >> "$DEPS_TMP"
+done < "$TMP"
+
+EPIC="$EPIC" python3 - "$DEPS_TMP" <<'PY'
+import json, os, sys
 
 records = []
 for line in open(sys.argv[1]):
@@ -64,15 +77,12 @@ epic_rec, issues = records[0], records[1:]
 
 nodes = {}
 for it in issues:
-    body = it.get("body") or ""
-    m = re.search(r"##+\s*[Bb]locked\s*by:?(.*?)(?=\n##|\Z)", body, re.S)
-    deps = sorted({int(x) for x in re.findall(r"#(\d+)", m.group(1))}) if m else []
     nodes[it["number"]] = {
         "issue": it["number"],
         "title": it["title"],
         "state": it["state"],
         "labels": [l["name"] for l in it["labels"]],
-        "deps": deps,
+        "deps": it["deps"],
     }
 
 nums = set(nodes)
@@ -103,9 +113,7 @@ for n, node in nodes.items():
 # Caso comun: el propio epic es ademas el item de cierre (su body declara
 # "Blocked by" sobre los sub-issues, ej #271 swap/limpieza).
 if closing is None:
-    body = epic_rec.get("body") or ""
-    m = re.search(r"##+\s*[Bb]locked\s*by:?(.*?)(?=\n##|\Z)", body, re.S)
-    epic_deps = {int(x) for x in re.findall(r"#(\d+)", m.group(1))} if m else set()
+    epic_deps = set(epic_rec["deps"])
     if len(epic_deps & nums) >= 0.8 * len(nums):
         closing = epic_rec["number"]
 

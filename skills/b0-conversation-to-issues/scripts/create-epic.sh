@@ -123,7 +123,10 @@ def sh(cmd):
     return subprocess.run(cmd, capture_output=True, text=True)
 
 # --- asegurar labels (crear las faltantes con color neutro) ---
-want = set()
+# Los sub-issues se estampan con "ready" (nacen de b0 = grounding + gate humano ya
+# pagados) para que el early-exit de b1 --auto los reuse sin re-triagear. El epic NO
+# lo lleva: su triage corre en epic-review.
+want = {"ready"}
 for it in issues:
     want |= set(it.get("labels", []))
 if epic:
@@ -161,13 +164,17 @@ def create_issue(title, body, labels):
     return n
 
 # --- crear sub-issues en orden, materializando ## Blocked by ---
+# Cada sub-issue lleva "ready" (dedup) ademas de sus labels de plan: b1 --auto lo
+# reconoce como issue de b0 y reusa el veredicto sin fork de research. El epic queda
+# afuera (se crea mas abajo sin "ready").
 num = {}
 for it in issues:
     body = it["body"].rstrip()
     deps = it.get("blocked_by", [])
     if deps:
         body += "\n\n## Blocked by\n" + "\n".join(f"- #{num[d]}" for d in deps)
-    num[it["id"]] = create_issue(it["title"], body, it.get("labels", []))
+    labels = list(dict.fromkeys(it.get("labels", []) + ["ready"]))
+    num[it["id"]] = create_issue(it["title"], body, labels)
 
 # --- epic de tracking (opcional) ---
 epic_n = None

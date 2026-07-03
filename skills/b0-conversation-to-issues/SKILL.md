@@ -259,7 +259,7 @@ B0_DONE epic=<N|none> issues=<csv> waves=<k> mode=<created|dry-run>
 - **Sub-issues nativos** via `epic-link.sh` → el epic muestra progreso nativo y `b10 --epic` los enumera (con fallback a los `#N` del rollup si el linkeo falla).
 - **closing_slice** = el epic con `## Blocked by` sobre todos los subs (≥80% del grafo) → b10 lo construye ultimo, tras el gate de epic-review.
 - **Cluster** = slices del mismo `scope`, `simple|medium` → candidatos a `b8-swarm` (1 PR combinado).
-- Cada issue trae lo que **b1-triage** espera (entidad, operacion, scope, criterios) y lo que **b2/b7** necesitan (pantallas con ruta + journey + acceptance). El issue queda "ready-shaped" pero b1 igual lo re-triagea — b0 no reemplaza el triage.
+- Cada issue trae lo que **b1-triage** espera (entidad, operacion, scope, criterios) y lo que **b2/b7** necesitan (pantallas con ruta + journey + acceptance). `create-epic.sh` estampa los sub-issues con label `ready` (el epic no) — como el grounding y el gate humano ya se pagaron aca, **b1 `--auto` los reusa sin re-triagear** (deriva el veredicto de los labels + `## Blocked by`). Solo re-triagea si un humano comento el issue despues de crearlo. b0 no reemplaza el triage: lo pre-paga.
 
 ## Que NO hacer
 

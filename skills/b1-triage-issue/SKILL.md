@@ -20,6 +20,7 @@ $ARGUMENTS
 
 - Issue **cerrado** → abortar emitiendo `TRIAGE_RESULT {"issue":<N>,"verdict":"closed"}`, sin preguntar.
 - Issue **ya triageado** (labels de readiness o comentario `## Evaluacion de Issue` previo) → NO preguntar si re-triagear. Si hay comentarios humanos NUEVOS posteriores al comentario de evaluacion, re-evaluar incorporandolos (caso tipico: el reporter respondio las preguntas de needs-info). Si no hay nada nuevo, reusar el veredicto existente y emitir el `TRIAGE_RESULT` correspondiente.
+- Issue **nacido de b0** (label `ready` **sin** comentario `## Evaluacion de Issue`/`## Issue Evaluation`) → el grounding y el gate humano ya se pagaron en b0; **reusar sin fork de research** si no hay comentarios humanos posteriores a la creacion. Derivar el `TRIAGE_RESULT` de los labels (`verdict:ready` + `complexity` de `simple|medium|complex` + `type` de `feature|bug|enhancement` + `scope` de `scope:*`) y `blocked_by` de la seccion `## Blocked by` del body. Si aparecio un comentario humano posterior → triage completo normal.
 - Todo lo demas identico al modo normal.
 
 Development that starts from a GitHub issue must understand, research, and enrich it before any code gets written. Poorly specified issues waste implementation cycles. The objective is three outputs:
@@ -64,6 +65,16 @@ Closed issues: warn the user, proceed only if they insist. (Con `--auto`: aborta
 Before any research, decide if the work can short-circuit. Triage that races to "needs-info" or "duplicate" doesn't need codebase grep.
 
 **Already triaged?** If labels include any of `ready`, `needs-info`, `blocked`, `duplicate`, OR a previous comment starts with `## Evaluacion de Issue` / `## Issue Evaluation`, surface the prior verdict and ask the user whether to re-triage. Don't redo research silently — it wastes tokens and risks contradicting prior alignment. (Con `--auto`: no preguntar — re-evaluar solo si hay comentarios humanos nuevos, si no reusar el veredicto. Ver Argumentos.)
+
+**Issue de b0 (label `ready` sin comentario de evaluacion).** Un sub-issue creado por `b0-conversation-to-issues/create-epic.sh` nace con label `ready` pero **sin** comentario `## Evaluacion de Issue` — su grounding y gate humano ya se pagaron en b0. Con `--auto`, si no hay comentarios humanos posteriores a la creacion del issue: **reusar sin research**. Derivar el veredicto de los labels en vez de re-explorar:
+
+- `verdict` = `ready` (por el label)
+- `complexity` = `simple` | `medium` | `complex` (el label de complejidad presente)
+- `type` = `feature` | `bug` | `enhancement`
+- `scope` = valor de `scope:*`
+- `blocked_by` = numeros `#N` de la seccion `## Blocked by` del body (o `[]` si no hay)
+
+Emitir el `TRIAGE_RESULT` con esos campos y terminar. Si aparecio un comentario humano posterior a la creacion → correr triage completo normal (el humano cambio algo).
 
 **Trivially incomplete?** If `body` is empty or <100 chars and no acceptance criteria appear in the first comments, skip Steps 3-4 entirely and go straight to Step 6/7 as `needs-info`. There is nothing to ground.
 

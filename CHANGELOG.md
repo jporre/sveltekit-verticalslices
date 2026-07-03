@@ -8,6 +8,20 @@
   Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
 -->
 
+### feat(b6): CHANGED_SYMBOLS en pr-context.sh + callers de simbolos modificados (#21)
+
+b6 excluia del analisis los simbolos que el PR modifica y nadie trazaba sus callers fuera del diff (asi se escapo la regresion D5). `pr-context.sh` gana la seccion `=== CHANGED_SYMBOLS ===` reutilizando el diff ya capturado: `NEW:`/`MODIFIED:` best-effort (exports en lineas +/- y contexto de hunk headers para modificaciones body-only) mas linea `CODEGRAPH: ok|absent` via el probe informativo de b1. SKILL.md cablea el uso: Area 2 punto 6 traza callers de cada MODIFIED (codegraph si ok, fallback `rg`; call site externo roto por firma nueva = BLOCKER) y Area 5 paso 2 usa codegraph como primario con las recetas Grep degradadas a fallback.
+
+**Archivos clave**:
+- `skills/b6-pr-review/scripts/pr-context.sh` — seccion CHANGED_SYMBOLS al final (reusa `$DIFF`, sin llamadas gh extra)
+- `skills/b6-pr-review/SKILL.md` — Paso 1 documenta la seccion; Area 2 punto 6 (callers de MODIFIED); Area 5 paso 2 (codegraph primario, Grep fallback)
+
+**Riesgos / consideraciones**:
+Bajo. Deteccion best-effort solo para exports JS/TS; con codegraph ausente todo funciona via rg (codegraph nunca es gate). Hallazgos se reportan dentro de '## 2. Calidad del Codigo' — cero impacto en los parsers de verdict.sh/b7/b9/b10.
+
+**Links**: [issue #21](https://github.com/jporre/sveltekit-verticalslices/issues/21)
+
+
 ### feat(b7): carril rapido S — classify-run + lane S|M|L (#16)
 
 classify-run asigna lane S/M/L; carril S usa render mecanico de screens, agente sonnet, 3 iteraciones y b6 --light. M/L byte-identicos.

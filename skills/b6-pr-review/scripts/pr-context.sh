@@ -88,3 +88,34 @@ if printf '%s\n' "$HEAD_REF" | grep -qE '^fix/' && ! printf '%s\n' "$FILES" | gr
 else
   echo "FIX_WITHOUT_TEST=false"
 fi
+
+echo ""
+echo "=== CHANGED_SYMBOLS ==="
+# Simbolos exportados tocados por el diff (best-effort, JS/TS). Reusa $DIFF.
+# NEW = agregado sin version eliminada; MODIFIED = firma tocada (linea +/-) o
+# cuerpo tocado (contexto del hunk header — cubre modificaciones body-only).
+EXPORT_RE='export[[:space:]]+(async[[:space:]]+)?(function|const)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*'
+HUNK_RE='(function|const)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*'
+sym_names() { # $1: regex; stdin: lineas; stdout: nombres de simbolo unicos ordenados
+  grep -Eo "$1" | sed -E 's/.*(function|const)[[:space:]]+//' | sort -u
+}
+ADDED=$(echo "$DIFF" | grep -E '^\+' | sym_names "$EXPORT_RE" || true)
+REMOVED=$(echo "$DIFF" | grep -E '^[-]' | sym_names "$EXPORT_RE" || true)
+HUNK_CTX=$(echo "$DIFF" | grep -E '^@@ ' | sed -E 's/^@@[^@]*@@ ?//' | sym_names "$HUNK_RE" || true)
+NEW=$(comm -23 <(echo "$ADDED") <(echo "$REMOVED") | grep -v '^$' || true)
+SIG_MOD=$(comm -12 <(echo "$ADDED") <(echo "$REMOVED") | grep -v '^$' || true)
+MODIFIED=$(printf '%s\n%s\n' "$SIG_MOD" "$HUNK_CTX" | sort -u | comm -23 - <(echo "$NEW") | grep -v '^$' || true)
+if [ -n "$NEW" ]; then echo "$NEW" | sed 's/^/NEW: /'; fi
+if [ -n "$MODIFIED" ]; then echo "$MODIFIED" | sed 's/^/MODIFIED: /'; fi
+if [ -z "$NEW$MODIFIED" ]; then echo "(sin simbolos exportados detectados)"; fi
+
+# CODEGRAPH: ok solo si el probe de b1 (informativo, nunca gate) responde ok;
+# cualquier otro estado (stale/missing/broken o sin probe) => absent.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROBE="$SCRIPT_DIR/../../b1-add-worktree/scripts/codegraph-probe.sh"
+CG_STATUS=absent
+if [ -f "$PROBE" ]; then
+  st=$(bash "$PROBE" 2>/dev/null | tail -1 | sed -n 's/^CODEGRAPH_STATUS=\([a-z]*\).*/\1/p' || true)
+  if [ "${st:-}" = "ok" ]; then CG_STATUS=ok; fi
+fi
+echo "CODEGRAPH: $CG_STATUS"

@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+<!--
+  Entrada CHANGELOG generada por b7-issue-to-pr.
+  Tono: técnico-analítico para devs futuros leyendo historia.
+  Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
+-->
+
+### feat(b7): carril rapido S — classify-run + lane S|M|L (#16)
+
+classify-run asigna lane S/M/L; carril S usa render mecanico de screens, agente sonnet, 3 iteraciones y b6 --light. M/L byte-identicos.
+<!--
+  SUMMARY_TECHNICAL: 1-3 frases técnicas. Qué se cambió y por qué.
+  Ej: "Agrega remote function get_tareas_by_estado y nueva pantalla BandejaTareasPage para reemplazar el filtrado client-side que escalaba mal a >2k tareas."
+-->
+
+**Pantallas afectadas**: —
+<!-- "BandejaTareasPage (/tareas), DetalleTareaPage (/tareas/[id])" o "—" si no hay -->
+
+**Archivos clave**:
+—
+<!--
+  - `src/routes/—/—.remote.ts` — nueva query + permission check
+  - `src/routes/—/+page.svelte` — UI principal
+-->
+
+**Riesgos / consideraciones**:
+—
+<!--
+  - Migración requerida: —
+  - Permiso nuevo registrado: —
+  - Posible impacto en cache: —
+  - "Sin riesgos identificados" si nada aplica.
+-->
+
+**Métricas del run**: 0 iter · 0 archivos · 0 líneas netas · —
+
+**Links**: [issue #16](https://github.com/jporre/sveltekit-verticalslices/issues/16) · [PR #—](—) · [run report](—)
+
+
+
 ### perf — batch de llamadas gh en topologia de epics (#15)
 
 Reutiliza los objetos completos del endpoint REST `sub_issues` (antes se descartaba todo salvo `.number` y se re-pegaba un `gh issue view` por sub-issue) y colapsa loops N+1 en una sola llamada. Sobre el epic #27 (25 sub-issues): `epic-graph.sh` 28->3 procesos gh, `epic-diff.sh` 103->3. Las deps de `run.sh` pasan a una query `gh api graphql` aliaseada; `b9-close` PASO 4 fusiona los dos `--paginate` identicos sobre el endpoint de events en uno que emite `actor<TAB>created_at`.

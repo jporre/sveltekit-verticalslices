@@ -74,7 +74,7 @@ Parsear la ultima linea `TRIAGE_RESULT {...}`. **Fallback si falta:** leer label
 Skill b-pipeline:b7-issue-to-pr "<N> --lang=es"
 ```
 
-Parsear la ultima linea `B7_DONE issue=<N> pr=<url|none> status=<s>`. **Fallback:** `bash "$B10" reconcile <N>` — si aparece `B10_PR`, el build termino.
+Parsear la ultima linea `B7_DONE issue=<N> pr=<url|none> status=<s>`. b7 puede anexar un token opcional `lane=<S|M|L>` (carril del run; ver b7 paso 1b) — es informativo y el parser tolerante ya lo cubre (tokens `k=v` desconocidos se ignoran). No es obligatorio ni cambia el routing de esta fase. **Fallback:** `bash "$B10" reconcile <N>` — si aparece `B10_PR`, el build termino.
 
 - `status=ok` → fase 4.
 - `status=needs-human-review` → label ya puesto por b7; notificar y parar (worktree intacto para correccion humana).

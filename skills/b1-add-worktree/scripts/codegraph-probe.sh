@@ -63,10 +63,13 @@ run_timeout() {
 }
 
 # state-dir para el cache (mismo esquema slug que guardrails.sh).
+# El slug deriva SIEMPRE de $ROOT (el root probado), NO de CLAUDE_PROJECT_DIR: esa
+# variable es constante dentro de una sesion, asi que dos roots distintos (worktree
+# vs repo principal, o dos worktrees) compartirian el MISMO archivo de cache y un
+# status contaminaria al otro durante la ventana de TTL. Cada root => su cache. (issue #37)
 state_dir() {
-  local base slug
-  base="${CLAUDE_PROJECT_DIR:-$ROOT}"
-  slug="$(printf '%s' "$base" | sed 's|/|-|g')"
+  local slug
+  slug="$(printf '%s' "$ROOT" | sed 's|/|-|g')"
   printf '%s/.claude/projects/%s' "$HOME" "$slug"
 }
 SD="$(state_dir)"
@@ -104,11 +107,16 @@ now=$(date +%s)
 dbm=$(stat -f %m "$DBF" 2>/dev/null || stat -c %Y "$DBF" 2>/dev/null || echo "$now")
 age_days=$(( ( now - dbm ) / 86400 ))
 
-# smoke: query real (usa -p). Si falla, timeout, o emite firma de rotura => broken.
-out="$(run_timeout "$SMOKE_SECS" codegraph query "the" -p "$ROOT" 2>&1)"
+# smoke: query real (usa -p). Solo el exit-code y el STDERR deciden 'broken' — NUNCA
+# el contenido de los RESULTADOS de la query (stdout). Con la query generica "the"
+# cualquier snippet legitimo que contenga "Error:", "fatal", etc. hacia matchear el
+# grep y reportaba un backend sano como roto (falso positivo). Capturamos solo stderr:
+# `2>&1 1>/dev/null` manda stderr a la substitucion y stdout (los matches) a /dev/null.
+# (issue #37)
+err="$(run_timeout "$SMOKE_SECS" codegraph query "the" -p "$ROOT" 2>&1 1>/dev/null)"
 rc=$?
 if [ "$rc" -ne 0 ] \
-   || printf '%s' "$out" | grep -qiE 'unable to open database|SQLITE_CANTOPEN|cannot find module|no such (table|file)|fatal|panic|Error:'; then
+   || printf '%s' "$err" | grep -qiE 'unable to open database|SQLITE_CANTOPEN|cannot find module|no such (table|file)|fatal|panic|Error:'; then
   finish broken "$age_days"
 fi
 

@@ -18,7 +18,7 @@ Glue skill que encadena skills existentes. **No duplicar lógica de los skills e
 Si invocás este skill, estos 5 pasos **deben** ejecutarse en orden. Si alguno falla por entorno (auth, permisos, locks), abortar y reportar — **no continuar saltándolo**. Esto aplica incluso si el usuario añade instrucciones inline ("agregale el campo X", "cambia el color a Y") junto con el número de issue: la presencia del issue dispara el pipeline completo, las instrucciones inline son contexto adicional para el paso de implementación, no atajos para saltarse el resto.
 
 1. **Worktree de trabajo** — `b1-add-worktree --headless`. Branch `feat/<issue>-<slug>` o `fix/<issue>-<slug>`. **Prohibido editar el repo principal en master.** Toda escritura va al worktree. Si no se puede crear el worktree, abortar antes de tocar archivos.
-2. **Comentario sticky en el issue al iniciar** — `publish-docs.sh issue-comment` (tras setear `event: started` en `.b7/state.json`) postea/edita un comentario con marker `<!-- b7:status -->`. Sin este comentario el reportero no sabe que el bot tomó la tarea.
+2. **Comentario sticky en el issue al iniciar** — `publish-docs.sh milestone started` seguido de `publish-docs.sh issue-comment` postea/edita un comentario con marker `<!-- b7:status -->`. Sin este comentario el reportero no sabe que el bot tomó la tarea.
 3. **Commit(s) vía b3-git-commit** — agrupa cambios temáticos y produce conventional commits. No commitear con mensajes inventados ni omitir este paso. Se repite por cada agrupación lógica.
 4. **PR draft + labels sincronizadas** — `b4-pull-request --draft` con cuerpo de `publish-docs.sh pr-body` (incluye `Closes #<issue>`, release notes, cambios técnicos, screenshots). Labels del issue: `ready/auto-pr → in-progress` al iniciar, `in-progress → in-review` al abrir el PR. Comentario sticky actualizado con link al PR.
 5. **b6-pr-review sobre el PR recién abierto** — invocar `b6-pr-review` pasando el número de PR. Adjuntar el resumen al cuerpo del PR (sección `## Auto-review`) o como comentario del PR. Findings de severidad alta bloquean: re-iterar implementación o pedir intervención humana; no marcar el run como completado con findings críticos sin resolver.
@@ -246,13 +246,15 @@ El subcomando escribe `.b7/heartbeat` (formato UTC exacto que parsea b10) y adem
 
 ### 2b. Comentario inicial en el issue — PASO OBLIGATORIO #2
 
-Inmediatamente después de crear el worktree, actualizar `.b7/state.json` (milestone `started`) y ejecutar:
+Inmediatamente después de crear el worktree, avanzar el milestone (sin hand-edit del JSON) y renderizar el sticky:
 
 ```bash
-scripts/publish-docs.sh issue-comment --worktree "$WORKTREE"
+scripts/publish-docs.sh milestone started       --worktree "$WORKTREE"
+scripts/publish-docs.sh state-set mode=wet branch="$BRANCH" worktree_dir="$WORKTREE" --worktree "$WORKTREE"
+scripts/publish-docs.sh issue-comment            --worktree "$WORKTREE"
 ```
 
-> NOTA: los subcomandos reales de `publish-docs.sh` son `changelog | issue-comment | pr-body | all | aborted | bailed | plan-render | plan-done | plan-check`. NO existen `started` ni `pr-opened` — el milestone vive en `.b7/state.json` y `issue-comment` renderiza el sticky desde ahi.
+> NOTA: `milestone <name> [N]` (started, triage-done, worktree-ready, iter-green N, screens-reviewed, committed, pr-opened) y `state-set key=value [...]` escriben `.b7/state.json` por vos — NO editar el JSON a mano. `state-set` rechaza claves que no existan en el scaffold (atrapa typos que renderizarian vacio). Subcomandos completos: `changelog | issue-comment | pr-body | all | aborted | bailed | state-set | milestone | plan-render | plan-done | plan-check`.
 
 Esto postea (o edita, vía marker `<!-- b7:status -->`) un comentario sticky en el issue indicando: branch creado, modo (`--wet`/`--dry-run`), directivas inline si las hay, ETA estimado por complexity. Sin este comentario el usuario que abrió el issue no sabe que el bot lo tomó.
 
@@ -432,7 +434,9 @@ Apenas el PR queda abierto:
 
 ```bash
 gh issue edit <N> --remove-label "in-progress" --add-label "in-review"
-# milestone pr-opened en .b7/state.json y re-render del sticky con link al PR:
+# milestone pr-opened + link al PR (sin hand-edit del JSON) y re-render del sticky:
+scripts/publish-docs.sh milestone pr-opened --worktree "$WORKTREE"
+scripts/publish-docs.sh state-set pr_url="$PR_URL" pr_number="$PR_NUMBER" pr_link="$PR_URL" --worktree "$WORKTREE"
 scripts/publish-docs.sh issue-comment --worktree "$WORKTREE"
 ```
 
@@ -491,7 +495,7 @@ Configurable vía env `B7_MODEL_<STEP>` para experimentar.
 
 ## Rastro documental triple — invariantes
 
-Cada milestone (`started`, `triage-done`, `worktree-ready`, `iter-N-green`, `screens-reviewed`, `committed`, `pr-opened`, `aborted`) actualiza `.b7/state.json`. Después se invoca `publish-docs.sh issue-comment` (o `all` al cierre; `aborted` en aborts — esos son los subcomandos reales) que **propaga consistentemente** el estado de `.b7/state.json` a:
+Cada milestone se avanza con `publish-docs.sh milestone <name>` (`started`, `triage-done`, `worktree-ready`, `iter-green N`, `screens-reviewed`, `committed`, `pr-opened`) y los campos de contenido con `state-set key=value` — nunca hand-editando `.b7/state.json`. Después se invoca `publish-docs.sh issue-comment` (o `all` al cierre; `aborted` en aborts) que **propaga consistentemente** el estado de `.b7/state.json` a:
 
 | Salida | Lenguaje | Audiencia | Foco |
 |--------|----------|-----------|------|

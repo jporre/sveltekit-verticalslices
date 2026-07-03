@@ -8,6 +8,67 @@
   Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
 -->
 
+### refactor(pipeline): lib.sh — contratos inter-skill compartidos (find_pr, b6_verdict, label_event, blocked_by) (#24)
+
+Los contratos entre orquestadores vivian copy-pasteados y drifteaban: el lookup de PR por "Closes #N" existia en variantes (b9 usaba search server-side sin frontera de digitos + head -1), el sweep de events de labels estaba duplicado, y '## Blocked by' se parseaba con 2 gramaticas distintas — el sed inclusivo de run.sh capturaba el #N de la linea del heading siguiente (deps fantasma), mientras epic-graph.sh tenia el regex python correcto duplicado DOS veces en el mismo archivo. Nuevo `scripts/lib.sh` (raiz del plugin, sourceable, bash 3.2-safe) con 4 funciones: `bp_find_pr <issue> [open|merged]` (frontera `[^0-9]|$`: #261 no matchea #2610), `bp_b6_verdict <pr>` (delega en el lector unico verdict.sh read), `bp_label_event <issue|pr> <label>` (UNA llamada --paginate -> `actor<TAB>created_at`; comparacion de timestamps en el caller) y `bp_blocked_by` (stdin=body -> deps, lookahead NO inclusivo). `bash lib.sh selftest` corre los fixtures offline de bp_blocked_by (regresion: heading inmediato tras la seccion -> cero deps fantasma) y cmd_preflight lo suma a su smoke-test.
+
+**Archivos clave**:
+- `scripts/lib.sh` — NUEVO: bp_find_pr, bp_b6_verdict, bp_label_event, bp_blocked_by + selftest con fixtures
+- `skills/b10-ship/scripts/run.sh` — find_pr propio y sed inclusivo de deps eliminados; b6_marker via bp_b6_verdict; lib.sh en el smoke de preflight
+- `skills/b10-ship/scripts/epic-graph.sh` — regex duplicado x2 eliminado; deps se resuelven via bp_blocked_by antes del python
+- `skills/b9-close/SKILL.md` — PASO 0 (bp_find_pr open/merged), PASO 2 (bp_b6_verdict), PASO 4 (bp_label_event)
+- `skills/b10-ship/SKILL.md` — staleness de epic-approved con snippet bp_label_event
+
+**Riesgos / consideraciones**:
+Bajo. Output de `epic-graph.sh 27` verificado byte-identico antes/despues del refactor (stdout y stderr). lib.sh NO impone set -e/-u al sourcearse (los snippets de SKILL.md corren sin modo estricto). Fuera de alcance declarado: epic-diff.sh conserva su predicado [Cc]loses (necesita campos extra) y las llamadas directas de b7/b6 a verdict.sh read (verdict.sh sigue siendo la fuente unica; bp_b6_verdict es el atajo para quien ya sourcea lib.sh).
+
+**Links**: [issue #24](https://github.com/jporre/sveltekit-verticalslices/issues/24)
+
+### feat(b2): verify.sh — el checklist de verificacion como script con exit codes y browser-gate por scope de diff (#23)
+
+La verificacion de b2 era prosa honor-system triplicada (SKILL.md, checklist, b7): el orden check→format→autofixer→browser se re-derivaba cada run, el grep anti-React era manual y nada delataba pasos saltados. Nuevo `verify.sh` (contrato estilo assert-clean.sh): branch guard (exit 3), `pnpm check:machine` (4), `pnpm format` (no-gate), grep anti-React SOLO en archivos cambiados con file:line (5), `test:unit` condicional al diff (6) y browser-gate required si el diff toca `src/routes/**`, `*.svelte` o `*.remote.ts`. Ultima linea machine-readable `VERIFY_RESULT branch= check= react= test= browser= svelte_files=<csv>`; autofixer y walkthrough siguen siendo pasos del modelo gatillados por esa linea. Phase 3 de b2 orquesta verify.sh→autofixer→browser; el checklist queda como how-to de agent-browser; b7 usa verify.sh como pasada final pre-commit sin tocar el skip-by-scope del loop.
+
+**Archivos clave**:
+- `skills/b2-build-feature/scripts/verify.sh` — NUEVO: 6 gates, exit codes 2-6, linea VERIFY_RESULT
+- `skills/b2-build-feature/SKILL.md` — Phase 3 pasa a verify.sh + autofixer sobre `svelte_files` + browser si `required`
+- `skills/b2-build-feature/references/verification-checklist.md` — Steps 0-3 y grep absorbidos; queda el walkthrough de agent-browser
+- `skills/b7-issue-to-pr/SKILL.md` — pasada final completa = verify.sh antes del paso 6 (commit)
+
+**Riesgos / consideraciones**:
+Bajo. El skip-by-scope del loop iterativo de b7 no cambia (sigue alimentando iter-logs/error-hash); verify.sh entra solo como pasada final. Criterios validados en repo sintetico: on:click introducido → exit 5 con file:line; diff solo `.remote.ts` → browser=required; diff sin UI ni tests → test=skipped, browser=not-needed, exit 0.
+
+**Links**: [issue #23](https://github.com/jporre/sveltekit-verticalslices/issues/23)
+
+
+### feat(b2): Phase 1.5 impact check condicional + impact_files en el state de b7 (#22)
+
+Antes se modificaban simbolos existentes (helpers de `$lib`, `*.remote.ts` con consumidores, `schema.ts`) sin mirar quien los consume — drift silencioso hasta el review. b2 gana Phase 1.5 condicional: impact set por simbolo via `codegraph_impact` (probe `ok`) con fallback `rg -l`, skip explicito para greenfield y gate de scope-growth (archivos fuera del plan se agregan o se declara scope-growth antes de codear). b7 persiste el set en `.b7/state.json` campo `impact_files` via state-set (bullet en el prompt del agente del paso 4) y en 8c contrasta `git diff --name-only` contra impact_files+files_likely emitiendo la señal `IMPACT_DRIFT` (visible, NO gate).
+
+**Archivos clave**:
+- `skills/b2-build-feature/SKILL.md` — Phase 1.5 entre Clarify y Build (trigger, skip greenfield, fallback rg, gate de scope-growth)
+- `skills/b7-issue-to-pr/SKILL.md` — paso 4 bullet de persistencia de `impact_files`; 8c bloque de contraste con señal `IMPACT_DRIFT`
+- `skills/b7-issue-to-pr/scripts/guardrails.sh` — clave `impact_files` en el scaffold de init-state (whitelist de state-set la acepta)
+
+**Riesgos / consideraciones**:
+Bajo. La señal de 8c es informativa (el gate duro sigue siendo el budget); codegraph nunca es gate (fallback rg); la clave nueva en el scaffold no la consume ningun template (envsubst la ignora).
+
+**Links**: [issue #22](https://github.com/jporre/sveltekit-verticalslices/issues/22)
+
+
+### feat(b6): CHANGED_SYMBOLS en pr-context.sh + callers de simbolos modificados (#21)
+
+b6 excluia del analisis los simbolos que el PR modifica y nadie trazaba sus callers fuera del diff (asi se escapo la regresion D5). `pr-context.sh` gana la seccion `=== CHANGED_SYMBOLS ===` reutilizando el diff ya capturado: `NEW:`/`MODIFIED:` best-effort (exports en lineas +/- y contexto de hunk headers para modificaciones body-only) mas linea `CODEGRAPH: ok|absent` via el probe informativo de b1. SKILL.md cablea el uso: Area 2 punto 6 traza callers de cada MODIFIED (codegraph si ok, fallback `rg`; call site externo roto por firma nueva = BLOCKER) y Area 5 paso 2 usa codegraph como primario con las recetas Grep degradadas a fallback.
+
+**Archivos clave**:
+- `skills/b6-pr-review/scripts/pr-context.sh` — seccion CHANGED_SYMBOLS al final (reusa `$DIFF`, sin llamadas gh extra)
+- `skills/b6-pr-review/SKILL.md` — Paso 1 documenta la seccion; Area 2 punto 6 (callers de MODIFIED); Area 5 paso 2 (codegraph primario, Grep fallback)
+
+**Riesgos / consideraciones**:
+Bajo. Deteccion best-effort solo para exports JS/TS; con codegraph ausente todo funciona via rg (codegraph nunca es gate). Hallazgos se reportan dentro de '## 2. Calidad del Codigo' — cero impacto en los parsers de verdict.sh/b7/b9/b10.
+
+**Links**: [issue #21](https://github.com/jporre/sveltekit-verticalslices/issues/21)
+
+
 ### feat(b7): carril rapido S — classify-run + lane S|M|L (#16)
 
 classify-run asigna lane S/M/L; carril S usa render mecanico de screens, agente sonnet, 3 iteraciones y b6 --light. M/L byte-identicos.

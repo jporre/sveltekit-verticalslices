@@ -56,6 +56,7 @@ Lee el output completo. El script entrega:
 - **PR_COMMITS**: historial de commits
 - **CLASSIFY_FILES**: archivos clasificados por tipo (LOAD_SERVER, REMOTE_FUNCTION, API_ENDPOINT, SVELTE_COMPONENT, etc.)
 - **FIX_REGRESSION_GATE**: `FIX_WITHOUT_TEST=true|false` — true cuando el PR es `fix/*` y el diff no toca ningun archivo `.(test|spec).` (gate de regresion; ver Area 2)
+- **CHANGED_SYMBOLS**: simbolos exportados del diff (lineas `NEW:` / `MODIFIED:`, best-effort) + linea `CODEGRAPH: ok|absent` (probe informativo). Alimenta el punto 6 del Area 2 y el paso 2 del Area 5.
 
 ## Paso 2: Leer CLAUDE.md del proyecto
 
@@ -162,6 +163,7 @@ Evalua:
    - `goto()` donde bastaba un `href`
    - Filtrado server-side para pocos items (deberia ser `$derived`)
    - `$state` + `$effect` donde bastaba `$derived`
+6. **Callers de simbolos MODIFICADOS** (asi se escapo la regresion D5): si `CHANGED_SYMBOLS` trae lineas `MODIFIED:`, trazar los call sites de cada simbolo FUERA del diff. Con `CODEGRAPH: ok` usar `codegraph_callers`; sino fallback `rg -n '\b<simbolo>\('` (codegraph nunca es obligatorio). Un call site fuera del diff que la firma nueva rompe (argumentos, retorno, contrato) es **BLOCKER** citando `archivo:linea`. Sin lineas `MODIFIED:`, saltar este punto. Los hallazgos van dentro de '## 2. Calidad del Codigo' (sin secciones nuevas: cero impacto en parsers).
 
 ---
 
@@ -244,10 +246,12 @@ El PR puede introducir funciones que ya existen en el codebase con otro nombre o
 
 **Como detectar duplicados en el contexto del PR:**
 
-1. Para cada funcion NUEVA que el PR introduce (no modificaciones), identifica su proposito semantico
-2. Busca en el codebase existente funciones con proposito similar usando Grep:
-   - Busca por nombre de funcion similar (ej: si el PR agrega `formatDate`, busca `format.*date`, `date.*format`, `toDateString`)
-   - Busca por el patron de operacion (ej: si la funcion nueva hace `new Intl.DateTimeFormat`, busca otros usos de `Intl.DateTimeFormat`)
+1. Para cada funcion NUEVA que el PR introduce (lineas `NEW:` de `CHANGED_SYMBOLS`; las modificaciones se cubren en Area 2 punto 6), identifica su proposito semantico
+2. Busca en el codebase existente funciones con proposito similar:
+   - **Primario (si `CODEGRAPH: ok`)**: una query `codegraph_search` por simbolo NEW (nombre + sinonimos del proposito); el grafo trae candidatos en una sola pasada
+   - **Fallback (`CODEGRAPH: absent`)**: recetas Grep:
+     - Busca por nombre de funcion similar (ej: si el PR agrega `formatDate`, busca `format.*date`, `date.*format`, `toDateString`)
+     - Busca por el patron de operacion (ej: si la funcion nueva hace `new Intl.DateTimeFormat`, busca otros usos de `Intl.DateTimeFormat`)
 3. Si encuentras una funcion existente que hace lo mismo (o casi lo mismo), reporta ambas con sus ubicaciones
 
 **Criterios de severidad:**

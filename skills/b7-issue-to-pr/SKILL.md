@@ -363,6 +363,7 @@ Invocar `b2-build-feature` **vía sub-agente** (`Agent(subagent_type=general-pur
 - Indicación: respetar layout colocado (feature en `src/routes/<feature>/`), usar Remote Functions Pattern, no introducir state global, errores con `error(STATUS, {message,code})`.
 - Si alguna pantalla del triage tiene form de crear/editar: pointer a `$PLUGIN_ROOT/skills/b2-build-feature/references/forms-recipe.md` (campos nativos vs shadcn no-nativos con hidden-input, `issues()`/aria-invalid siempre visibles, regla `disabled={submitting}` NUNCA `disabled={!isFormValid}`).
 - Si alguna pantalla del triage trae `data_table: true`: instruir al sub-agente a invocar el skill `bt1-data-table` (via Skill tool) para esa tabla si esta disponible; fallback documentado si no lo esta: shadcn Table + paginacion server-side segun tamano del dataset.
+- **Impact set (Phase 1.5 de b2):** si el plan modifica simbolos existentes (helper de `$lib`, `*.remote.ts` con consumidores, `schema.ts`), correr la Phase 1.5 (impact set via `codegraph_impact` si el probe dio `CODEGRAPH_STATUS=ok`, fallback `rg -l '<simbolo>' src`) y persistirlo ANTES de implementar: `scripts/publish-docs.sh state-set impact_files=<csv-de-archivos> --worktree "$WORKTREE"` (`impact_files=[]` si greenfield). Si el impact set trae archivos fuera del plan, declarar el scope-growth en el sticky (`publish-docs.sh issue-comment`) antes de codear — no tocar archivos no planificados en silencio.
 
 Después de cada pasada del sub-agente, ejecutar el bloque de validación. **Skip-by-scope** primero:
 
@@ -394,7 +395,15 @@ Si alguno falla:
 3. Si el hash coincide con `.b7/iter-$((N-1))-<cmd>.hash` → **abort por no-progress**.
 4. Si no, alimentar al sub-agente solo el `.tail` (no el log completo) + delta del plan en `.b7/plan.md`.
 
-Parar el loop cuando todos los comandos habilitados estén verdes en una pasada final completa, OR cuando se trip un hard stop:
+Parar el loop cuando todos los comandos habilitados estén verdes en una pasada final completa, OR cuando se trip un hard stop. La pasada final completa es `verify.sh` de b2 (corre TODOS los gates: branch guard, check:machine, format, grep anti-React scoped al diff, test:unit condicional y browser-gate) — el skip-by-scope de arriba NO se toca: sigue gobernando las iteraciones y alimentando iter-logs/error-hash:
+
+```bash
+# cwd DEBE ser el worktree — corrido desde el repo principal el gate evalua master y da falsos exit 3
+(cd "$WORKTREE" && bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh")
+# exit 0 + VERIFY_RESULT ... = habilitado para el paso 6 (commit); exit 3-6 = volver al loop
+```
+
+Hard stops:
 
 | Hard stop          | Default | Acción |
 |--------------------|---------|--------|
@@ -520,7 +529,7 @@ rm -f "$WORKTREE/.b7/dev-server.pid"
 
 ### 6. Commit
 
-Si step 4 verde AND budgets OK AND screens pass/warn:
+Si step 4 verde (pasada final `verify.sh` exit 0) AND budgets OK AND screens pass/warn:
 
 - `b3-git-commit` agrupa cambios temáticos.
 - **Antes** de invocarlo, asegurar entrada en `CHANGELOG.md` usando `scripts/publish-docs.sh changelog` (lee `.b7/state.json`).
@@ -571,6 +580,28 @@ Cuando el PR mergea, el `Closes #<issue>` cierra el issue automáticamente — n
 **Paso siguiente (fuera de b7):** el merge + cierre del PR + limpieza del worktree lo hace `b9-close`, con aprobación humana. b7 NO mergea; termina en PR draft + review adjunto.
 
 ### 8c. Auto-review del PR — PASO OBLIGATORIO #5
+
+**Contraste de impacto (señal, NO gate):** antes de invocar b6, contrastar el diff real contra `impact_files` (state.json) + `files_likely` (triage.json). Archivos fuera del set esperado indican scope-growth no declarado:
+
+```bash
+python3 - "$WORKTREE" <<'PY'
+import json, os, subprocess, sys
+wt = sys.argv[1]
+def load(p, d):
+    try: return json.load(open(os.path.join(wt, p)))
+    except Exception: return d
+state, triage = load(".b7/state.json", {}), load(".b7/triage.json", {})
+raw = state.get("impact_files", "")
+expected = {f for f in raw.replace(",", " ").split() if f and f not in ("[]", "-")}
+expected |= set(triage.get("files_likely", []))
+base = subprocess.run(["git","-C",wt,"merge-base","HEAD","master"], capture_output=True, text=True).stdout.strip()
+diff = subprocess.run(["git","-C",wt,"diff","--name-only",base], capture_output=True, text=True).stdout.split("\n")
+outside = [f for f in diff if f and f not in expected and not f.startswith(".b7/") and f != "CHANGELOG.md"]
+print("IMPACT_DRIFT: " + (" ".join(outside) if outside else "none"))
+PY
+```
+
+Si `IMPACT_DRIFT` lista archivos, emitir la señal visible: linea de warning en consola, nota en el run-report y mencion en el sticky del issue. NO abortar el run por esto — el gate duro sigue siendo el budget (files/lines); esto expone drift silencioso al reviewer.
 
 Apenas el PR está abierto (incluso draft), invocar `b6-pr-review "<PR> --auto"`. **Carril S:** invocar `b6-pr-review "<PR> --auto --light"` — el `--light` (size-gate emitido por `pr-context.sh`, issue #3) recorta el review al tamaño chico del diff. Carriles M y L: sin `--light` (review completo, sin cambios). **b6 en modo `--auto` publica el reporte por si mismo** (`gh pr comment` con el marker `<!-- b6:verdict=... -->`) — NO volver a postearlo desde aca (doble posteo). Verificar que quedo publicado:
 

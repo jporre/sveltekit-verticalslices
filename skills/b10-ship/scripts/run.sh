@@ -26,6 +26,9 @@ SETUP_WT="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh"
 PUBLISH_DOCS="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh"
 VERDICT_SH="$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh"
 CG_PROBE="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/codegraph-probe.sh"
+LIB_SH="$PLUGIN_ROOT/scripts/lib.sh"
+# Contratos inter-skill compartidos: bp_find_pr, bp_b6_verdict, bp_blocked_by.
+. "$LIB_SH"
 LOCK_STALE_SECS="${B10_LOCK_STALE_SECS:-21600}"
 HEARTBEAT_STALE_SECS="${B10_HEARTBEAT_STALE_SECS:-7200}"
 
@@ -46,12 +49,13 @@ cmd_preflight() {
   fi
   # Smoke test del contrato de scripts compartidos (rotura silenciosa por refactor).
   local missing=0
-  for f in "$B8_GUARD" "$ASSERT_CLEAN" "$SETUP_WT" "$PUBLISH_DOCS" "$VERDICT_SH"; do
+  for f in "$B8_GUARD" "$ASSERT_CLEAN" "$SETUP_WT" "$PUBLISH_DOCS" "$VERDICT_SH" "$LIB_SH"; do
     [ -f "$f" ] || { echo "b10: FALTA script compartido: $f" >&2; missing=1; }
   done
   grep -q 'issue-comment' "$PUBLISH_DOCS" || { echo "b10: publish-docs.sh perdio el subcomando issue-comment" >&2; missing=1; }
   grep -q 'cmd_read' "$VERDICT_SH" || { echo "b10: verdict.sh perdio el subcomando read" >&2; missing=1; }
   grep -q 'backpressure' "$B8_GUARD" || { echo "b10: guardrails.sh perdio el subcomando backpressure" >&2; missing=1; }
+  bash "$LIB_SH" selftest >/dev/null || { echo "b10: lib.sh selftest fallo (contratos bp_* rotos)" >&2; missing=1; }
   [ "$missing" -eq 0 ] || return 2
   bash "$B8_GUARD" backpressure || return $?
   # Codegraph: probe INFORMATIVO (nunca gate). Emitir la linea para el operador;
@@ -91,13 +95,6 @@ cmd_release_lock() {
   rm -f "$lock"; echo "B10_LOCK=released"
 }
 
-# PR cuyo body cierra el issue N (sin falsos positivos #2610 vs #261).
-find_pr() {
-  local n="$1" state="$2"
-  gh pr list --state "$state" --limit 100 --json number,body \
-    --jq "[.[] | select(.body | test(\"[Cc]loses #${n}([^0-9]|$)\"))] | (.[0].number // empty)"
-}
-
 find_worktree() {
   local n="$1" wt
   # 1) Branch propio del issue: (feat|fix|chore|refactor|docs)/<issue>-<slug>
@@ -116,11 +113,11 @@ find_worktree() {
   done
 }
 
-# Veredicto b6: delega en el lector unico verdict.sh (cubre comentarios Y reviews).
+# Veredicto b6: delega en el lector unico via bp_b6_verdict (cubre comentarios Y reviews).
 # Reformatea la linea B6_VERDICT al mismo formato B10_B6 de antes, ahora con warnings=M.
 b6_marker() {
   local pr="$1" line v b w
-  line="$(bash "$VERDICT_SH" read "$pr" 2>/dev/null || true)"   # exit 3 (sin marker) -> line vacia
+  line="$(bp_b6_verdict "$pr" 2>/dev/null || true)"   # exit 3 (sin marker) -> line vacia
   [ -n "$line" ] || return 0
   v="$(echo "$line" | grep -oE 'verdict=[a-z-]+' | cut -d= -f2)"
   b="$(echo "$line" | grep -oE 'blockers=[0-9]+' | cut -d= -f2)"
@@ -160,14 +157,14 @@ cmd_reconcile() {
   echo "B10_LABELS=$labels"
 
   if [ "$state" = "CLOSED" ]; then
-    pr="$(find_pr "$n" open)"
+    pr="$(bp_find_pr "$n" open)"
     [ -n "$pr" ] && echo "B10_PR_ORPHAN=$pr (issue cerrado con PR abierto — revisar/cerrar a mano o via b9)"
     wt="$(find_worktree "$n")"
     [ -n "$wt" ] && echo "B10_WORKTREE=$wt (issue cerrado — limpieza pendiente via b9 PASO 6)"
     echo "B10_PHASE=done"; return 0
   fi
 
-  pr="$(find_pr "$n" open)"
+  pr="$(bp_find_pr "$n" open)"
   if [ -n "$pr" ]; then
     echo "B10_PR=$pr"
     echo "B10_PR_STATE=$(gh pr view "$pr" --json isDraft,mergeable,reviewDecision \
@@ -190,7 +187,7 @@ cmd_reconcile() {
   fi
 
   # PR mergeado con issue aun abierto (Closes mal formateado o base equivocada).
-  pr="$(find_pr "$n" merged)"
+  pr="$(bp_find_pr "$n" merged)"
   if [ -n "$pr" ]; then
     echo "B10_PR_MERGED=$pr (mergeado pero el issue sigue abierto — cerrar issue + limpiar via b9)"
     echo "B10_PHASE=close"; return 0
@@ -216,9 +213,11 @@ cmd_reconcile() {
       return 0 ;;
   esac
 
-  # Dependencias declaradas bajo el heading "## Blocked by" (misma convencion que epic-graph.sh).
+  # Dependencias declaradas bajo el heading "## Blocked by": gramatica unica
+  # bp_blocked_by (scripts/lib.sh). El sed inclusivo previo capturaba el #N de
+  # la linea del heading siguiente -> deps fantasma.
   local deps dep open_deps=""
-  deps="$(echo "$ijson" | jq -r .body | sed -n '/^##* *[Bb]locked *[Bb]y/,/^##[^#]/p' | grep -oE '#[0-9]+' | tr -d '#' | sort -un || true)"
+  deps="$(echo "$ijson" | jq -r .body | bp_blocked_by || true)"
   if [ -n "$deps" ]; then
     # Una sola query gh api graphql con issues aliaseados, en vez de un
     # `gh issue view` por dep (N+1 procesos gh). GraphQL devuelve state en

@@ -36,21 +36,20 @@ Desde el repo principal. Resolver según el primer token de `$ARGUMENTS`:
 ```bash
 REPO_MAIN="$(git rev-parse --show-toplevel)"
 ARG="<primer-token-de-$ARGUMENTS>"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+. "$PLUGIN_ROOT/scripts/lib.sh"
 
 # Modo issue (número pelado o "issue N"): buscar el PR que lo cierra.
-# CRITICO: la busqueda server-side de gh NO respeta fronteras de digitos ("Closes #261"
-# matchea PRs con "Closes #2610") — verificar SIEMPRE el body con regex de frontera
-# ([^0-9]|$) antes de aceptar el match. Este es el PR que se va a MERGEAR: un falso
-# positivo mergea el PR equivocado.
-PR=$(gh pr list --state open --search "in:body Closes #${ARG}" --json number,body \
-     --jq ".[] | select(.body | test(\"[Cc]loses #${ARG}([^0-9]|\$)\")) | .number" | head -1)
+# CRITICO: bp_find_pr filtra el body con regex de frontera de digitos ([^0-9]|$)
+# — la busqueda server-side de gh matcheaba "Closes #2610" al pedir #261. Este es
+# el PR que se va a MERGEAR: un falso positivo mergea el PR equivocado.
+PR=$(bp_find_pr "$ARG" open)
 # Modo PR (#N / "pr N"): usar directo.   Modo branch: gh pr list --head <branch>.
 # Sin arg: PR=$(gh pr list --head "$(git rev-parse --abbrev-ref HEAD)" --json number --jq '.[0].number')
 
 # Idempotencia: si no hay PR abierto, buscar uno YA MERGEADO (re-run tras crash a
 # mitad de limpieza). Si aparece y esta MERGED, saltar directo a PASO 6/7.
-[ -z "$PR" ] && PR=$(gh pr list --state merged --search "in:body Closes #${ARG}" --json number,body \
-     --jq ".[] | select(.body | test(\"[Cc]loses #${ARG}([^0-9]|\$)\")) | .number" | head -1)
+[ -z "$PR" ] && PR=$(bp_find_pr "$ARG" merged)
 
 [ -z "$PR" ] && { echo "ABORT: no encontré PR (abierto ni mergeado) para '$ARG'"; exit 1; }
 
@@ -100,7 +99,8 @@ git -C "$WORKTREE" push origin "$BRANCH"
 ```bash
 # Lector unico del marker (cubre comentarios Y reviews). NO parsear el marker a mano.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
-bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read "$PR"
+. "$PLUGIN_ROOT/scripts/lib.sh"
+bp_b6_verdict "$PR"
 # exit 0 -> imprime: B6_VERDICT verdict=.. blockers=N warnings=M pr=P
 # exit 3 -> sin marker (no hubo review)
 ```
@@ -131,12 +131,10 @@ Dos canales validos, en este orden:
 ```bash
 HAS_LABEL=$(gh pr view "$PR" --json labels --jq '[.labels[].name] | contains(["merge-approved"])')
 if [ "$HAS_LABEL" = "true" ]; then
-  # UN solo sweep del endpoint de events (antes eran dos --paginate identicos:
-  # uno para el actor y otro para el created_at). Se emite "actor<TAB>created_at".
-  # OJO: gh --paginate aplica el jq POR PAGINA — no usar `last` sobre el array,
-  # emitir un valor por evento y quedarse con la ultima linea.
-  APPROVAL=$(gh api "repos/{owner}/{repo}/issues/${PR}/events" --paginate \
-    --jq '.[] | select(.event=="labeled" and .label.name=="merge-approved") | "\(.actor.login)\t\(.created_at)"' | tail -1)
+  # UN solo sweep del endpoint de events via bp_label_event (scripts/lib.sh):
+  # emite "actor<TAB>created_at" del ultimo evento labeled (vacio si no hubo).
+  . "$PLUGIN_ROOT/scripts/lib.sh"   # PLUGIN_ROOT resuelto en PASO 0
+  APPROVAL=$(bp_label_event "$PR" merge-approved)
   ACTOR="${APPROVAL%%$'\t'*}"          # vacio si no hubo evento labeled
   LABELED_AT="${APPROVAL#*$'\t'}"
   case "$ACTOR" in *"[bot]"|"") HAS_LABEL=false ;; esac   # solo cuenta si lo puso un humano

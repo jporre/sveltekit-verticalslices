@@ -1,6 +1,6 @@
 ---
 name: b7-issue-to-pr
-description: 'Pipeline autónomo issue → PR centrado en pantallas (Feature-Sliced Design). CINCO PASOS OBLIGATORIOS y no-saltables: (1) crear worktree vía b1-add-worktree (NUNCA editar master directo), (2) comentar avance sticky en el GitHub issue, (3) commit vía b3-git-commit, (4) abrir PR draft vía b4-pull-request con labels sincronizadas (ready/auto-pr → in-progress → in-review), (5) correr b6-pr-review sobre el PR recién abierto. Encadena: b1-triage-issue, b1-add-worktree, b2-build-feature, b7-screen-review, b3-git-commit, b4-pull-request, b6-pr-review. PROHIBIDO terminar el run con frases del tipo "Ready for...", "Listo para commit/PR", "Pendiente b3/b4" — esos pasos son parte del skill y deben ejecutarse aquí. Se usa cuando se invoca con un número de issue, incluso si el usuario añade modificaciones en lenguaje natural en el mismo prompt — los 5 pasos siguen siendo obligatorios. Considerar invocar siempre que se mencione "tarea N" o "issue N" (tarea = issue de GitHub).'
+description: 'Pipeline autonomo issue -> PR DRAFT centrado en pantallas (Feature-Sliced Design); se detiene en el PR draft, NO mergea. Entrada directa SOLO cuando el usuario quiere parar en el PR: "issue N hasta PR", "abre PR del issue N", "/b7-issue-to-pr N", "sin merge". NO usar como entrada default de "resuelve/trabaja/arregla el issue N" — eso rutea a b10-ship (que invoca este skill como fase de build); un cluster de issues relacionadas en un solo PR es b8-swarm. CINCO PASOS OBLIGATORIOS y no-saltables: (1) crear worktree via b1-add-worktree (NUNCA editar master directo), (2) comentar avance sticky en el GitHub issue, (3) commit via b3-git-commit, (4) abrir PR draft via b4-pull-request con labels sincronizadas (ready/auto-pr -> in-progress -> in-review), (5) correr b6-pr-review sobre el PR recien abierto. Encadena: b1-triage-issue, b1-add-worktree, b2-build-feature, b7-screen-review, b3-git-commit, b4-pull-request, b6-pr-review. PROHIBIDO terminar el run con frases del tipo "Ready for...", "Listo para commit/PR", "Pendiente b3/b4" — esos pasos son parte del skill y deben ejecutarse aqui. Instrucciones inline del usuario en el mismo prompt van a user_directives — los 5 pasos siguen siendo obligatorios.'
 allowed-tools: Bash, Read, Edit, Write, Skill, Agent
 context: fork
 model: opus
@@ -15,15 +15,15 @@ Glue skill que encadena skills existentes. **No duplicar lógica de los skills e
 
 ## Los 5 pasos obligatorios — NO saltarse
 
-Si invocás este skill, estos 5 pasos **deben** ejecutarse en orden. Si alguno falla por entorno (auth, permisos, locks), abortar y reportar — **no continuar saltándolo**. Esto aplica incluso si el usuario añade instrucciones inline ("agregale el campo X", "cambia el color a Y") junto con el número de issue: la presencia del issue dispara el pipeline completo, las instrucciones inline son contexto adicional para el paso de implementación, no atajos para saltarse el resto.
+Invocar este skill con un numero de issue ejecuta los 5 pasos en orden, incluso si el usuario añade instrucciones inline en el mismo prompt (van a `user_directives` como contexto de la implementacion — no son atajos). Si un paso falla por entorno (auth, permisos, locks), abortar y reportar — no continuar saltandolo.
 
-1. **Worktree de trabajo** — `b1-add-worktree --headless`. Branch `feat/<issue>-<slug>` o `fix/<issue>-<slug>`. **Prohibido editar el repo principal en master.** Toda escritura va al worktree. Si no se puede crear el worktree, abortar antes de tocar archivos.
-2. **Comentario sticky en el issue al iniciar** — `publish-docs.sh milestone started` seguido de `publish-docs.sh issue-comment` postea/edita un comentario con marker `<!-- b7:status -->`. Sin este comentario el reportero no sabe que el bot tomó la tarea.
-3. **Commit(s) vía b3-git-commit** — agrupa cambios temáticos y produce conventional commits. No commitear con mensajes inventados ni omitir este paso. Se repite por cada agrupación lógica.
-4. **PR draft + labels sincronizadas** — `b4-pull-request --draft` con cuerpo de `publish-docs.sh pr-body` (incluye `Closes #<issue>`, release notes, cambios técnicos, screenshots). Labels del issue: `ready/auto-pr → in-progress` al iniciar, `in-progress → in-review` al abrir el PR. Comentario sticky actualizado con link al PR.
-5. **b6-pr-review sobre el PR recién abierto** — invocar `b6-pr-review` pasando el número de PR. Adjuntar el resumen al cuerpo del PR (sección `## Auto-review`) o como comentario del PR. Findings de severidad alta bloquean: re-iterar implementación o pedir intervención humana; no marcar el run como completado con findings críticos sin resolver.
+1. **Worktree** — `b1-add-worktree --headless`; branch `feat/<issue>-<slug>` o `fix/<issue>-<slug>`. Prohibido editar el repo principal en master; si no se puede crear el worktree, abortar antes de tocar archivos.
+2. **Comentario sticky en el issue al iniciar** — `publish-docs.sh milestone started` + `issue-comment` (marker `<!-- b7:status -->`).
+3. **Commit(s) via b3-git-commit** — conventional commits por agrupacion tematica; sin mensajes inventados.
+4. **PR draft + labels sincronizadas** — `b4-pull-request --draft` con cuerpo de `publish-docs.sh pr-body` (incluye `Closes #<issue>`); labels `ready/auto-pr → in-progress → in-review`; sticky actualizado con link al PR.
+5. **b6-pr-review sobre el PR recien abierto** — veredicto publicado en el PR; findings de severidad alta bloquean (re-iterar o escalar a humano).
 
-Si alguno de estos 5 pasos no se completa con éxito, el run no es válido y debe reportarse como `aborted` con razón clara — no como completado.
+Verificacion observable de cada paso: ver DEFINITION OF DONE. Si alguno no se completa con exito, el run se reporta `aborted` con razon clara — no como completado.
 
 ## DEFINITION OF DONE — checklist verificable
 
@@ -81,14 +81,6 @@ Estas frases significan "abandoné a mitad de camino" y son síntoma del bug que
 
 En `--wet` el cierre válido es: branch + commits + PR URL + review adjunto + labels actualizadas. En `--dry-run` el cierre válido es: branch + commits opcionales + worktree listo para inspección + label `in-progress` + comentario sticky.
 
-### Anti-patrón: parches inline en master
-
-**Falla observada:** usuario invoca `/b7-issue-to-pr #121 por favor agrega el campo X a la tabla` → el modelo trata la frase inline como "tarea simple", edita archivos en el worktree principal (master), corre `pnpm check:machine`, reporta éxito, y omite worktree/issue-comment/PR.
-
-Esto es **incorrecto siempre**. El número de issue dispara los 4 pasos sin excepción. La frase inline es **input adicional** para el paso 4 (Implementación) — se anexa al `triage.json` como `user_directives` y se pasa al sub-agente de `b2-build-feature`. Pero los pasos 1, 2, 3 (worktree, comentario, PR) siguen siendo no-negociables.
-
-Regla operativa: **antes de la primera escritura a archivos, verificar `pwd` — debe ser el worktree, no el repo principal.** Si es el repo principal, detenerse y crear el worktree primero.
-
 ## Argumentos
 
 ```
@@ -107,14 +99,12 @@ Si no se entrega número de issue, abortar con error claro.
 
 ### Directivas inline del usuario
 
-Cuando el usuario invoca el skill con texto adicional en el mismo prompt (ej. `/b7-issue-to-pr #121 agregale el campo rut a la tabla`), ese texto se trata como `--directives` y se anexa al triage en `.b7/triage.json` bajo la clave `user_directives`. Los sub-agentes de implementación lo leen junto con el cuerpo del issue. **No alteran la obligatoriedad de los 4 pasos** descritos arriba — son refinamientos del scope, no atajos.
+Texto adicional en el mismo prompt (ej. `/b7-issue-to-pr #121 agregale el campo rut a la tabla`) se trata como `--directives` y se anexa a `.b7/triage.json` bajo `user_directives`; los sub-agentes de implementacion lo leen junto con el cuerpo del issue. No altera la obligatoriedad de los 5 pasos — refina el scope, no lo atajea.
 
 ### `--dry-run` vs `--wet`
 
-- `--wet` (default): ejecuta los 4 pasos completos. Worktree creado, issue comentado, código implementado, PR draft abierto, labels sincronizadas.
-- `--dry-run`: ejecuta los pasos 1 y 2 (worktree + comentario inicial) y la implementación, pero **no** abre PR ni mueve labels al estado `in-review`. Útil para previsualizar diff antes de publicar. El comentario sticky del paso 2 indica claramente que el run fue dry-run y el worktree quedó disponible para inspección manual.
-
-En ningún modo se puede saltar la creación del worktree o el comentario inicial.
+- `--wet` (default): ejecuta los 5 pasos completos. Worktree creado, issue comentado, código implementado, PR draft abierto, labels sincronizadas.
+- `--dry-run`: ejecuta los pasos 1 y 2 (worktree + comentario inicial) y la implementación, pero **no** abre PR ni mueve labels al estado `in-review`. El comentario sticky del paso 2 indica claramente que el run fue dry-run y el worktree quedó disponible para inspección manual.
 
 ## Principio de Diseño: enfocado en pantallas (colocado en src/routes)
 
@@ -182,21 +172,17 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
   "scope": "<feature-name>",
   "language": "es|en",
   "files_likely": ["src/routes/<feature>/*"],
-  "screens": [
-    {
-      "name": "BandejaTareasPage",
-      "route": "/tareas",
-      "user_journey": "Usuario abre /tareas, filtra por estado, ...",
-      "acceptance_criteria_visual": ["Tabla muestra ...", "Botón ..."],
-      "success_metrics": ["Filtro responde <200ms", "..."],
-      "states_required": ["golden", "invalid-submit"]
-    }
-  ],
+  "screens": [{
+    "name": "BandejaTareasPage", "route": "/tareas",
+    "user_journey": "Usuario abre /tareas, filtra por estado, ...",
+    "acceptance_criteria_visual": ["Tabla muestra ...", "Botón ..."],
+    "success_metrics": ["Filtro responde <200ms", "..."],
+    "states_required": ["golden", "invalid-submit"]
+  }],
   "security_review_required": false,
   "estimated_complexity": "simple|medium|complex",
   "plan": [
     {"id": "schema-rut", "desc": "Agregar columna rut a ta_persona + migración", "done": false},
-    {"id": "remote-fn",  "desc": "Actualizar create_persona/update_persona con rut", "done": false},
     {"id": "ui-form",    "desc": "Input rut en PersonaFormPage con validación", "done": false}
   ]
 }
@@ -204,17 +190,16 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
 
 Tras escribir `.b7/triage.json`, **validar mecánicamente** contra el schema antes de seguir: `bash scripts/guardrails.sh validate-triage .b7/triage.json`. Si sale exit 4 (verdict/complexity fuera del enum, falta un required, o clave desconocida por `additionalProperties:false`), el triage es inválido — corregirlo y re-validar; no continuar con un artefacto que los sub-skills no van a poder consumir.
 
-**Gate de evidencia para bugs (deterministico, via jq).** El subset de `validate-triage` no evalua el `if/then` del schema (`type=fix` exige `evidence`), asi que b7 lo aplica aca: un `fix` sin `evidence.observed` se trata como needs-info y baila — un bug sin artefacto observado no debe consumir un run de implementacion.
+**Gate de evidencia para bugs (deterministico, via jq).** `validate-triage` no evalua el `if/then` del schema (`type=fix` exige `evidence`), asi que b7 lo aplica aca — un bug sin artefacto observado no debe consumir un run de implementacion:
 
 ```bash
 if [ "$(jq -r '.type' .b7/triage.json)" = "fix" ] \
    && [ -z "$(jq -r '.evidence.observed // empty' .b7/triage.json)" ]; then
   echo "GATE_FAIL fix sin evidence.observed — se trata como needs-info"
-  # comentar en el issue (idioma = .language) que falta evidencia observable, liberar lock, salir 0.
+  # mismo trato que verdict != ready: comentar en el issue (idioma = .language)
+  # que falta evidencia observable, liberar lock, salir 0. Sin worktree ni PR.
 fi
 ```
-
-Mismo trato que `verdict != "ready"`: comentar en el issue (en su idioma) que falta la evidencia observable del bug y bailar. No abrir worktree ni PR.
 
 El `plan[]` es la lista accionable que el orquestador planifica **antes de implementar** y verifica **al cierre** (gate DoD #6). Mantener 3–8 items; nada de micro-tareas. Los sub-agentes marcan progreso con:
 
@@ -235,13 +220,13 @@ if [ "$(jq -r '.type' .b7/triage.json)" = "fix" ] \
 fi
 ```
 
-**Waiver explicito.** Si el fix genuinamente no admite test (p.ej. cambio de infra sin harness), cerrar el item con una razon y degradar el run a `needs-human-review` — nunca marcarlo `done` en silencio:
+**Waiver explicito.** Si el fix genuinamente no admite test (p.ej. cambio de infra sin harness), cerrar el item con razon — nunca `done` en silencio:
 
 ```bash
 scripts/publish-docs.sh plan-done regression-test --worktree "$WORKTREE"   # note: waived: <razon>
 ```
 
-El waiver deja `plan-check` en verde (item done) pero el status final del run es `needs-human-review`, no `ok`: un humano confirma que la ausencia de test es aceptable. La razon del waiver va en el sticky comment y el run-report.
+El waiver deja `plan-check` verde (item done) pero el status final del run es `needs-human-review`, no `ok` — un humano confirma que la ausencia de test es aceptable; la razon va en el sticky comment y el run-report.
 
 Si `verdict != "ready"`: comentar en el issue (en su idioma — `language` del JSON) que el bot bailó, liberar lock, salir 0.
 
@@ -280,9 +265,12 @@ if [ -z "$LINE" ]; then
   echo "ABORT: setup-worktree.sh did not emit WORKTREE_READY — worktree not safely created" >&2
   exit 1
 fi
-# Parse "WORKTREE_READY dir=<path> branch=<name> port=<n>"
-eval "$(echo "$LINE" | sed 's/^WORKTREE_READY //' | tr ' ' '\n' | awk -F= '{print "WT_"toupper($1)"="$2}')"
-export WORKTREE="$WT_DIR" BRANCH="$WT_BRANCH" PORT="$WT_PORT"
+# WORKTREE/BRANCH/PORT desde el marker .b7/worktree-ready.json (via guardrails.sh)
+WT_DIR="${LINE#WORKTREE_READY dir=}"; WT_DIR="${WT_DIR%% *}"
+ENV_OUT="$(bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" worktree-env "$WT_DIR")" || {
+  echo "ABORT: worktree-env fallo (marker ausente o incompleto) — exit 30" >&2; exit 30; }
+eval "$ENV_OUT"
+export WORKTREE BRANCH PORT
 
 # Hard gate: refuse to continue if the worktree isn't fully provisioned.
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-worktree "$WORKTREE" || exit 31
@@ -296,7 +284,7 @@ Crear `.b7/` dentro del worktree (excluido via el exclude por-worktree que siemb
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" heartbeat "$WORKTREE"
 ```
 
-El subcomando escribe `.b7/heartbeat` (formato UTC exacto que parsea b10) y ademas toca `b7.lock` — la staleness del lock es por mtime, un run vivo lo mantiene fresco. Tocar el heartbeat tambien: al inicio del paso 5.0 (antes de levantar el dev server), al completar cada pantalla en 5.2, y antes de invocar b6 en 8c.
+El subcomando escribe `.b7/heartbeat` (formato UTC exacto que parsea b10) y ademas toca `b7.lock` — la staleness del lock es por mtime, un run vivo lo mantiene fresco. **Puntos de latido** (lista canonica; los pasos posteriores no la repiten): al sembrar aca, al inicio de cada iteracion del paso 4, al inicio del paso 5.0, al completar cada pantalla en 5.2, y antes de invocar b6 en 8c.
 
 **Verificación previa a cualquier escritura:** después de `verify-worktree OK`, toda invocación de Edit/Write/Bash debe operar sobre `$WORKTREE`. Si en algún momento `pwd` reporta el repo principal, detenerse — la siguiente escritura sería un parche en master.
 
@@ -312,15 +300,13 @@ scripts/publish-docs.sh issue-comment            --worktree "$WORKTREE"
 
 > NOTA: `milestone <name> [N]` (started, triage-done, worktree-ready, iter-green N, screens-reviewed, committed, pr-opened) y `state-set key=value [...]` escriben `.b7/state.json` por vos — NO editar el JSON a mano. `state-set` rechaza claves que no existan en el scaffold (atrapa typos que renderizarian vacio). Subcomandos completos: `changelog | issue-comment | pr-body | all | aborted | bailed | state-set | milestone | plan-render | plan-done | plan-check`.
 
-Esto postea (o edita, vía marker `<!-- b7:status -->`) un comentario sticky en el issue indicando: branch creado, modo (`--wet`/`--dry-run`), directivas inline si las hay, ETA estimado por complexity. Sin este comentario el usuario que abrió el issue no sabe que el bot lo tomó.
+Esto postea (o edita, vía marker `<!-- b7:status -->`) un comentario sticky en el issue indicando: branch creado, modo (`--wet`/`--dry-run`), directivas inline si las hay, ETA estimado por complexity.
 
-También en este punto se actualizan labels del issue:
+También en este punto se actualizan labels del issue (si las labels destino no existen, crearlas con `gh label create` antes):
 
 ```bash
 gh issue edit <N> --remove-label "ready,auto-pr" --add-label "in-progress"
 ```
-
-Si las labels destino no existen en el repo, crearlas con `gh label create` antes.
 
 ### 3. Diseño de pantallas (rápido, en línea)
 
@@ -374,11 +360,7 @@ echo "$changed" | grep -qE '\.(test|spec)\.' && RUN_TEST=1 || RUN_TEST=0
 echo "$changed" | grep -qE '\.(ts|svelte|js|css)$' && RUN_LINT=1 || RUN_LINT=0
 ```
 
-Al inicio de CADA iteracion, tocar el heartbeat (permite a la reconciliacion de b10 distinguir un run vivo de uno zombie, y mantiene fresco el lock):
-
-```bash
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" heartbeat "$WORKTREE"
-```
+Al inicio de CADA iteracion, tocar el heartbeat: `guardrails.sh heartbeat "$WORKTREE"` (lista canonica de latidos en el paso 2).
 
 Solo re-correr los comandos que estaban rojos en `.b7/iter-status.json` (o todos en iter 1):
 
@@ -437,27 +419,20 @@ Si el diff de un carril S **sí** toca alguno de esos patrones, la revisión vis
 
 #### 5.0 Levantar el dev server del worktree (OBLIGATORIO antes del review)
 
-**Causa histórica de que las pantallas nunca se revisaran:** nadie levantaba el dev server del worktree, así que `b7-screen-review` hacía `curl localhost:<port>` → sin respuesta → abortaba `fail`, y b7 seguía sin pantallas. Hay que levantarlo acá.
+**Causa histórica de que las pantallas nunca se revisaran:** nadie levantaba el dev server del worktree, así que `b7-screen-review` hacía `curl localhost:<port>` → sin respuesta → abortaba `fail`. Levantarlo acá:
 
 ```bash
-# El worktree trae un dev.sh que corre vite en $PORT (puerto propio del worktree).
-cd "$WORKTREE"
-nohup ./dev.sh > .b7/dev-server.log 2>&1 &
-echo $! > .b7/dev-server.pid
-# Esperar a que responda (hasta ~40s; vite + primera compilación).
-for i in $(seq 1 20); do
-  if curl -fsS "http://localhost:${PORT}/" >/dev/null 2>&1; then echo "dev server UP en :${PORT}"; break; fi
-  sleep 2
-done
+# start: nohup ./dev.sh (log y pid en .b7/dev-server.*), poll del puerto ~30s.
+# Si no responde: WARN sin abortar — verify-port abajo decide si se omiten screens.
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server start "$WORKTREE"
 # Gate DURO: no basta con que algo responda en el puerto — tiene que ser ESTE
 # worktree. verify-port compara el cwd del proceso listener con $WORKTREE
 # (exit 40 = nadie escucha, exit 41 = lo sirve otro checkout, p.ej. master).
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "$PORT" "$WORKTREE" \
   || { echo "WARN: verify-port fallo (:${PORT} no sirve el worktree) — screens se omiten con nota"; }
 ```
 
-Si `verify-port` sale non-zero (nadie escucha, o el puerto lo sirve otro cwd que no es el worktree), omitir el review visual con una nota explícita en el run-report (no abortar el run completo) y saltar a 5.9 (no hay nada que apagar si el `pid` no quedó vivo). **No revisar pantallas contra un server que no sea el del worktree** — ese fue el incidente que este gate previene (screen-review contra master).
+Si `verify-port` sale non-zero (nadie escucha, o el puerto lo sirve otro cwd que no es el worktree), omitir el review visual con una nota explícita en el run-report (no abortar el run completo) y saltar a 5.9. **No revisar pantallas contra un server que no sea el del worktree** — ese fue el incidente que este gate previene (screen-review contra master).
 
 #### 5.1 Auth: sesión scriptada (preferido) con fallback al Chrome real
 
@@ -515,28 +490,23 @@ Si alguna pantalla retorna `fail` (criterio visual incumplido con sesión válid
 
 #### 5.9 Apagar el dev server y borrar la sesión scriptada
 
-Pase lo que pase con el review, apagar el server que se levantó en 5.0 **y** borrar SIEMPRE la sesión que se minteó en 5.1-A (si la hubo). El cleanup es idempotente: sin `.b7/dev-session.json` no hace nada.
+Pase lo que pase con el review, apagar el server que se levantó en 5.0 **y** borrar SIEMPRE la sesión que se minteó en 5.1-A (si la hubo). Ambos cleanups son idempotentes:
 
 ```bash
-# Borrar la sesión scriptada (idempotente; no falla si no se minteó ninguna).
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+# Borrar la sesión scriptada (no falla si no se minteó ninguna).
 bash "$PLUGIN_ROOT/skills/b7-screen-review/scripts/mint-dev-session.sh" cleanup "$WORKTREE" || true
-
-# Apagar el dev server.
-[ -f "$WORKTREE/.b7/dev-server.pid" ] && kill "$(cat "$WORKTREE/.b7/dev-server.pid")" 2>/dev/null || true
-rm -f "$WORKTREE/.b7/dev-server.pid"
+# Apagar el dev server (silencioso si no hay pid file).
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server stop "$WORKTREE"
 ```
 
-### 6. Commit
+### 6. Commit — PASO OBLIGATORIO #3
 
 Si step 4 verde (pasada final `verify.sh` exit 0) AND budgets OK AND screens pass/warn:
 
 - `b3-git-commit` agrupa cambios temáticos.
 - **Antes** de invocarlo, asegurar entrada en `CHANGELOG.md` usando `scripts/publish-docs.sh changelog` (lee `.b7/state.json`).
 
-En modo `--dry-run`, saltarse el commit y avisar al usuario que el worktree quedó con cambios sin commitear para inspección.
-
-**NO PARAR AQUÍ.** "Implementación verde + commit hecho" no es el final del run en modo `--wet`. Continuar directamente al paso 7 (publish-docs) → 8 (PR draft) → 8b (labels) → 8c (b6-pr-review). El error histórico fue reportar éxito tras el paso 6 con frases tipo "Ready for b3-git-commit + b4-pull-request" — esos pasos son responsabilidad de este skill, no del usuario.
+En modo `--dry-run`, saltarse el commit y avisar al usuario que el worktree quedó con cambios sin commitear para inspección. En `--wet`, el commit NO cierra el run: continuar directo al paso 7 (publish-docs) → 8 (PR draft) → 8b (labels) → 8c (b6-pr-review).
 
 ### 7. Publicar documentación (script, sin LLM)
 
@@ -548,20 +518,17 @@ En modo `--dry-run`, saltarse el commit y avisar al usuario que el worktree qued
 
 Las tres salidas se generan desde el mismo `.b7/state.json` para garantizar consistencia. Sub-agentes no participan acá.
 
-### 8. PR draft — PASO OBLIGATORIO #3
+### 8. PR draft — PASO OBLIGATORIO #4
 
 Si NOT `--dry-run` y NOT `--no-pr`: invocar `b4-pull-request` con `--draft --label auto-pr-bot --body-file .b7/pr-body.md`. El cuerpo ya viene de `publish-docs.sh`. Para las screenshots de `b7-screen-review`: ejecutar el `attach.sh` que deja cada review, que postea un comentario informativo en el PR con los nombres de los PNG + puntero al run-report (GH REST no permite inline upload de imágenes en comentarios; las imágenes embebidas se ven en el run-report HTML local).
 
 El PR debe incluir:
-- `Closes #<issue>` (esto cierra automáticamente el issue al mergear el PR)
-- Link al run report
-- Sección "Pantallas entregadas" con thumbnails (si aplica)
-- Sección "Notas de release" (lo que ve el usuario)
-- Sección "Cambios técnicos" (resumen, links a archivos)
+- `Closes #<issue>` (cierra el issue automáticamente al mergear) + link al run report
+- Secciones: "Pantallas entregadas" (thumbnails si aplica), "Notas de release" (lo que ve el usuario), "Cambios técnicos" (resumen, links a archivos)
 - Sección "Directivas inline del usuario" si `triage.user_directives` no está vacío — cita textual de lo que pidió el invocador, para que el reviewer entienda el scope
 - Checklist de revisión (incluye revisar screenshots adjuntos)
 
-### 8b. Sincronizar estado del issue — PASO OBLIGATORIO #4
+### 8b. Sincronizar estado del issue — PASO OBLIGATORIO #4 (labels)
 
 Apenas el PR queda abierto:
 
@@ -573,9 +540,7 @@ scripts/publish-docs.sh state-set pr_url="$PR_URL" pr_number="$PR_NUMBER" pr_lin
 scripts/publish-docs.sh issue-comment --worktree "$WORKTREE"
 ```
 
-El comentario sticky se edita in-place (no se postea uno nuevo) gracias al marker `<!-- b7:status -->`. Estado final esperado del issue: label `in-review`, comentario apuntando al PR, sin labels obsoletas (`ready`, `auto-pr`).
-
-Cuando el PR mergea, el `Closes #<issue>` cierra el issue automáticamente — no hay que hacer nada manual ahí.
+El comentario sticky se edita in-place (no se postea uno nuevo) gracias al marker `<!-- b7:status -->`. Estado final esperado del issue: label `in-review`, comentario apuntando al PR, sin labels obsoletas (`ready`, `auto-pr`). Cuando el PR mergea, el `Closes #<issue>` cierra el issue automáticamente.
 
 **Paso siguiente (fuera de b7):** el merge + cierre del PR + limpieza del worktree lo hace `b9-close`, con aprobación humana. b7 NO mergea; termina en PR draft + review adjunto.
 
@@ -621,32 +586,22 @@ Renderizado por script (`scripts/render-report.sh`) desde `.b7/state.json` y `te
 
 ### 10. Después de un dry-run
 
-En dry-run el worktree se **mantiene** y los pasos 3 (PR) y 4b (label `in-review`) se saltan, pero los pasos 1, 2, y 4a (label `in-progress` + comentario inicial) ya ocurrieron. Decirle al usuario:
+En dry-run el worktree se **mantiene**; los pasos 4 (PR + label `in-review`) y 5 (b6-review) se saltan, pero los pasos 1 y 2 (worktree, label `in-progress` + comentario sticky) ya ocurrieron. Decirle al usuario:
 
-- Path del worktree (para `cd` e inspeccionar).
-- Path del run report.
-- Path de `.b7/screens/` y `.b7/review/` (mockups + screenshots).
+- Path del worktree (para `cd` e inspeccionar), del run report, y de `.b7/screens/` + `.b7/review/` (mockups + screenshots).
 - Estado actual del issue: label `in-progress`, comentario sticky publicado.
-- Cómo promover a PR: `cd <worktree>; git status; git diff` + `/b3-git-commit` + `/b4-pull-request`. Acordarse de mover el label a `in-review` después.
+- Cómo promover a PR: `cd <worktree>; git status; git diff` + `/b3-git-commit` + `/b4-pull-request` + mover el label a `in-review`.
 
-## Sub-agentes — cuándo y por qué
+## Sub-agentes y routing de modelo
 
-| Paso | Sub-agente | Razón |
-|------|-----------|-------|
-| 4 Implementación | `Agent(general-purpose)` | Aislar contexto de exploración + tool calls verbosos. Orquestador solo recibe resumen. |
-| 5 Revisión visual | `Agent(general-purpose)` con `b7-screen-review` | Browser MCP es independiente. Paralelizar por pantalla. Output binario (PNG) no contamina contexto. |
-| Triage / Commit / PR | Skill directo | Son determinísticos y rápidos; sub-agente sería overkill. |
+| Paso | Sub-agente | Modelo | Razón |
+|------|-----------|--------|-------|
+| 4 Implementación | `Agent(general-purpose)` | opus (sonnet en carril S) | Aislar contexto de exploración + tool calls verbosos. Orquestador solo recibe resumen. |
+| 5 Revisión visual | `Agent(general-purpose)` con `b7-screen-review` | sonnet (multimodal, no necesita opus) | Browser MCP es independiente. Paralelizar por pantalla. Output binario (PNG) no contamina contexto. |
+| Triage (`b1-triage-issue`) | Skill directo | opus (decisión de scope) | Determinístico y rápido; sub-agente sería overkill. |
+| Commit / PR / log summarizers | Skill directo | haiku cuando sea posible | Idem. |
 
-## Routing de modelo
-
-`b7` corre en `opus` con `effort: medium` (bajado de `max`). Sub-skills heredan a menos que digan lo contrario:
-
-- `b2-build-feature`: `opus` (implementación necesita razonamiento)
-- `b1-triage-issue`: `opus` (decisión de scope)
-- `b3-git-commit`, `b4-pull-request`, log summarizers: `haiku` cuando sea posible
-- `b7-screen-review`: `sonnet` (multimodal con screenshots, no necesita opus)
-
-Configurable vía env `B7_MODEL_<STEP>` para experimentar.
+`b7` corre en `opus` con `effort: medium` (bajado de `max`); sub-skills heredan a menos que digan lo contrario. Configurable vía env `B7_MODEL_<STEP>` para experimentar.
 
 ## Rastro documental triple — invariantes
 
@@ -669,50 +624,32 @@ Cada milestone se avanza con `publish-docs.sh milestone <name>` (`started`, `tri
 ## Invocación headless
 
 ```bash
-# Default (wet) — corre los 4 pasos completos: worktree, comentario, PR, labels
-claude -p --permission-mode acceptEdits \
-  "Use skill b7-issue-to-pr with arguments: 142"
-
-# Wet con directivas inline del usuario
-claude -p --permission-mode acceptEdits \
-  "Use skill b7-issue-to-pr with arguments: 142 --directives='agregale columna rut a la tabla'"
-
-# Dry-run para inspeccionar antes de PR
-claude -p --permission-mode acceptEdits \
-  "Use skill b7-issue-to-pr with arguments: 142 --dry-run"
-
-# Wet sin pantallas (issue puramente backend)
-claude -p --permission-mode acceptEdits \
-  "Use skill b7-issue-to-pr with arguments: 142 --no-screens"
+# Default (wet) — corre los 5 pasos completos: worktree, sticky, commits, PR+labels, review
+claude -p --permission-mode acceptEdits "Use skill b7-issue-to-pr with arguments: 142"
+# Flags combinables con el numero de issue:
+#   --directives='agregale columna rut'   directivas inline del usuario
+#   --dry-run                             inspeccionar antes de PR
+#   --no-screens                          issue puramente backend
 ```
 
-Cuando el usuario invoca de forma interactiva con texto pegado (`/b7-issue-to-pr #121 hola agrega el campo X`), el skill interpreta `121` como issue y el resto como `--directives`. El pipeline corre los 4 pasos igual que en headless.
+Cuando el usuario invoca de forma interactiva con texto pegado (`/b7-issue-to-pr #121 hola agrega el campo X`), el skill interpreta `121` como issue y el resto como `--directives`. El pipeline corre los 5 pasos igual que en headless.
 
 ## Qué NO hacer
 
-- **No editar archivos en master.** Si no se creó el worktree todavía, no se escribe nada. Si la edición falla porque no hay worktree, eso es la señal correcta: crear el worktree primero.
-- **No tratar las directivas inline del usuario como un atajo.** Texto extra en el prompt (ej. "agregale el campo X") no convierte el flujo en una edición rápida — pasa a `triage.user_directives` y se ejecuta dentro de los 4 pasos.
+- **No editar archivos en master.** Antes de la primera escritura verificar `pwd` — debe ser el worktree. Si la edición falla porque no hay worktree, esa es la señal correcta: crear el worktree primero.
+- **No tratar las directivas inline del usuario como un atajo.** Texto extra en el prompt no convierte el flujo en una edición rápida — pasa a `triage.user_directives` y se ejecuta dentro de los 5 pasos.
 - **No abrir el PR sin actualizar labels.** Paso 8 y 8b son inseparables. Si el `gh issue edit` falla, reportarlo en el run report como warning, pero no continuar como si todo estuviera bien.
 - No escribir lógica propia de triage. Usar `b1-triage-issue`.
 - No llamar `git worktree add` directo. Usar `b1-add-worktree --headless`.
 - No escribir mensajes de commit propios. Usar `b3-git-commit`.
 - No bypassear budgets re-corriendo con números más altos. Hitar un budget = el issue es más grande de lo que el bot debería atacar; escalar a humano.
 - No modificar `package.json`, lockfiles, `.env*`, `*.pem`, `*.key`, `secrets/`, configs de build/CI ni `scripts/*.sh`. El hook `pre-commit-budget.sh` (instalado automaticamente por `setup-worktree.sh`, scope por-worktree) los rechaza en el commit. Bypass solo humano con `B7_BUDGET_OVERRIDE=1`.
-- No leer `git diff` completo. Usar `.b7/diff-stat.txt` o `Read` con `offset/limit`.
-- No leer logs completos. Usar `scripts/log-filter.sh`.
-- No saltarse `b7-screen-review` cuando hay `screens[]` en triage — la revisión visual es parte de la calidad mínima del PR. **Única excepción:** carril S con un diff que no toca `*.svelte` ni `*.remote.ts` ni `src/routes/` (paso 5). Un diff de carril S que sí toca UI/datos NO se salta: las memorias del owner exigen browser check en cualquier cambio de pantalla.
+- No leer `git diff` ni logs completos. Usar `.b7/diff-stat.txt`, `Read` con `offset/limit`, y `scripts/log-filter.sh`.
+- No saltarse `b7-screen-review` cuando hay `screens[]` en triage — la revisión visual es parte de la calidad mínima del PR. **Única excepción:** carril S con un diff que no toca `*.svelte` ni `*.remote.ts` ni `src/routes/` (paso 5).
 - No forzar el carril S. El carril lo asigna `classify-run` desde `triage.json` (complexity + `files_likely`), no el modelo a ojo. No bajar a sonnet ni recortar iteraciones/review por cuenta propia cuando el run es M/L — eso reintroduce el bug que este carril evita (M/L deben quedar byte-idénticos al comportamiento histórico).
 - No editar el comentario del issue manualmente; siempre via `publish-docs.sh` para mantener el marker sticky.
 
 ## Referencias
 
-- `templates/triage-output.schema.json` — schema esperado para `.b7/triage.json`
-- `templates/issue-comment.md` — template del comentario sticky
-- `templates/pr-release-notes.md` — template del cuerpo PR
-- `templates/changelog-entry.md` — template de entrada CHANGELOG
-- `templates/run-report.md` — template del reporte final
-- `scripts/log-filter.sh` — extracción semántica de líneas relevantes
-- `scripts/error-hash.sh` — firma de error para detección de no-progress
-- `scripts/diff-summary.sh` — resumen compacto del diff vs base
-- `scripts/render-report.sh` — render envsubst del run report
-- `scripts/publish-docs.sh` — escritura triple coordinada (CHANGELOG + issue + PR)
+- `templates/` — triage-output.schema.json (schema de `.b7/triage.json`), issue-comment.md, pr-release-notes.md, changelog-entry.md, run-report.md
+- `scripts/` — guardrails.sh, publish-docs.sh, log-filter.sh, error-hash.sh, diff-summary.sh, render-report.sh (usos en la tabla de optimización de tokens)

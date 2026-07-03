@@ -149,7 +149,6 @@ Skills are namespaced `b-pipeline:<skill>`.
 | **b1-add-worktree** | Creates an isolated worktree (`setup-worktree.sh`) and gates on a clean tree (`assert-clean.sh`). Installs a per-worktree pre-commit budget hook. |
 | **b2-build-feature** | The actual SvelteKit implementation: Remote Functions, Svelte 5 runes, Drizzle, shadcn-svelte, with in-browser verification. |
 | **b3-git-commit** | Conventional commits with intelligent staging; enforces a clean-tree gate. |
-| **b3-security** | Reference for the `verb:noun` permission model and securing Remote Functions. |
 | **b4-pull-request** | Creates the PR from the project template. |
 | **b6-pr-review** | Reviews a PR across five areas and writes a durable verdict marker (`<!-- b6:verdict=... -->`). |
 | **b7-screen-review** | Visual verification of one screen in your real Chrome against the triage's visual acceptance criteria. Invoked in parallel, one sub-agent per screen. |
@@ -159,51 +158,27 @@ Skills are namespaced `b-pipeline:<skill>`.
 
 ## 7. The pipeline, step by step
 
-This is exactly what happens when you run `/b-pipeline:b10-ship <issue>`.
+This is exactly what happens when you run `/b-pipeline:b10-ship <issue>` — each stage, the skill that does the work, and who invokes it:
 
-### Step 0 — Preflight + lock
+| Stage | Skill | Invoked by | Gate / stop condition |
+| --- | --- | --- | --- |
+| Preflight + lock (kill switch, `gh` auth, clean tree, backpressure) | `b10-ship` | you | Refuses to start if any check fails |
+| Reconcile state from GitHub (labels, PR, verdict) and jump to the pending phase | `b10-ship` | `b10-ship` | — (this is what makes re-running safe) |
+| Triage: readiness + complexity labels | `b1-triage-issue` | `b10-ship` | `complex` → human chooses force / interactive / skip; `needs-info` / `blocked` / `duplicate` → posts questions and stops |
+| Create isolated worktree, branch `feat/…` or `fix/…` | `b1-add-worktree` | `b7-issue-to-pr` (step 1) | Aborts if the worktree cannot be created |
+| Sticky status comment on the issue (`<!-- b7:status -->`) | `b7-issue-to-pr` | `b7-issue-to-pr` (step 2) | — |
+| Build the feature screen by screen | `b2-build-feature` | `b7-issue-to-pr` | — |
+| Visual verification of each screen in your real Chrome | `b7-screen-review` | `b7-issue-to-pr` (parallel, one sub-agent per screen) | Skipped with a note if dev server or Chrome is unavailable |
+| Conventional commits, grouped by theme | `b3-git-commit` | `b7-issue-to-pr` (step 3) | — |
+| Draft PR with `Closes #<issue>` + label sync (`ready` → `in-progress` → `in-review`) | `b4-pull-request` | `b7-issue-to-pr` (step 4) | — |
+| Auto-review across five areas, durable verdict marker (`<!-- b6:verdict=... -->`) | `b6-pr-review` | `b7-issue-to-pr` (step 5) | blockers > 0 → label `needs-human-review`, summarize, stop |
+| Merge the PR, close the issue, remove the worktree | `b9-close` | `b10-ship` | **Always** a human gate: `merge-approved` label or in-session yes; otherwise leaves `awaiting-approval` |
 
-The orchestrator runs safety checks before anything else and acquires a lock so two runs cannot collide:
+`b7-issue-to-pr`'s five mandatory, non-skippable steps are the rows marked step 1–5 (worktree, sticky comment, commit, draft PR, review); the build and the visual verification happen between steps 2 and 3.
 
-- Kill switch present? → refuse.
-- `gh` authenticated? → required.
-- Main working tree dirty? → stop (a build would abort halfway anyway).
-- Too many open bot PRs (backpressure)? → offer to drain them first.
+### A note on skill numbering
 
-### Step 1 — Reconcile (idempotency)
-
-It reads the issue's current state from GitHub (labels, PR, review verdict) and **jumps to the right phase**. A fresh issue starts at triage; an issue that already has an approved PR jumps straight to close. This is what makes re-running safe.
-
-### Step 2 — Triage (conditional gate)
-
-It calls `b1-triage-issue`:
-
-- **ready + simple/medium** → proceed to build.
-- **ready + complex** → **human gate.** It asks whether to force the autonomous build, build interactively, or skip. Complex work is not built unattended by default.
-- **needs-info / blocked / duplicate** → the questions/reasons are posted on the issue; it notifies you and stops. When the reporter replies, the next run detects the new comment and re-triages automatically.
-
-### Step 3 — Build (this is `b7-issue-to-pr`'s five mandatory steps)
-
-Inside the build phase, `b7-issue-to-pr` runs five non-skippable steps:
-
-1. **Create the worktree** (`b1-add-worktree`). Branch `feat/<issue>-<slug>` or `fix/<issue>-<slug>`. The main repo is never edited.
-2. **Post a sticky status comment** on the issue (marker `<!-- b7:status -->`) so the reporter knows the bot picked it up.
-3. **Build the feature**, screen by screen. The worktree's dev server is started on its own port; each screen is verified in your real Chrome via `b7-screen-review` (one parallel sub-agent per screen).
-4. **Commit** the work via `b3-git-commit` (conventional commits, grouped by theme).
-5. **Open a draft PR** via `b4-pull-request` with `Closes #<issue>`, release notes, technical changes, and screenshots; sync the issue labels (`ready`/`auto-pr` → `in-progress` → `in-review`).
-
-It then runs `b6-pr-review` on the fresh PR and attaches the verdict. High-severity findings cause it to re-iterate (within budget) or ask for a human.
-
-### Step 4 — Verify
-
-The orchestrator confirms the worktree is clean (committing anything left over) and reads the `b6` verdict from the PR:
-
-- **blockers = 0** → proceed to close.
-- **blockers > 0** → label the issue `needs-human-review`, summarize the blockers, notify, and stop.
-
-### Step 5 — Close (human gate, always)
-
-It calls `b9-close`, which **always** requires human approval — either the asynchronous `merge-approved` label or an in-session confirmation. On approval it merges the PR, closes the issue, and removes the worktree. If you are away and no label is set, it leaves the PR `awaiting-approval` and the next run resumes here.
+The `bN-` prefixes reflect the order the skills were created, not the execution order, and directories are never renamed (links and history stay stable). That is why there are two `b1` skills (`b1-triage-issue`, `b1-add-worktree`) and two `b7` skills (`b7-issue-to-pr`, `b7-screen-review`), a single `b3` (`b3-git-commit`), and no `b5`.
 
 ---
 

@@ -91,13 +91,30 @@ error(404, {message: 'No encontrado', code: 'NOT_FOUND'})
 
 ## 5. Datos sensibles
 
-- No exponer `_id` internos de MongoDB sin serializar
 - No loggear tokens, passwords, o API keys
 - No hardcodear secrets en el codigo (usar `$env/static/private` o `$env/dynamic/private`)
-- Verificar que `serialize()` se usa al devolver datos de MongoDB
 
 ## 6. Estado compartido en servidor
 
 - No usar variables mutables a nivel de modulo en archivos `.server.ts` como cache informal
 - El servidor maneja multiples requests; un singleton mutable filtra datos entre usuarios
 - Si necesitas cache, usar un mecanismo explicito y seguro
+
+## Apendice: Patrones de referencia
+
+Variante de `requirePermission` cuando la operacion acepta cualquiera de varios permisos:
+
+```typescript
+function requireAnyPermission(...permisos: string[]) {
+  const {locals} = getRequestEvent()
+  if (!locals.user) {
+    error(401, {message: 'No autenticado', code: 'AUTH_REQUIRED'})
+  }
+
+  const userPermisos = locals.permissions?.profilePermissions ?? []
+  if (!permisos.some(p => userPermisos.some(up => up.permiso === p))) {
+    error(403, {message: `Requiere uno de: ${permisos.join(', ')}`, code: 'FORBIDDEN'})
+  }
+  return locals.user
+}
+```

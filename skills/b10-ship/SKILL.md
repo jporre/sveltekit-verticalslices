@@ -1,6 +1,6 @@
 ---
 name: b10-ship
-description: 'Orquestador del pipeline completo issue -> worktree cerrado. Encadena b1-triage-issue, b7-issue-to-pr, b6-pr-review y b9-close con gates humanos exactos (triage con dudas, pre-merge, epic-review). Use cuando el usuario diga "ship issue N", "lleva el issue N hasta el merge", "/b10-ship N", "procesa el epic N", "drena el epic". Idempotente: re-correr el mismo comando reconcilia el estado desde GitHub y retoma donde quedo. NO implementa, NO revisa, NO mergea por si mismo — solo decide y encadena skills existentes.'
+description: 'Orquestador del pipeline completo issue -> worktree cerrado. ENTRADA DEFAULT para trabajo issue-shaped: use cuando el usuario diga "resuelve el issue N", "trabaja el issue N", "arregla el issue N", "ship issue N", "lleva el issue N hasta el merge", "/b10-ship N", "procesa el epic N", "drena el epic" — cualquier mencion de UN issue sin pedir parar en el PR draft rutea aqui. Encadena b1-triage-issue, b7-issue-to-pr, b6-pr-review y b9-close con gates humanos exactos (triage con dudas, pre-merge, epic-review). Idempotente: re-correr el mismo comando reconcilia el estado desde GitHub y retoma donde quedo. NO implementa, NO revisa, NO mergea por si mismo — solo decide y encadena skills existentes. NO usar si piden explicitamente parar en el PR draft (eso es b7-issue-to-pr) ni para un cluster de issues relacionadas en un solo PR (eso es b8-swarm).'
 allowed-tools: Bash, Read, Write, Skill, Agent, Workflow, AskUserQuestion
 model: sonnet
 ---

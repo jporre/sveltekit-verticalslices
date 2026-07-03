@@ -1,7 +1,7 @@
 ---
 name: b2-build-feature
 # prettier-ignore
-description: End-to-end SvelteKit feature development. Use ALWAYS when building new features, CRUD screens, forms, dashboards, data pages, or any UI that reads/writes data. Covers planning, implementation (remote functions + Svelte 5 + Drizzle + shadcn-svelte), and browser verification. Prevents React anti-patterns. Triggers on "build feature", "create page", "new screen", "CRUD", "implement", "agregar modulo", "crear pantalla", "necesito una pagina", "add feature for", "build me a". Use even when the user just describes a screen or data operation without saying "feature".
+description: End-to-end SvelteKit feature development (remote functions + Svelte 5 + Drizzle + shadcn-svelte, verified in the browser) for BUILDING any screen, CRUD, form, dashboard, or data page via its two entry points — direct user description ("build feature", "create page", "crear pantalla", or a screen described without the word "feature") or a triaged GitHub issue — while issue routing, PR, and merge belong to the b7/b8/b10 orchestrators that invoke this skill for the build phase.
 ---
 
 # Build Feature
@@ -439,7 +439,7 @@ After verification passes:
 | Remote function details / forms               | `using-remote-functions` skill         |
 | Drizzle / Postgres table patterns             | `postgresql-table-design` skill        |
 | Svelte 5 runes                                | `svelte-runes` skill                   |
-| Auth & permissions                            | `b-pipeline:b3-security` skill         |
+| Auth & permissions                            | `../b6-pr-review/references/security-checklist.md` |
 
 > Los skills externos (`bt1-data-table`, `using-remote-functions`, `postgresql-table-design`,
 > `svelte-runes`) son del entorno del usuario: si no aparecen en la lista de skills

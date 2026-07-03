@@ -166,6 +166,19 @@ Only add more files — all colocated in the same folder — when justified:
 - `<feature>.server.ts` — only if there is real business logic (rules, orchestration), NOT for simple CRUD
 - sub-routes (`new/`, `[id]/`) get their own colocated `+page.svelte` and, if needed, a scoped `*.remote.ts`
 
+### Phase 1.5: Analisis de impacto (condicional)
+
+**Trigger:** el plan modifica simbolos EXISTENTES — un helper compartido de `$lib`, un `*.remote.ts` que ya tiene consumidores, o `schema.ts`. **Skip greenfield:** si el plan solo crea archivos nuevos en `src/routes/<feature>/`, saltar esta fase (impact set vacio) y seguir a Phase 2.
+
+Antes de escribir codigo, construir el **impact set** (archivos afectados) por cada simbolo a modificar:
+
+- Con codegraph disponible (`CODEGRAPH_STATUS=ok` del probe): tool `codegraph_impact` sobre el simbolo.
+- Fallback sin codegraph (status != ok): `rg -l '<simbolo>' src`
+
+**Gate de scope-growth:** si el impact set trae archivos fuera del feature que NO estan en el plan, resolver ANTES de codear — o se agregan al plan explicitamente, o se declara scope-growth (el issue es mas grande de lo previsto; corriendo bajo b7, reportarlo al sticky del issue). Nunca tocar archivos no planificados en silencio.
+
+Corriendo bajo b7, el impact set se persiste en `.b7/state.json` campo `impact_files` (paso 4 de b7).
+
 ### Phase 2: Build
 
 **Feature NUEVO: arrancá del esqueleto por script — no improvises la estructura.**

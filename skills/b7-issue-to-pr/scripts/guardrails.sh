@@ -446,6 +446,9 @@ state = {
   "run_report_path": "—",
   "branch": "—",
   "worktree_dir": "—",
+  # Impact set (issue #22): archivos afectados por simbolos existentes que el plan
+  # modifica. CSV via state-set; "[]" explicito = greenfield. Vacio = no computado.
+  "impact_files": "",
   "triage_verdict": "—",
   "triage_type": "—",
   "triage_scope": "—",

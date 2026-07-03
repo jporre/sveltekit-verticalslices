@@ -15,6 +15,7 @@
 #   verify-worktree <dir>              — verify the worktree was created by setup-worktree.sh (marker + symlinks + dev.sh + location)
 #   verify-port <port> <worktree-dir>  — verify the dev server on <port> is serving <worktree> (cwd match); exit 40 nadie escucha, 41 intruso
 #   validate-triage <triage.json>      — validate .b7/triage.json against triage-output.schema.json (required/enums/additionalProperties); exit 4 on invalid
+#   classify-run <triage.json> <state.json> — asigna carril S|M|L (lane=L si complex; S si simple y files_likely<=5; sino M); persiste lane en state.json; emite RUN_LANE=S|M|L
 #
 # Env knobs:
 #   B7_MAX_OPEN_PRS    (default 3)     — backpressure threshold for open auto-pr-bot PRs
@@ -666,6 +667,55 @@ print(f"validate-triage OK: {triage_path}")
 PY
 }
 
+# classify-run: asigna el carril (lane) del run segun complejidad + tamaño estimado.
+#   lane=L  si estimated_complexity == complex
+#   lane=S  si estimated_complexity == simple Y files_likely tiene <=5 entradas
+#   lane=M  en cualquier otro caso (default seguro; byte-identico al flujo actual)
+# Persiste lane en state.json y emite RUN_LANE=S|M|L. El carril S baja modelo
+# (sonnet), saltea diseño LLM de screens y recorta iteraciones; ver SKILL.md paso 1.
+cmd_classify_run() {
+  local triage="${1:-}" state="${2:-}"
+  if [ -z "$triage" ] || [ -z "$state" ]; then
+    echo "classify-run: usage: classify-run <triage.json> <state.json>" >&2
+    return 2
+  fi
+  if [ ! -f "$triage" ]; then
+    echo "classify-run: triage not found: $triage" >&2
+    return 4
+  fi
+  if [ ! -f "$state" ]; then
+    echo "classify-run: state not found: $state" >&2
+    return 4
+  fi
+  python3 - "$triage" "$state" <<'PY'
+import json, sys, datetime
+
+triage_path, state_path = sys.argv[1], sys.argv[2]
+
+with open(triage_path) as f:
+    t = json.load(f)
+
+complexity = t.get("estimated_complexity", "medium")
+n_files = len(t.get("files_likely") or [])
+
+if complexity == "complex":
+    lane = "L"
+elif complexity == "simple" and n_files <= 5:
+    lane = "S"
+else:
+    lane = "M"
+
+with open(state_path) as f:
+    s = json.load(f)
+s["lane"] = lane
+s["updated_at"] = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+with open(state_path, "w") as f:
+    json.dump(s, f, ensure_ascii=False, indent=2)
+
+print(f"RUN_LANE={lane}")
+PY
+}
+
 # env-check: dueño unico de la validacion de entorno. Emite una linea por check
 #   B_ENV name=<check> status=ok|fail|warn hint=<accion>
 # y sale 19 SOLO si algun check es fail. Nunca imprime valores de .env (solo host/port
@@ -812,6 +862,7 @@ case "${1:-}" in
   env-check)        shift; cmd_env_check "$@" ;;
   preflight)        shift; cmd_preflight "$@" ;;
   validate-triage)  shift; cmd_validate_triage "$@" ;;
+  classify-run)     shift; cmd_classify_run "$@" ;;
   check-budget)     shift; cmd_check_budget "$@" ;;
   acquire-lock)     shift; cmd_acquire_lock "$@" ;;
   release-lock)     shift; cmd_release_lock "$@" ;;
@@ -823,7 +874,7 @@ case "${1:-}" in
   verify-worktree)  shift; cmd_verify_worktree "$@" ;;
   verify-port)      shift; cmd_verify_port "$@" ;;
   *)
-    echo "Usage: $0 {env-check|preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|verify-port <port> <worktree>|validate-triage <triage.json>}" >&2
+    echo "Usage: $0 {env-check|preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid]|release-lock|heartbeat <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|verify-port <port> <worktree>|validate-triage <triage.json>|classify-run <triage.json> <state.json>}" >&2
     exit 2
     ;;
 esac

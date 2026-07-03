@@ -55,8 +55,10 @@ Si el check 7 sale 6 (codigo sin commitear), volver a invocar `b3-git-commit` en
 **Ultima linea OBLIGATORIA del run** (la parsean orquestadores como b10-ship; fallback de ellos: `gh pr list --search "Closes #N"` + labels del issue):
 
 ```
-B7_DONE issue=<N> pr=<url|none> status=ok|needs-human-review|bailed|aborted
+B7_DONE issue=<N> pr=<url|none> status=ok|needs-human-review|bailed|aborted [lane=<S|M|L>]
 ```
+
+El token `lane=<S|M|L>` es **opcional** (carril asignado en el paso 1b). Los orquestadores lo ignoran si no lo necesitan; el parser tolerante de b10 ya lo cubre.
 
 Si **cualquiera** de estos comandos no devuelve lo esperado, NO usar las frases prohibidas (ver abajo) — completar el paso faltante y volver a verificar.
 
@@ -208,6 +210,21 @@ Si `security_review_required: true`: forzar `--no-pr` y marcar para revisión hu
 
 Si `estimated_complexity == "complex"` y NO se paso `--force-complex`: comentar y bailar (excede el alcance del bot). Con `--force-complex` (lo pasa b10-ship tras confirmacion humana explicita): continuar, pero registrar en el sticky y el run-report que el run corre fuera del alcance default — los budgets siguen aplicando.
 
+#### 1b. Clasificar el carril del run (lane S/M/L)
+
+Tras el gate de complejidad (y solo si el run continua), asignar el **carril** que gobierna cuánto paga el run — un fix de 1 línea no debe pagar el pipeline completo (esqueletos LLM, opus, 6 iteraciones, b6 full):
+
+```bash
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" \
+  classify-run "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/state.json"   # emite RUN_LANE=S|M|L
+```
+
+Reglas: `lane=L` si `estimated_complexity == complex`; `lane=S` si `== simple` **y** `files_likely` tiene ≤5 entradas; `lane=M` en cualquier otro caso. El script persiste `lane` en `state.json`. **Los carriles M y L son byte-idénticos al comportamiento histórico** — no cambian nada. El carril **S** activa las optimizaciones descritas en los pasos 3, 4, 5 y 8c (render mecánico de screens, agente sonnet, 3 iteraciones, `b6 --light`).
+
+Reflejar el carril en el sticky del issue (`publish-docs.sh state-set lane=<S|M|L>` ya lo trae de `state.json`; el sticky lo muestra en el próximo `issue-comment`).
+
+> El `classify-run` corre acá porque necesita `state.json` y `triage.json` ya sembrados en el worktree. Si por orden de pasos aún no existe el worktree cuando llegás a esta clasificación, corré `classify-run` inmediatamente después del paso 2 (worktree) y antes del paso 3.
+
 ### 2. Worktree headless — PASO OBLIGATORIO #1
 
 **Prohibido `git worktree add` directo.** Hay un PreToolUse hook que bloquea esa llamada — si la intentás, vas a recibir un error. Usar SIEMPRE `setup-worktree.sh`.
@@ -277,7 +294,27 @@ Antes de implementar, para cada `screen` del triage producir un esqueleto en `.b
 
 Esto es entrada para b2 y para la revisión visual posterior. **Texto plano, no markdown rico** — no consume tokens reformateando.
 
+**Carril S — render MECÁNICO (sin LLM):** si `lane == S`, NO gastar una pasada de modelo diseñando el esqueleto. Renderizar `.b7/screens/<Name>.md` directamente desde `triage.json` — un bloque por cada `screen` con su `route`, `user_journey` y `acceptance_criteria_visual`. El archivo resultante **preserva el contrato `criteria_file`** que consume `b7-screen-review` (mismos campos, mismo path `.b7/screens/<Name>.md`); solo cambia que el contenido sale de sustitución de plantilla en vez de razonamiento. Ejemplo mínimo por pantalla:
+
+```bash
+# lane S: render mecanico de cada screen del triage (sin modelo)
+python3 - "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/screens" <<'PY'
+import json, os, sys
+triage, outdir = sys.argv[1], sys.argv[2]
+os.makedirs(outdir, exist_ok=True)
+for s in json.load(open(triage)).get("screens", []):
+    lines = [f"# {s['name']}  ({s['route']})", "",
+             f"Journey: {s.get('user_journey','')}", "", "Criterios visuales:"]
+    lines += [f"- {c}" for c in s.get("acceptance_criteria_visual", [])]
+    open(os.path.join(outdir, f"{s['name']}.md"), "w").write("\n".join(lines) + "\n")
+PY
+```
+
+En carriles M y L el diseño sigue siendo la pasada en línea descrita arriba (byte-idéntico al comportamiento histórico).
+
 ### 4. Implementación (loop bounded)
+
+**Carril S:** invocar el agente `agents/b7-impl-s.md` (`model: sonnet`) en vez de `b2-build-feature` — es la única vía real de bajar el modelo respecto del opus por defecto de b2. Mismo contrato (feature colocado, Remote Functions, sin state global, errores estructurados), scope acotado, diffs mínimos. Además, en carril S el hard stop de **iterations baja a 3** (salvo `--max-iterations=N` explícito). Carriles M y L: seguir con `b2-build-feature` y 6 iteraciones (sin cambios).
 
 Invocar `b2-build-feature` **vía sub-agente** (`Agent(subagent_type=general-purpose)`) pasándole:
 
@@ -321,7 +358,7 @@ Parar el loop cuando todos los comandos habilitados estén verdes en una pasada 
 
 | Hard stop          | Default | Acción |
 |--------------------|---------|--------|
-| iterations         | 6       | Abort, comentar issue, save state |
+| iterations         | 6 (3 en carril S) | Abort, comentar issue, save state |
 | files changed      | 25      | Abort, comentar issue, save state |
 | lines added (net)  | 1500    | Abort, comentar issue, save state |
 | wall-clock         | 30 min  | Abort, comentar issue, save state |
@@ -332,6 +369,21 @@ Parar el loop cuando todos los comandos habilitados estén verdes en una pasada 
 ### 5. Revisión visual de pantallas (sub-agente por pantalla)
 
 Si `triage.screens[]` no está vacío y no se pasó `--no-screens`:
+
+**Carril S — saltar la revisión visual SOLO si el diff es seguro.** El carril rápido puede omitir el review visual **únicamente** cuando el diff **no toca** `*.svelte` **NI** `*.remote.ts` **NI** nada bajo `src/routes/`. Las memorias del owner exigen browser check en cualquier cambio de UI o de datos que alimentan una pantalla — un `.remote.ts` cambia lo que la pantalla muestra, así que **no** se salta. Regla observable:
+
+```bash
+# lane S: decidir si se puede saltar el review visual
+base=$(git -C "$WORKTREE" merge-base HEAD master)
+touched_ui=$(git -C "$WORKTREE" diff --name-only "$base" \
+  | grep -qE '\.svelte$|\.remote\.ts$|^src/routes/' && echo 1 || echo 0)
+if [ "$LANE" = S ] && [ "$touched_ui" = 0 ]; then
+  echo "lane S + diff sin UI/remote/routes → skip review visual (nota al run-report)"
+  # saltar a 5.9 (nada que apagar) / paso 6
+fi
+```
+
+Si el diff de un carril S **sí** toca alguno de esos patrones, la revisión visual corre igual que en M/L (no es opcional). En carriles M y L nunca se salta por este criterio.
 
 #### 5.0 Levantar el dev server del worktree (OBLIGATORIO antes del review)
 
@@ -479,7 +531,7 @@ Cuando el PR mergea, el `Closes #<issue>` cierra el issue automáticamente — n
 
 ### 8c. Auto-review del PR — PASO OBLIGATORIO #5
 
-Apenas el PR está abierto (incluso draft), invocar `b6-pr-review "<PR> --auto"`. **b6 en modo `--auto` publica el reporte por si mismo** (`gh pr comment` con el marker `<!-- b6:verdict=... -->`) — NO volver a postearlo desde aca (doble posteo). Verificar que quedo publicado:
+Apenas el PR está abierto (incluso draft), invocar `b6-pr-review "<PR> --auto"`. **Carril S:** invocar `b6-pr-review "<PR> --auto --light"` — el `--light` (size-gate emitido por `pr-context.sh`, issue #3) recorta el review al tamaño chico del diff. Carriles M y L: sin `--light` (review completo, sin cambios). **b6 en modo `--auto` publica el reporte por si mismo** (`gh pr comment` con el marker `<!-- b6:verdict=... -->`) — NO volver a postearlo desde aca (doble posteo). Verificar que quedo publicado:
 
 ```bash
 bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR> \
@@ -576,7 +628,8 @@ Cuando el usuario invoca de forma interactiva con texto pegado (`/b7-issue-to-pr
 - No modificar `package.json`, lockfiles, `.env*`, `*.pem`, `*.key`, `secrets/`, configs de build/CI ni `scripts/*.sh`. El hook `pre-commit-budget.sh` (instalado automaticamente por `setup-worktree.sh`, scope por-worktree) los rechaza en el commit. Bypass solo humano con `B7_BUDGET_OVERRIDE=1`.
 - No leer `git diff` completo. Usar `.b7/diff-stat.txt` o `Read` con `offset/limit`.
 - No leer logs completos. Usar `scripts/log-filter.sh`.
-- No saltarse `b7-screen-review` cuando hay `screens[]` en triage — la revisión visual es parte de la calidad mínima del PR.
+- No saltarse `b7-screen-review` cuando hay `screens[]` en triage — la revisión visual es parte de la calidad mínima del PR. **Única excepción:** carril S con un diff que no toca `*.svelte` ni `*.remote.ts` ni `src/routes/` (paso 5). Un diff de carril S que sí toca UI/datos NO se salta: las memorias del owner exigen browser check en cualquier cambio de pantalla.
+- No forzar el carril S. El carril lo asigna `classify-run` desde `triage.json` (complexity + `files_likely`), no el modelo a ojo. No bajar a sonnet ni recortar iteraciones/review por cuenta propia cuando el run es M/L — eso reintroduce el bug que este carril evita (M/L deben quedar byte-idénticos al comportamiento histórico).
 - No editar el comentario del issue manualmente; siempre via `publish-docs.sh` para mantener el marker sticky.
 
 ## Referencias

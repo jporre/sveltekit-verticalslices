@@ -340,6 +340,7 @@ Spec completa: skills/b2-build-feature/references/slice-spec.md (en el plugin).
 - Permisos formato \`verbo:sustantivo\` (ej \`leer:tarea\`)
 - Rutas nuevas REQUIEREN registro en \`app.route_permissions\` o el guard del layout redirige a fallback
 - UUID default en tablas nuevas: \`uuidv7()\` (NO \`gen_random_uuid()\` ni \`uuid_generate_v4()\`)
+- NUNCA imprimir valores de .env (cat/grep/head/printenv/env, etc.); usar \`hooks/env-probe.sh\` (fingerprints, no valores). El hook block-env-dump.sh lo bloquea.
 
 ## Comandos rápidos
 - \`pnpm dev\` (puerto 6024)

@@ -328,7 +328,7 @@ Antes de implementar, para cada `screen` del triage producir un esqueleto en `.b
 
 - Layout en términos de componentes shadcn-svelte (`Card.Root`, `Table.Root`, `Tabs.Root`, etc.)
 - Lista de remote functions necesarias (`get_*`, `create_*`, `update_*`)
-- Estados a mostrar: empty, loading, error, success
+- Estados a mostrar: los `states_required` de la pantalla en el triage (golden, empty, loading, error, success, permission-denied, invalid-submit); fallback `golden` si el triage no los trae
 - Dónde vive cada archivo (todo colocado en `src/routes/<feature>/...`)
 
 Esto es entrada para b2 y para la revisión visual posterior. **Texto plano, no markdown rico** — no consume tokens reformateando.

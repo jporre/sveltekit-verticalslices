@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.4.1] — 2026-07-03
+
 ### fix — codegraph-probe.sh: cache-key por $ROOT + smoke grep solo stderr (#37)
 
 Corrige dos falsos positivos del probe informativo de CodeGraph (findings del review post-merge de PR #36, ninguno bloqueaba pero degradaban a estados enganosos):

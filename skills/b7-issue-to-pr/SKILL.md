@@ -374,6 +374,7 @@ Si `triage.screens[]` no está vacío y no se pasó `--no-screens`:
 
 ```bash
 # lane S: decidir si se puede saltar el review visual
+LANE=$(python3 -c 'import json;print(json.load(open("'"$WORKTREE"'/.b7/state.json")).get("lane","M"))')
 base=$(git -C "$WORKTREE" merge-base HEAD master)
 touched_ui=$(git -C "$WORKTREE" diff --name-only "$base" \
   | grep -qE '\.svelte$|\.remote\.ts$|^src/routes/' && echo 1 || echo 0)

@@ -8,7 +8,7 @@
   Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
 -->
 
-### — — — (#16)
+### feat(b7): carril rapido S — classify-run + lane S|M|L (#16)
 
 classify-run asigna lane S/M/L; carril S usa render mecanico de screens, agente sonnet, 3 iteraciones y b6 --light. M/L byte-identicos.
 <!--

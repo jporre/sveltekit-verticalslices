@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### perf — batch de llamadas gh en topologia de epics (#15)
+
+Reutiliza los objetos completos del endpoint REST `sub_issues` (antes se descartaba todo salvo `.number` y se re-pegaba un `gh issue view` por sub-issue) y colapsa loops N+1 en una sola llamada. Sobre el epic #27 (25 sub-issues): `epic-graph.sh` 28->3 procesos gh, `epic-diff.sh` 103->3. Las deps de `run.sh` pasan a una query `gh api graphql` aliaseada; `b9-close` PASO 4 fusiona los dos `--paginate` identicos sobre el endpoint de events en uno que emite `actor<TAB>created_at`.
+
+**Archivos clave**:
+- `skills/b10-ship/scripts/epic-graph.sh` — NDJSON directo con `state|ascii_upcase` (preserva el contrato OPEN de `epic-state.sh`); fallback por body intacto
+- `skills/b10-ship/scripts/epic-diff.sh` — captura `sub_issues` una vez, lookups jq en memoria
+- `skills/b10-ship/scripts/run.sh` — deps del reconcile via una query graphql aliaseada
+- `skills/b9-close/SKILL.md` — PASO 4 fusiona dos `--paginate` en uno
+
+**Riesgos / consideraciones**:
+Bajo. Outputs verificados byte-identicos vs version previa sobre epic #27. Un dep inexistente en `run.sh` degrada a "sin deps abiertas" (misma tolerancia previa).
+
+**Links**: [issue #15](https://github.com/jporre/sveltekit-verticalslices/issues/15) · [PR #42](https://github.com/jporre/sveltekit-verticalslices/pull/42)
+
+
 <!--
   Entrada CHANGELOG generada por b7-issue-to-pr.
   Tono: técnico-analítico para devs futuros leyendo historia.

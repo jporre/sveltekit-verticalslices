@@ -131,16 +131,18 @@ Dos canales validos, en este orden:
 ```bash
 HAS_LABEL=$(gh pr view "$PR" --json labels --jq '[.labels[].name] | contains(["merge-approved"])')
 if [ "$HAS_LABEL" = "true" ]; then
+  # UN solo sweep del endpoint de events (antes eran dos --paginate identicos:
+  # uno para el actor y otro para el created_at). Se emite "actor<TAB>created_at".
   # OJO: gh --paginate aplica el jq POR PAGINA — no usar `last` sobre el array,
   # emitir un valor por evento y quedarse con la ultima linea.
-  ACTOR=$(gh api "repos/{owner}/{repo}/issues/${PR}/events" --paginate \
-    --jq '.[] | select(.event=="labeled" and .label.name=="merge-approved") | .actor.login' | tail -1)
+  APPROVAL=$(gh api "repos/{owner}/{repo}/issues/${PR}/events" --paginate \
+    --jq '.[] | select(.event=="labeled" and .label.name=="merge-approved") | "\(.actor.login)\t\(.created_at)"' | tail -1)
+  ACTOR="${APPROVAL%%$'\t'*}"          # vacio si no hubo evento labeled
+  LABELED_AT="${APPROVAL#*$'\t'}"
   case "$ACTOR" in *"[bot]"|"") HAS_LABEL=false ;; esac   # solo cuenta si lo puso un humano
 
   # Staleness: el label NO autoriza commits posteriores a su colocacion. Si hubo
   # push despues de poner el label, removerlo y caer al canal interactivo.
-  LABELED_AT=$(gh api "repos/{owner}/{repo}/issues/${PR}/events" --paginate \
-    --jq '.[] | select(.event=="labeled" and .label.name=="merge-approved") | .created_at' | tail -1)
   LAST_PUSH=$(gh pr view "$PR" --json commits --jq '[.commits[].committedDate] | max')
   if [ "$HAS_LABEL" = "true" ] && [[ "$LAST_PUSH" > "$LABELED_AT" ]]; then
     gh pr edit "$PR" --remove-label merge-approved

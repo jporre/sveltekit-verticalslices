@@ -14,7 +14,12 @@ EPIC="$1"
 REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 MAX_DIFF_LINES_PER_FILE="${B10_EPIC_DIFF_MAX_LINES:-400}"
 
-SUBS="$(gh api "repos/${REPO}/issues/${EPIC}/sub_issues" --paginate --jq '.[].number' 2>/dev/null | sort -un || true)"
+# UNA sola llamada al endpoint sub_issues: ya trae los objetos completos
+# (number/title/state/body). Antes se descartaban salvo .number y despues se
+# pegaban 3-4 `gh issue view` por sub-issue (1+4N procesos gh). Ahora: 2 llamadas
+# (este call + el `gh pr list` de mas abajo), el resto son lookups jq en memoria.
+SUBS_JSON="$(gh api "repos/${REPO}/issues/${EPIC}/sub_issues" --paginate 2>/dev/null || true)"
+SUBS="$(printf '%s' "$SUBS_JSON" | jq -r '.[].number' 2>/dev/null | sort -un || true)"
 [ -n "$SUBS" ] || { echo "ERROR: #$EPIC sin sub-issues" >&2; exit 3; }
 
 echo "# Epic #$EPIC — insumo de revision de feature completo"
@@ -26,8 +31,10 @@ FIRST_SHA=""; ALL_PATHS=""
 PRS_JSON="$(gh pr list --state merged --limit 200 --json number,title,body,mergeCommit,files,mergedAt)"
 
 for n in $SUBS; do
-  STATE="$(gh issue view "$n" --json state --jq .state)"
-  TITLE="$(gh issue view "$n" --json title --jq .title)"
+  # state|ascii_upcase: el REST devuelve "open"/"closed"; `gh issue view` daba
+  # "OPEN"/"CLOSED". Se conserva la forma mayuscula para no cambiar el output.
+  STATE="$(printf '%s' "$SUBS_JSON" | jq -r --argjson n "$n" '.[]|select(.number==$n)|.state|ascii_upcase')"
+  TITLE="$(printf '%s' "$SUBS_JSON" | jq -r --argjson n "$n" '.[]|select(.number==$n)|.title')"
   PR_ROW="$(echo "$PRS_JSON" | jq -r --arg n "$n" \
     '[.[] | select(.body | test("[Cc]loses #\($n)([^0-9]|$)"))] | sort_by(.mergedAt) | (last // empty) | "\(.number)\t\(.mergeCommit.oid)\t\([.files[].path] | join(","))"')"
   if [ -n "$PR_ROW" ]; then
@@ -43,14 +50,14 @@ for n in $SUBS; do
   else
     echo "### #$n — $TITLE  [${STATE}] → SIN PR MERGEADO"
   fi
-  # acceptance criteria: checkboxes del body
-  gh issue view "$n" --json body --jq .body | grep -E '^\s*- \[[ x]\]' | sed 's/^/  /' || echo "  (sin checkboxes)"
+  # acceptance criteria: checkboxes del body (lookup jq sobre el JSON ya traido)
+  printf '%s' "$SUBS_JSON" | jq -r --argjson n "$n" '.[]|select(.number==$n)|.body' | grep -E '^\s*- \[[ x]\]' | sed 's/^/  /' || echo "  (sin checkboxes)"
   echo
 done
 
 echo "## Plan(es) referenciado(s)"
 echo
-for n in $SUBS; do gh issue view "$n" --json body --jq .body; done \
+printf '%s' "$SUBS_JSON" | jq -r '.[].body' \
   | grep -oE 'docs/plans/[a-zA-Z0-9_-]+\.md' | sort -u | sed 's/^/- /' || echo "- (ninguno encontrado)"
 echo
 

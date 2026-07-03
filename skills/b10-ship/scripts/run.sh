@@ -219,9 +219,24 @@ cmd_reconcile() {
   # Dependencias declaradas bajo el heading "## Blocked by" (misma convencion que epic-graph.sh).
   local deps dep open_deps=""
   deps="$(echo "$ijson" | jq -r .body | sed -n '/^##* *[Bb]locked *[Bb]y/,/^##[^#]/p' | grep -oE '#[0-9]+' | tr -d '#' | sort -un || true)"
-  for dep in $deps; do
-    [ "$(gh issue view "$dep" --json state --jq .state 2>/dev/null)" = "OPEN" ] && open_deps="${open_deps}${dep},"
-  done
+  if [ -n "$deps" ]; then
+    # Una sola query gh api graphql con issues aliaseados, en vez de un
+    # `gh issue view` por dep (N+1 procesos gh). GraphQL devuelve state en
+    # MAYUSCULA (OPEN/CLOSED), igual que `gh issue view`. Cualquier fallo de la
+    # query => sin deps abiertas (misma tolerancia que el `2>/dev/null` previo:
+    # una dep no resoluble no bloquea).
+    local nwo owner name gql i=0
+    nwo="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
+    owner="${nwo%%/*}"; name="${nwo##*/}"
+    if [ -n "$owner" ] && [ -n "$name" ]; then
+      gql="query{repository(owner:\"$owner\",name:\"$name\"){"
+      for dep in $deps; do gql="${gql} d${i}: issue(number:${dep}){number state}"; i=$((i+1)); done
+      gql="${gql}}}"
+      open_deps="$(gh api graphql -f query="$gql" 2>/dev/null \
+        | jq -r '.data.repository // {} | to_entries[] | select(.value.state=="OPEN") | .value.number' 2>/dev/null \
+        | sort -un | tr '\n' ',' || true)"
+    fi
+  fi
   if [ -n "$open_deps" ]; then
     echo "B10_BLOCKED_BY=${open_deps%,}"
     echo "B10_PHASE=blocked"; return 0

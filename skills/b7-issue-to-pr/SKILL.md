@@ -48,9 +48,16 @@ bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR>   # exit 0 
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh" plan-check --worktree "$WORKTREE"   # exit 0 obligatorio
 # 7. Worktree limpio post-commit (NADA fuera del commit — exit 0 obligatorio)
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
+# 8. Gate de regresion: un fix cuyo diff no toca ningun test degrada a needs-human-review (NO aborta)
+if [ "$(jq -r '.type' "$WORKTREE/.b7/triage.json")" = "fix" ] \
+   && ! git -C "$WORKTREE" diff --name-only master..HEAD | grep -qE '\.(test|spec)\.'; then
+  echo "FIX_SIN_TEST — fix sin test de regresion; status=needs-human-review"
+fi
 ```
 
 Si el check 7 sale 6 (codigo sin commitear), volver a invocar `b3-git-commit` en el worktree y pushear — el run NO esta terminado con trabajo fuera del commit. Si sale 7 (artefactos persistentes que `--fix` no pudo excluir), listarlos en el run-report como warning y continuar — mismo criterio que b9 PASO 1.5: los artefactos no invalidan el run.
+
+Si el check 8 imprime `FIX_SIN_TEST`, el run no aborta pero su status final es `needs-human-review` (no `ok`): un fix que no toca tests necesita que un humano confirme que la ausencia de regresion es aceptable. Si hubo waiver explicito (`plan-done regression-test` con `note: waived: <razon>`), la degradacion es la misma — el status va a `needs-human-review` con la razon en el reporte.
 
 **Ultima linea OBLIGATORIA del run** (la parsean orquestadores como b10-ship; fallback de ellos: `gh pr list --search "Closes #N"` + labels del issue):
 
@@ -215,6 +222,25 @@ scripts/publish-docs.sh plan-done <id> --worktree "$WORKTREE"
 ```
 
 Cada `plan-done` re-renderiza `state.plan_block` y queda reflejado en el sticky comment del issue en el próximo `publish-docs.sh issue-comment` (o `all`). Si al cerrar quedan items pendientes, `plan-check` sale 5 y el run no es válido.
+
+**Gate de regresion para bugs (deterministico, via jq).** Si `type == fix`, inyectar un item `regression-test` al `plan[]` antes de implementar — asi el gate DoD #6 (`plan-check`) obliga a que exista un test de regresion sin logica nueva. Solo agregarlo si no esta ya presente:
+
+```bash
+if [ "$(jq -r '.type' .b7/triage.json)" = "fix" ] \
+   && ! jq -e '.plan[] | select(.id=="regression-test")' .b7/triage.json >/dev/null 2>&1; then
+  tmp=$(mktemp)
+  jq '.plan += [{"id":"regression-test","desc":"Test que falla sin el fix y pasa con el","done":false}]' \
+    .b7/triage.json > "$tmp" && mv "$tmp" .b7/triage.json
+fi
+```
+
+**Waiver explicito.** Si el fix genuinamente no admite test (p.ej. cambio de infra sin harness), cerrar el item con una razon y degradar el run a `needs-human-review` — nunca marcarlo `done` en silencio:
+
+```bash
+scripts/publish-docs.sh plan-done regression-test --worktree "$WORKTREE"   # note: waived: <razon>
+```
+
+El waiver deja `plan-check` en verde (item done) pero el status final del run es `needs-human-review`, no `ok`: un humano confirma que la ausencia de test es aceptable. La razon del waiver va en el sticky comment y el run-report.
 
 Si `verdict != "ready"`: comentar en el issue (en su idioma — `language` del JSON) que el bot bailó, liberar lock, salir 0.
 

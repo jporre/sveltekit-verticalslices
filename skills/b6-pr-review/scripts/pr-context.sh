@@ -76,3 +76,15 @@ echo "$FILES" | while read -r f; do
     *)                     echo "OTHER: $f" ;;
   esac
 done
+
+echo ""
+echo "=== FIX_REGRESSION_GATE ==="
+# Gate de regresion: un PR fix/* debe tocar un test. Si headRef es fix/* y ningun
+# archivo cambiado matchea \.(test|spec)\. -> FIX_WITHOUT_TEST=true. B6 Area 2 emite
+# WARNING pidiendo el test o una justificacion explicita.
+HEAD_REF=$(echo "$META" | jq -r '.headRefName // ""')
+if printf '%s\n' "$HEAD_REF" | grep -qE '^fix/' && ! printf '%s\n' "$FILES" | grep -qE '\.(test|spec)\.'; then
+  echo "FIX_WITHOUT_TEST=true"
+else
+  echo "FIX_WITHOUT_TEST=false"
+fi

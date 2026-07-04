@@ -53,8 +53,9 @@ A few ideas explain the whole design:
 - **Orchestrators chain atomic skills.** The big skills (`b10-ship`, `b7-issue-to-pr`, `b8-swarm`) do not implement anything themselves — they *decide* and *call* the small skills (`b1-triage-issue`, `b1-add-worktree`, `b2-build-feature`, `b3-git-commit`, `b4-pull-request`, `b6-pr-review`, `b9-close`). The value is the orchestration, the budgets, and the gates.
 - **State lives in GitHub, not on disk.** Labels, sticky comments with hidden markers (e.g. `<!-- b7:status -->`), and PR review verdicts (`<!-- b6:verdict=... -->`) are the source of truth. This is why the pipeline is **idempotent**: re-running the same command reconciles state from GitHub and resumes where it left off (see [§13](#13-recovery-and-idempotency)).
 - **Isolation by worktree.** Every feature is built in its own `git worktree` on its own branch, with its own dev-server port. Your main working tree is never edited.
-- **Screen-first builds.** Features are decomposed into screens (Feature-Sliced Design). Each screen is built, then visually verified in your real Chrome before the PR is opened.
+- **Screen-first builds.** Features are decomposed into screens (Feature-Sliced Design). Each screen is built, then visually verified in your real Chrome before the PR is opened. The outcome is never silent: a `b7:screen-review=` marker on the PR and a `screens=` token on the run's status line always say whether it ran, passed, or was skipped (and why) — see [§7](#7-the-pipeline-step-by-step) and [§11](#11-artifacts-it-produces).
 - **Budgets and backpressure.** Runs are bounded (max iterations, max changed files) and the pipeline refuses to pile up work (it will not start if too many bot PRs are already open).
+- **Delegation, not bypass, at scale.** Every automated shortcut (epic auto-merge, batched approvals, parallel builds) re-derives its own evidence at the moment it acts instead of trusting a flag — see [§9](#9-human-gates).
 
 ---
 
@@ -70,6 +71,8 @@ A few ideas explain the whole design:
 | **`agent-browser` CLI** | Visual screen review drives its own browser (navigation, auth cookie, screenshots, console). | `agent-browser --help` |
 
 > If you only want issue → draft PR and you do not need visual review, `agent-browser` is optional — screens are skipped with a note when the dev server or browser is unavailable.
+
+> The default branch name is detected, never assumed — `main`, `master`, or anything else works with zero configuration.
 
 ---
 
@@ -195,6 +198,14 @@ The `bN-` prefixes reflect the order the skills were created, not the execution 
 /b-pipeline:b10-ship <issue> --informe # on close, also generate a weekly report entry
 ```
 
+Epic mode adds three opt-in behaviors, all off by default and all still gated:
+
+- **Auto-merge drain.** Label the epic `epic-auto-merge` and sub-issue PRs merge without a per-PR approval as they clear review — `b9-close` independently re-checks epic membership, a fresh 0-blocker `b6` verdict, and green CI before every single merge (still one at a time). The epic's own closing slice is never auto-merged; it always waits for the `epic-approved` gate below.
+- **Batch approvals.** Instead of one prompt per issue, complex-issue decisions and regression waivers are grouped into a single `AskUserQuestion` per wave, each option showing its own evidence.
+- **Parallel builds (opt-in).** Set `B7_PARALLEL=1` in the environment to let an epic wave build a few independent, non-`complex` issues concurrently (capped, distinct scopes only). Omit it and builds stay sequential, which is the default and the safer choice for most repos.
+
+See `skills/b10-ship/references/epic-mode.md` for the full mechanics if you are auditing or extending the pipeline.
+
 ### `b7-issue-to-pr` — issue → draft PR (stops before merge)
 
 ```text
@@ -215,11 +226,13 @@ Use when several issues touch the same area and belong in a single PR (a multi-s
 
 ## 9. Human gates
 
-There are exactly three points where a person must decide:
+There are three points where a person must decide:
 
 1. **Complex issues** are not built unattended. Triage flags `complex`; you choose force / interactive / skip.
-2. **No PR ever merges** without (a) a green `b6` review (0 blockers) **and** (b) explicit human approval — the `merge-approved` label or an in-session yes.
-3. **An epic's closing slice** requires an epic review and the `epic-approved` label before it merges.
+2. **No PR ever merges** without (a) a green `b6` review (0 blockers) **and** (b) explicit human approval — the `merge-approved` label, an in-session yes, or the delegated epic channel below.
+3. **An epic's closing slice** requires an epic review and the `epic-approved` label before it merges — this gate is never delegated or auto-approved.
+
+**Delegating gate 2 at epic scale.** The `epic-auto-merge` label on an epic lets its sub-issue PRs merge unattended as each clears review, but it is a scoped delegation, not a bypass: `b9-close` re-verifies, on every single merge, that the PR belongs to that epic, that its `b6` review is fresh with 0 blockers, and that CI is green — a stale label, a foreign PR, or a `needs-human-review` sub-issue disqualifies it back to a human channel. Any sub-issue can veto the whole channel by carrying `needs-human-review`. To keep gate 1 and the regression-test judgment call from turning into one prompt per issue, epic runs batch those decisions into a single multi-select question per wave instead — see [§8](#8-orchestrators-and-their-flags).
 
 ---
 
@@ -230,7 +243,8 @@ Triage reads and writes these labels; they are the pipeline's control plane. Cre
 - **Readiness:** `ready`, `needs-info`, `blocked`, `duplicate`
 - **Complexity:** `simple`, `medium`, `complex`
 - **Progress:** `in-progress`, `in-review`
-- **Bot / approval:** `auto-pr-bot`, `merge-approved`, `epic-approved`, `awaiting-approval`
+- **Bot / approval:** `auto-pr-bot`, `merge-approved`, `epic-approved`, `epic-auto-merge`, `awaiting-approval`, `awaiting-walkthrough`
+- **Batch-decision (epic mode):** `force-complex-ok`, `regression-waiver-ok`
 - **Escalation:** `needs-human-review`, `pipeline-failed`
 
 ---
@@ -240,7 +254,7 @@ Triage reads and writes these labels; they are the pipeline's control plane. Cre
 - **Worktrees** — one per feature, on a `feat/…` or `fix/…` branch, removed on close.
 - **`.b7/` state** inside the worktree — `state.json`, per-screen criteria (`.b7/screens/<Name>.md`), and visual review output (`.b7/review/<Name>.json` + PNGs).
 - **Run reports** — a markdown report per run (kept under the plugin's state dir).
-- **GitHub trail** — a sticky issue comment, a draft PR with release notes + technical changes, and a `b6` review comment with a durable verdict marker.
+- **GitHub trail** — a sticky issue comment, a draft PR with release notes + technical changes, a `<!-- b7:screen-review=... -->` marker recording whether visual verification ran (and why not, if it didn't), and a `b6` review comment with a durable verdict marker. A bot PR that touches UI with no screen evidence and no declared skip is a `b6` **blocker**, not a silent gap.
 
 ---
 

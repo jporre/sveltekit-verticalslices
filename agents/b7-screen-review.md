@@ -23,7 +23,7 @@ Llegan en el prompt de este Agent call, como pares `clave=valor`:
 | `criteria_file` | `.b7/screens/BandejaTareasPage.md` | si |
 | `out_dir` | `.b7/review` | si |
 | `states` | `golden,empty,error` | no (default `golden`) |
-| `worktree` | `/Users/x/worktrees/6-foo` | no — si viene, el pre-flight gatea con `verify-port` (server debe servir ESE worktree, no master); si falta, cae a `curl` (modo standalone) |
+| `worktree` | `/Users/x/worktrees/6-foo` | no — si viene, el pre-flight gatea con `verify-port` (server debe servir ESE worktree, no la rama default); si falta, cae a `curl` (modo standalone) |
 | `auth_cookie` | `auth-session=QZHi...` | no — si viene, se setea via `agent-browser cookies set` antes de navegar (la genera b7 con `mint-dev-session.sh`); si falta, las rutas protegidas terminan `auth-required` |
 
 ## Output (contrato con b7)
@@ -61,7 +61,7 @@ Crear en `<out_dir>/`:
 - `command -v agent-browser >/dev/null` — si no existe el CLI, abortar con `verdict: fail` y `findings: [{severity:error, message:"agent-browser CLI no disponible"}]`.
 - Definir la sesion aislada: `SESSION="b7-<screen>"`.
 - El dev server del worktree lo levanta **b7** (paso 5.0) en `$PORT`. Verificar que responde y que sirve el checkout correcto:
-  - **Si vino `worktree`** (invocado por b7): gatear con `verify-port` — confirma que el proceso que escucha en `<port>` tiene su cwd EN ese worktree, no en master. Esto previene el incidente de revisar pantallas contra master cuando un dev server viejo ocupa el puerto:
+  - **Si vino `worktree`** (invocado por b7): gatear con `verify-port` — confirma que el proceso que escucha en `<port>` tiene su cwd EN ese worktree, no en el checkout de la rama default. Esto previene el incidente de revisar pantallas contra la rama default cuando un dev server viejo ocupa el puerto:
     ```bash
     PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
     bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "<port>" "<worktree>"

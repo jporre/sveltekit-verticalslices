@@ -66,7 +66,7 @@ el `<form>` se conecta con spread `{...upsert_x.enhance(...)}`, cada input con `
 
 ### Phase 0: Branch
 
-**ALWAYS create a branch before writing any code.** Never work on master.
+**ALWAYS create a branch before writing any code.** Nunca trabajar sobre la rama default.
 
 When working from a GitHub issue, include the issue number in the branch name:
 
@@ -82,6 +82,11 @@ git checkout -b feat/<feature-name>    # new feature
 git checkout -b fix/<description>      # bug fix
 ```
 
+Patron de nombre configurable via `git config b-pipeline.branchPattern` (o env
+`B_PIPELINE_BRANCH_PATTERN`), placeholders `{type}` `{issue}` `{slug}`; default
+`{type}/{issue}-{slug}`. Con lib.sh sourceado (`. "$PLUGIN_ROOT/scripts/lib.sh"`):
+`git checkout -b "$(bp_branch_name feat <issue> <slug>)"`.
+
 **No worktrees para features simples** — una rama normal basta.
 For complex features that need isolation, create the worktree via `b1-add-worktree` —
 a raw `git worktree add` is BLOCKED by the plugin's PreToolUse hook (it skips the env
@@ -89,7 +94,8 @@ symlinks, port allocation, and budget hook that `setup-worktree.sh` provisions):
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
-bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh" "feat/<feature-name>" master --headless
+. "$PLUGIN_ROOT/scripts/lib.sh"
+bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh" "feat/<feature-name>" "$(bp_default_branch)" --headless
 ```
 
 ### Phase 1: Clarify
@@ -199,7 +205,7 @@ Code that compiles but hasn't been tested in a browser is NOT done.
    ```bash
    bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh"
    # ultima linea: VERIFY_RESULT branch=ok check=ok react=ok test=ok|skipped browser=required|not-needed svelte_files=<csv>
-   # exit 3 rama master/main | 4 check:machine | 5 patron React (file:line) | 6 test:unit
+   # exit 3 rama default (o main/master) | 4 check:machine | 5 patron React (file:line) | 6 test:unit
    ```
    Si sale non-zero: corregir lo que reporta y re-correr hasta exit 0. No avanzar
    con un gate en `fail`.

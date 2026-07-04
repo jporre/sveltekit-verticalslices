@@ -1,6 +1,6 @@
 ---
 name: b9-close
-description: 'Cierre de un PR ya revisado: mergea a master con aprobacion humana, cierra sus issues y limpia el worktree. Usar cuando pidan "cerrar/mergear el PR N", "finalizar el issue N" (ya implementado), o "limpiar el worktree". PASO 4 del flujo b — corre despues de b7 (implementacion) y b6-pr-review (review); no implementa ni revisa.'
+description: 'Cierre de un PR ya revisado: mergea a la rama default con aprobacion humana, cierra sus issues y limpia el worktree. Usar cuando pidan "cerrar/mergear el PR N", "finalizar el issue N" (ya implementado), o "limpiar el worktree". PASO 4 del flujo b — corre despues de b7 (implementacion) y b6-pr-review (review); no implementa ni revisa.'
 allowed-tools: Bash, Read, AskUserQuestion, Skill, Agent
 model: sonnet
 ---
@@ -19,7 +19,7 @@ Acepta: numero de issue (`121`), numero de PR (`#170` o `pr 170`), nombre de bra
 
 Cierre del flujo b. El feature ya fue implementado por `b7-issue-to-pr` y revisado por `b6-pr-review`. Este skill **no** reimplementa ni hace review profundo: **gatea** sobre que la revision paso, mergea con **aprobacion humana**, y deja el arbol limpio (PR cerrado, issue cerrado, worktree y branches borrados).
 
-**Filosofia:** ningun PR del bot va a master sin ojo humano.
+**Filosofia:** ningun PR del bot va a la rama default sin ojo humano.
 
 ---
 
@@ -106,7 +106,7 @@ bp_b6_verdict "$PR"
 Presenta compacto:
 
 ```
-PR #<N> «<titulo>»  →  master
+PR #<N> «<titulo>»  →  <rama-default>
 Issues:       #<i1>, #<i2>...  (se cierran solos al mergear via "Closes #")
 Branch:       <branch>          Worktree: <path o ninguno>
 Mergeable:    <estado>          CI: <ok|fail|n/a>
@@ -147,7 +147,7 @@ Si `HAS_LABEL=true` → aprobacion concedida, seguir al PASO 5 sin preguntar (re
 
 **Canal interactivo — `AskUserQuestion`:**
 
-> ¿Mergear PR #<N> a master con squash y limpiar el worktree?
+> ¿Mergear PR #<N> a la rama default con squash y limpiar el worktree?
 
 Opciones: **Mergear y limpiar** / **Solo mergear (conservar worktree)** / **Cancelar**.
 
@@ -228,9 +228,13 @@ git -C "$REPO_MAIN" worktree prune
 # Borrar la rama local (la remota ya la borro --delete-branch).
 git -C "$REPO_MAIN" branch -D "$BRANCH" 2>/dev/null || true
 
-# Traer master mergeado al repo principal.
-git -C "$REPO_MAIN" checkout master 2>/dev/null || true
-git -C "$REPO_MAIN" pull --ff-only
+# Traer la rama default mergeada al repo principal (bp_default_branch viene de
+# scripts/lib.sh, ya sourceado en PASO 0/2).
+DEFAULT_BRANCH="$(bp_default_branch)" || echo "WARN: rama default no resuelta — saltar sync local"
+if [ -n "$DEFAULT_BRANCH" ]; then
+  git -C "$REPO_MAIN" checkout "$DEFAULT_BRANCH" 2>/dev/null || true
+  git -C "$REPO_MAIN" pull --ff-only
+fi
 ```
 
 ## PASO 7: Labels y reporte final
@@ -259,12 +263,12 @@ Reporte (terminar SIEMPRE con la linea machine-readable):
 
 ```
 === PR #<N> CERRADO ===
-Merge:        squash a master (<sha corto>)
+Merge:        squash a la rama default (<sha corto>)
 Issues:       #<i1>, #<i2>... CLOSED
 Rama remota:  borrada
 Worktree:     removido (<path>) | conservado | n/a
 Rama local:   borrada | n/a
-master local: actualizado (pull --ff-only)
+rama default local: actualizada (pull --ff-only)
 Rescue:       rescue/<branch>-<ts> | n/a
 
 B9_MERGED pr=<N> sha=<sha-corto> issues=<i1,i2,...>
@@ -275,7 +279,7 @@ B9_MERGED pr=<N> sha=<sha-corto> issues=<i1,i2,...>
 ## Reglas
 
 - **"tarea N" == issue #N.**
-- **Squash por default** (historia limpia en master). Si el usuario pide `--merge` o `--rebase`, respetarlo.
+- **Squash por default** (historia limpia en la rama default). Si el usuario pide `--merge` o `--rebase`, respetarlo.
 - **No correr `pnpm build`/`check`** aca — eso ya paso en b7/BF. b9 solo cierra.
 
 ## Relacion con los otros skills b

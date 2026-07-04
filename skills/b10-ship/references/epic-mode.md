@@ -14,9 +14,9 @@ bash "$EPIC_SCRIPTS/epic-state.sh" <EPIC>    # snapshot PARALELO: topologia + re
 
 > `epic-graph.sh` sigue existiendo y es lo que `epic-state.sh` usa internamente para la topologia; invocarlo directo solo si querés la topologia cruda sin el estado live (p.ej. debug del calculo de waves).
 
-Con el snapshot en mano, despachar fases — **leer una vez, actuar en paralelo donde sea read-only, serializar lo que toca master o el worktree**:
+Con el snapshot en mano, despachar fases — **leer una vez, actuar en paralelo donde sea read-only, serializar lo que toca la rama default o el worktree**:
 
-1. **Drain-first:** ANTES de lanzar builds, cerrar lo cerrable — los issues que el snapshot marca `closeable` (phase=close: PR abierto con veredicto b6 `blockers=0`, o PR mergeado con issue abierto). Las **decisiones** de cierre ya vienen del snapshot (b6 + labels) y pueden mirarse juntas; el **merge en si va serial** (b9 uno a uno — dos merges concurrentes a master se pisan). Cada cierre libera backpressure y desbloquea dependencias.
+1. **Drain-first:** ANTES de lanzar builds, cerrar lo cerrable — los issues que el snapshot marca `closeable` (phase=close: PR abierto con veredicto b6 `blockers=0`, o PR mergeado con issue abierto). Las **decisiones** de cierre ya vienen del snapshot (b6 + labels) y pueden mirarse juntas; el **merge en si va serial** (b9 uno a uno — dos merges concurrentes a la rama default se pisan). Cada cierre libera backpressure y desbloquea dependencias.
 2. **Detectar el slice de cierre** (`closing_slice` del snapshot): el issue cuyas deps cubren al resto del grafo — frecuentemente es el PROPIO epic. NUNCA construirlo sin el gate de epic-review (abajo). Cuando es el epic mismo, tras el gate se corre la cadena single-issue sobre el numero del epic.
 3. **Triagear la ola en paralelo:** los issues `buildable` cuya fase es `triage` (aun sin veredicto) se triagean **todos juntos** via Workflow (read-only, ver "Triage paralelo de una ola"). Devuelve `{issue, verdict, complexity, scope}` por issue — el insumo para decidir build vs cluster sin pagar N triages secuenciales.
 4. **Siguiente ola — build:** issues con todas sus deps `CLOSED` y sin PR propio, ya triageados.
@@ -27,7 +27,7 @@ Con el snapshot en mano, despachar fases — **leer una vez, actuar en paralelo 
 
 ### Paralelismo: que corre junto y que no
 
-Regla unica: **read-only paraleliza, escritura a master/worktree serializa.**
+Regla unica: **read-only paraleliza, escritura a la rama default/worktree serializa.**
 
 | Fase | Paraleliza | Por que |
 | --- | --- | --- |
@@ -36,7 +36,7 @@ Regla unica: **read-only paraleliza, escritura a master/worktree serializa.**
 | Epic-review (diff + walkthrough) | **Si** parcial (Agent opus para el diff mientras se prepara el worktree) | El analisis del diff no toca estado. |
 | **Build** (b7 single-issue) | **NO** | b7 toma `b7.lock` global: solo un build a la vez. Ademas backpressure corta a 3 PRs `auto-pr-bot` abiertos. |
 | **Build** (b8 cluster) | **NO entre clusters** (b8 ya paraleliza su triage interno) | Mismo lock + worktree compartido por cluster. |
-| **Merge / close** (b9) | **NO** | Dos merges concurrentes a master conflictuan. Serial, uno a uno. |
+| **Merge / close** (b9) | **NO** | Dos merges concurrentes a la rama default conflictuan. Serial, uno a uno. |
 
 ### Triage paralelo de una ola (Workflow)
 
@@ -89,7 +89,7 @@ bash "$EPIC_SCRIPTS/epic-diff.sh" <EPIC> > /tmp/epic-<EPIC>-diff.md
 Lanzar un Agent (model opus) con: (a) el diff agregado, (b) el plan doc referenciado en los bodies (`docs/plans/*.md`), (c) los acceptance criteria de cada sub-issue. El reporte DEBE incluir:
 
 1. **Matriz de cobertura** cubierto/parcial/ausente por decision del plan y por slice.
-2. **Walkthrough en browser del flujo COMPLETO integrado** sobre master actualizado: worktree temporal (`setup-worktree.sh epic-review-<EPIC> master --headless`), `./dev.sh`, y el contrato de `b7-screen-review` recorriendo el flujo punta a punta. El diff valida codigo contra intencion; solo el browser valida la experiencia.
+2. **Walkthrough en browser del flujo COMPLETO integrado** sobre la rama default actualizada: worktree temporal (`setup-worktree.sh epic-review-<EPIC> --headless`, sin arg de rama base — defaultea a `bp_default_branch`), `./dev.sh`, y el contrato de `b7-screen-review` recorriendo el flujo punta a punta. El diff valida codigo contra intencion; solo el browser valida la experiencia.
 3. Gaps concretos → sugerir issues nuevos.
 
 > **Solapar el analisis con la preparacion del browser:** el Agent del diff (parte 1, read-only) no toca estado — lanzalo `run_in_background` y, mientras corre, andá levantando el worktree temporal + `./dev.sh` para el walkthrough (parte 2). Cuando el diff termina, ya tenés el server arriba. Asi el gate de epic-review no paga diff-luego-server en serie.

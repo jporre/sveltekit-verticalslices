@@ -12,7 +12,7 @@ Toma un grupo de issues **relacionadas** y las resuelve como **un solo cambio co
 
 ## Por que un PR y no N
 
-El modelo viejo de b8 corria un `b7-issue-to-pr` por issue → **N PRs independientes**. Cuando las issues son **relacionadas** (tocan los mismos archivos), eso genera conflictos: el PR #2 se basa en master viejo y choca con el #1 ya mergeado, forzando rebase manual.
+El modelo viejo de b8 corria un `b7-issue-to-pr` por issue → **N PRs independientes**. Cuando las issues son **relacionadas** (tocan los mismos archivos), eso genera conflictos: el PR #2 se basa en una rama default vieja y choca con el #1 ya mergeado, forzando rebase manual.
 
 En **un PR** los cambios componen sobre una rama: sin conflicto inter-PR, una review del cambio completo, un merge atomico. Ese es el punto de este skill.
 
@@ -70,8 +70,10 @@ Decidir la rama **antes** del worktree:
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+. "$PLUGIN_ROOT/scripts/lib.sh"
+DEFAULT_BRANCH="$(bp_default_branch)" || { echo "ABORT: no pude resolver la rama default"; exit 1; }
 BRANCH="refactor/<theme>"   # o swarm/<ids>
-OUT=$(bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh" "$BRANCH" master --headless)
+OUT=$(bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh" "$BRANCH" "$DEFAULT_BRANCH" --headless)
 LINE=$(echo "$OUT" | grep '^WORKTREE_READY ' || true)
 [ -z "$LINE" ] && { echo "ABORT: worktree no creado"; exit 1; }
 eval "$(echo "$LINE" | sed 's/^WORKTREE_READY //' | tr ' ' '\n' | awk -F= '{print "WT_"toupper($1)"="$2}')"
@@ -216,7 +218,7 @@ Al cerrar (exito o abort), b8 debe haber:
 1. Liberado el lock (`b8.lock` borrado).
 2. Escrito `b8-runs/<stamp>.md` con: cola, theme/branch, worktree, outcome por issue, PR URL (o "dry-run").
 3. En `--wet`: dejado **1 PR draft** con `Closes #` por cada issue ready, labels de esos issues en `in-review`, b6-review adjunto.
-4. En `--dry-run`: dejado el worktree con la rama combinada lista para inspeccion (`git log master..HEAD`, `git diff master`), sin PR, labels ni comentarios en GitHub.
+4. En `--dry-run`: dejado el worktree con la rama combinada lista para inspeccion (`git log <rama-default>..HEAD`, `git diff <rama-default>`), sin PR, labels ni comentarios en GitHub.
 5. Si abortó: motivo claro (kill-switch, backpressure, tree sucio, build fallido con `--on-error=abort`).
 
 **Frases prohibidas al cerrar:**

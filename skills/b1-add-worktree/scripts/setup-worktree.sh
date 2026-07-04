@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: setup-worktree.sh <worktree-name> <base-branch> [--headless]
-# Example: setup-worktree.sh feature-auth master
-# Example: setup-worktree.sh fix/123-foo master --headless
+# Usage: setup-worktree.sh <worktree-name> [base-branch] [--headless]
+# Example: setup-worktree.sh feature-auth
+# Example: setup-worktree.sh fix/123-foo release/2.0 --headless
 #
 # --headless skips the iTerm2 launch (for use by automation like b7-issue-to-pr).
 # All other behavior (symlinks, port allocation, dev.sh, install) is identical.
@@ -17,13 +17,24 @@ for arg in "$@"; do
   esac
 done
 
-if [ "${#POSITIONAL[@]}" -lt 2 ]; then
-  echo "Usage: $0 <worktree-name> <base-branch> [--headless]" >&2
+if [ "${#POSITIONAL[@]}" -lt 1 ]; then
+  echo "Usage: $0 <worktree-name> [base-branch] [--headless]" >&2
   exit 2
 fi
 
 WORKTREE_NAME="${POSITIONAL[0]}"
-BASE_BRANCH="${POSITIONAL[1]}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/../../..}/scripts/lib.sh"
+
+if [ "${#POSITIONAL[@]}" -ge 2 ]; then
+  BASE_BRANCH="${POSITIONAL[1]}"
+else
+  if ! BASE_BRANCH="$(bp_default_branch)"; then
+    echo "ERROR: no se pudo resolver la rama default (bp_default_branch); pasar base-branch explicito" >&2
+    exit 2
+  fi
+fi
 
 # Precondicion: correr desde el repo PRINCIPAL, no desde un worktree linkeado
 # (show-toplevel devolveria el worktree y todo lo demas apuntaria mal).

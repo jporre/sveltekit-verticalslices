@@ -136,7 +136,7 @@ La pantalla actual `src/routes/sales/+page.svelte` ya filtra por fecha y vendedo
 
 **Estado**: Duplicado
 
-Esta solicitud ya fue cubierta por #142 (mergeado en `master` el 2026-04-15) que agregó la pantalla `src/routes/products/+page.svelte`. Recomiendo cerrar este issue referenciando #142.
+Esta solicitud ya fue cubierta por #142 (mergeado en la rama default el 2026-04-15) que agregó la pantalla `src/routes/products/+page.svelte`. Recomiendo cerrar este issue referenciando #142.
 
 Si hay diferencias específicas con la implementación actual, por favor descríbelas y reabriremos.
 ```

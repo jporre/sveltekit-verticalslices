@@ -30,8 +30,10 @@ El carril rapido puede omitir el review visual **unicamente** cuando el diff **n
 
 ```bash
 # lane S: decidir si se puede saltar el review visual
+. "$PLUGIN_ROOT/scripts/lib.sh"
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-$(bp_default_branch)}"   # rama base real — nunca asumir master
 LANE=$(python3 -c 'import json;print(json.load(open("'"$WORKTREE"'/.b7/state.json")).get("lane","M"))')
-base=$(git -C "$WORKTREE" merge-base HEAD master)
+base=$(git -C "$WORKTREE" merge-base HEAD "$DEFAULT_BRANCH")
 touched_ui=$(git -C "$WORKTREE" diff --name-only "$base" \
   | grep -qE '\.svelte$|\.remote\.ts$|^src/routes/' && echo 1 || echo 0)
 if [ "$LANE" = S ] && [ "$touched_ui" = 0 ]; then

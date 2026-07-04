@@ -13,6 +13,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/../../..}/scripts/lib.sh"
+
 WT="${1:-}"
 if [ -z "$WT" ] || [ ! -d "$WT" ]; then
   echo "diff-summary.sh: missing or invalid worktree: $WT" >&2
@@ -22,9 +25,15 @@ fi
 cd "$WT"
 mkdir -p .b7
 
-BASE="$(git merge-base HEAD master 2>/dev/null || echo)"
+# Rama base resuelta via bp_default_branch (nunca asumir master).
+DEFAULT_BRANCH="$(bp_default_branch 2>/dev/null || true)"
+if [ -z "$DEFAULT_BRANCH" ]; then
+  echo "diff-summary.sh: no se pudo resolver la rama default (bp_default_branch)" >&2
+  exit 3
+fi
+BASE="$(git merge-base HEAD "$DEFAULT_BRANCH" 2>/dev/null || echo)"
 if [ -z "$BASE" ]; then
-  echo "diff-summary.sh: no merge-base with master" >&2
+  echo "diff-summary.sh: no merge-base with $DEFAULT_BRANCH" >&2
   exit 3
 fi
 

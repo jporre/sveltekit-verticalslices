@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### fix — rama base detectada, no hardcodeada (bp_default_branch + bp_branch_name)
+
+El pipeline asumia `master` como rama base en ~18 sitios; en repos con default `main` fallaban `diff-summary.sh` y `check-budget` de b7 (merge-base), `epic-diff.sh` de b10 (rangos `..master`) y el link a CHANGELOG (`blob/master`). Ahora:
+
+- `scripts/lib.sh` gana `bp_default_branch` (origin/HEAD -> gh -> main|master local) y `bp_branch_name` (patron de feature branch configurable: `git config b-pipeline.branchPattern 'feature/{issue}-{slug}'` o env `B_PIPELINE_BRANCH_PATTERN`; default `{type}/{issue}-{slug}` = comportamiento historico, cero cambio sin config).
+- `setup-worktree.sh <name> [base-branch]` — base-branch opcional, default `bp_default_branch`; todos los callers dejan de pasar `master` literal.
+- Scripts y prosa de b1/b2/b7/b8/b9/b10 usan la rama default resuelta; b7 construye la rama del worktree via `bp_branch_name`.
+
+**Archivos clave**: `scripts/lib.sh`, `skills/b1-add-worktree/scripts/setup-worktree.sh`, `skills/b7-issue-to-pr/scripts/{diff-summary,guardrails}.sh`, `skills/b10-ship/scripts/epic-diff.sh`, `skills/b2-build-feature/scripts/{check-slice,verify}.sh`.
+
+**Riesgos / consideraciones**: `bp_default_branch` requiere origin/HEAD seteado, `gh` autenticado o una rama local main/master; si nada resuelve, cada script aborta con mensaje claro (antes fallaba silencioso contra `master` inexistente). El branch guard de b2 sigue bloqueando main/master ademas de la default (superset conservador). b8 conserva su esquema `swarm/<ids>`/`<type>/<theme>` — `bp_branch_name` cubre solo ramas por-issue (b7); limite conocido.
+
 ### refactor — review writing-great-skills: descriptions -48% + ruteo single-source + b7-screen-review a agent def
 
 Review completo del plugin contra el framework writing-great-skills (12 reviewers + 12 verificadores adversariales + 1 cross-cutting; 116 findings confirmados aplicados). Cambios principales:

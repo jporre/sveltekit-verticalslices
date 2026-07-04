@@ -32,7 +32,7 @@ $ARGUMENTS
 
 3. **Ask the base branch**: Ask the user:
 
-   > Create worktree from **current branch** (`<current-branch>`) or from **master**?
+   > Create worktree from **current branch** (`<current-branch>`) or from **la rama default**? (la resuelve el script via `bp_default_branch`)
 
    En los pasos siguientes, `<plugin-root>` es la raiz del plugin. Resolverla portable como `"${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"` — funciona con el plugin instalado via Claude Code marketplace o en el dev location. `<skill-dir>` es `<plugin-root>/skills/b1-add-worktree`.
 
@@ -47,8 +47,10 @@ $ARGUMENTS
 6. **Run the script — MANDATORY**: You MUST invoke `setup-worktree.sh` exactly as shown. Do NOT call `git worktree add` directly, do NOT recreate the steps inline, do NOT skip ahead by symlinking `.env` or running `pnpm install` yourself. El script aprovisiona todo lo que el worktree necesita para quedar "ready for dev/test"; el detalle vive solo en el script.
 
    ```bash
-   bash <skill-dir>/scripts/setup-worktree.sh "<worktree-name>" "<base-branch>"
+   bash <skill-dir>/scripts/setup-worktree.sh "<worktree-name>"
    ```
+
+   Sin `base-branch`, el script resuelve la rama default via `bp_default_branch`. Si el usuario eligio otra base (ej. la rama actual), pasarla como segundo argumento: `bash <skill-dir>/scripts/setup-worktree.sh "<worktree-name>" "<base-branch>"`.
 
    Si el usuario pide no abrir una ventana de Terminal, agregar `--headless` al comando.
 

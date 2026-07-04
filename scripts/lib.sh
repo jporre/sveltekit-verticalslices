@@ -21,6 +21,16 @@
 #                                      con lookahead NO inclusivo: un heading
 #                                      inmediato despues de la seccion NO aporta
 #                                      deps fantasma (bug del sed viejo de run.sh).
+#   bp_default_branch                  rama default del repo (main/master/lo que
+#                                      sea): origin/HEAD -> gh -> main|master
+#                                      local. NUNCA hardcodear 'master' en un
+#                                      script: usar esto. Exit 1 si no resuelve.
+#   bp_branch_name <type> <n> <slug>   nombre de feature branch segun git config
+#                                      b-pipeline.branchPattern (o env
+#                                      B_PIPELINE_BRANCH_PATTERN); placeholders
+#                                      {type} {issue} {slug}; default
+#                                      '{type}/{issue}-{slug}' = comportamiento
+#                                      historico feat/<n>-<slug>.
 
 # set estricto solo al ejecutar directo (selftest); al sourcear NO se impone
 # set -e/-u al caller (los snippets de SKILL.md corren sin modo estricto).
@@ -58,6 +68,28 @@ for d in (sorted({int(x) for x in re.findall(r"#(\d+)", m.group(1))}) if m else 
 '
 }
 
+bp_default_branch() {
+  local b
+  b="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)" \
+    && { printf '%s\n' "${b#origin/}"; return 0; }
+  b="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)" \
+    && [ -n "$b" ] && { printf '%s\n' "$b"; return 0; }
+  for b in main master; do
+    git show-ref -q --verify "refs/heads/$b" && { printf '%s\n' "$b"; return 0; }
+  done
+  return 1
+}
+
+bp_branch_name() {
+  local type="$1" issue="$2" slug="$3" pat
+  pat="${B_PIPELINE_BRANCH_PATTERN:-$(git config --get b-pipeline.branchPattern 2>/dev/null || true)}"
+  [ -n "$pat" ] || pat='{type}/{issue}-{slug}'
+  pat="${pat//\{type\}/$type}"
+  pat="${pat//\{issue\}/$issue}"
+  pat="${pat//\{slug\}/$slug}"
+  printf '%s\n' "$pat"
+}
+
 # Fixtures de regresion offline (solo bp_blocked_by es pura; el resto pega a gh).
 bp_selftest() {
   local fails=0 out
@@ -71,6 +103,14 @@ bp_selftest() {
   [ -z "$out" ] || { echo "lib.sh selftest: sin seccion debe dar vacio -> '$out'" >&2; fails=1; }
   [ -f "$_BP_ROOT/skills/b6-pr-review/scripts/verdict.sh" ] \
     || { echo "lib.sh selftest: no encuentro verdict.sh desde $_BP_ROOT" >&2; fails=1; }
+  # bp_branch_name: default historico + pattern custom via env (puro, sin git config)
+  out="$(bp_branch_name feat 42 login-form)"
+  [ "$out" = "feat/42-login-form" ] || { echo "lib.sh selftest: branch_name default -> '$out'" >&2; fails=1; }
+  out="$(B_PIPELINE_BRANCH_PATTERN='feature/{issue}-{slug}' bp_branch_name fix 7 x)"
+  [ "$out" = "feature/7-x" ] || { echo "lib.sh selftest: branch_name pattern -> '$out'" >&2; fails=1; }
+  # bp_default_branch: en un repo git debe resolver no-vacio
+  out="$(bp_default_branch || true)"
+  [ -n "$out" ] || { echo "lib.sh selftest: default_branch vacio en repo git" >&2; fails=1; }
   [ "$fails" -eq 0 ] || return 1
   echo "BP_LIB=ok"
 }

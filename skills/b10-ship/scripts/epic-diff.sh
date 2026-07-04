@@ -6,11 +6,14 @@ set -euo pipefail
 # Emite markdown a stdout con:
 #   (a) tabla PR -> issue -> titulo + acceptance criteria (checkboxes del body)
 #   (b) ruta(s) del plan doc referenciado en los bodies ("docs/plans/*.md")
-#   (c) diff agregado de los squash merges (primer merge^..master, paths tocados)
-# Correr desde el repo principal con master actualizado (git pull antes).
+#   (c) diff agregado de los squash merges (primer merge^..rama default, paths tocados)
+# Correr desde el repo principal con la rama default actualizada (git pull antes).
 
 [ -n "${1:-}" ] || { echo "Usage: $0 <epic>" >&2; exit 2; }
 EPIC="$1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/../../..}/scripts/lib.sh"
+DEFAULT_BRANCH="$(bp_default_branch)" || { echo "ERROR: no se pudo resolver la rama default" >&2; exit 2; }
 REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 MAX_DIFF_LINES_PER_FILE="${B10_EPIC_DIFF_MAX_LINES:-400}"
 
@@ -67,12 +70,12 @@ if [ -z "$FIRST_SHA" ]; then
 fi
 
 PATH_LIST="$(echo "$ALL_PATHS" | tr ',' '\n' | grep -v '^$' | sort -u)"
-echo "## Diff agregado (${FIRST_SHA:0:8}^..master, $(echo "$PATH_LIST" | wc -l | tr -d ' ') archivos)"
+echo "## Diff agregado (${FIRST_SHA:0:8}^..${DEFAULT_BRANCH}, $(echo "$PATH_LIST" | wc -l | tr -d ' ') archivos)"
 echo
 echo '```'
 # Split SOLO por newline y sin glob expansion (paths con espacios o [/*).
 OLDIFS=$IFS; IFS=$'\n'; set -f
-git diff --stat "${FIRST_SHA}^..master" -- $PATH_LIST 2>/dev/null | tail -30
+git diff --stat "${FIRST_SHA}^..${DEFAULT_BRANCH}" -- $PATH_LIST 2>/dev/null | tail -30
 set +f; IFS=$OLDIFS
 echo '```'
 echo
@@ -81,8 +84,8 @@ echo "$PATH_LIST" | while read -r p; do
   [ -n "$p" ] || continue
   echo "### $p"
   echo '```diff'
-  git diff "${FIRST_SHA}^..master" -- "$p" 2>/dev/null | head -"$MAX_DIFF_LINES_PER_FILE"
-  LINES="$(git diff "${FIRST_SHA}^..master" -- "$p" 2>/dev/null | wc -l | tr -d ' ')"
+  git diff "${FIRST_SHA}^..${DEFAULT_BRANCH}" -- "$p" 2>/dev/null | head -"$MAX_DIFF_LINES_PER_FILE"
+  LINES="$(git diff "${FIRST_SHA}^..${DEFAULT_BRANCH}" -- "$p" 2>/dev/null | wc -l | tr -d ' ')"
   [ "$LINES" -gt "$MAX_DIFF_LINES_PER_FILE" ] && echo "... (truncado: $LINES lineas totales, cap $MAX_DIFF_LINES_PER_FILE)"
   echo '```'
   echo

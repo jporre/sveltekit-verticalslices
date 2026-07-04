@@ -17,7 +17,7 @@ Glue skill que encadena skills existentes. **No duplicar lógica de los skills e
 
 Invocar este skill con un numero de issue ejecuta los 5 pasos en orden, incluso si el usuario añade instrucciones inline en el mismo prompt (van a `user_directives` como contexto de la implementacion — no son atajos). Si un paso falla por entorno (auth, permisos, locks), abortar y reportar — no continuar saltandolo.
 
-1. **Worktree** — `b1-add-worktree --headless`; branch `feat/<issue>-<slug>` o `fix/<issue>-<slug>`. Prohibido editar el repo principal en master; si no se puede crear el worktree, abortar antes de tocar archivos.
+1. **Worktree** — `b1-add-worktree --headless`; branch `feat/<issue>-<slug>` o `fix/<issue>-<slug>`. Prohibido editar el repo principal en la rama default; si no se puede crear el worktree, abortar antes de tocar archivos.
 2. **Comentario sticky en el issue al iniciar** — `publish-docs.sh milestone started` + `issue-comment` (marker `<!-- b7:status -->`).
 3. **Commit(s) via b3-git-commit** — conventional commits por agrupacion tematica; sin mensajes inventados.
 4. **PR draft + labels sincronizadas** — `b4-pull-request --draft` con cuerpo de `publish-docs.sh pr-body` (incluye `Closes #<issue>`); labels `ready/auto-pr → in-progress → in-review`; sticky actualizado con link al PR.
@@ -31,13 +31,15 @@ Antes de devolver el resumen final al usuario, el orquestador **debe** correr es
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
-# 1. Worktree existe, fue creado por setup-worktree.sh, y la rama está sobre master
+. "$PLUGIN_ROOT/scripts/lib.sh"
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-$(bp_default_branch)}"   # rama base real — nunca asumir master
+# 1. Worktree existe, fue creado por setup-worktree.sh, y la rama está sobre la rama default
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-worktree "$WORKTREE"
 git -C "$WORKTREE" rev-parse --abbrev-ref HEAD       # feat/<N>-... o fix/<N>-...
 # 2. Comentario sticky en el issue
 gh issue view <N> --json comments -q '.comments[].body' | grep -q '<!-- b7:status -->'
-# 3. Commits existen (al menos uno) y master no se tocó
-git -C "$WORKTREE" log master..HEAD --oneline | wc -l   # >= 1
+# 3. Commits existen (al menos uno) y la rama default no se tocó
+git -C "$WORKTREE" log "$DEFAULT_BRANCH"..HEAD --oneline | wc -l   # >= 1
 git -C "$REPO_MAIN" status --porcelain                  # vacío
 # 4. PR draft abierto y labels del issue sincronizadas
 gh pr list --head "$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD)" --json number,isDraft,url
@@ -50,7 +52,7 @@ bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh" plan-check --w
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
 # 8. Gate de regresion: un fix cuyo diff no toca ningun test degrada a needs-human-review (NO aborta)
 if [ "$(jq -r '.type' "$WORKTREE/.b7/triage.json")" = "fix" ] \
-   && ! git -C "$WORKTREE" diff --name-only master..HEAD | grep -qE '\.(test|spec)\.'; then
+   && ! git -C "$WORKTREE" diff --name-only "$DEFAULT_BRANCH"..HEAD | grep -qE '\.(test|spec)\.'; then
   echo "FIX_SIN_TEST — fix sin test de regresion; status=needs-human-review"
 fi
 ```
@@ -245,8 +247,11 @@ Patrón obligatorio (copiar tal cual, no parafrasear):
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
-BRANCH="feat/<issue>-<short-slug>"   # o fix/<...> según triage.type
-OUT=$(bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh" "$BRANCH" master --headless)
+. "$PLUGIN_ROOT/scripts/lib.sh"
+DEFAULT_BRANCH="$(bp_default_branch)"   # rama base real del repo — nunca asumir master
+# Patron del nombre configurable via `git config b-pipeline.branchPattern` (default {type}/{issue}-{slug})
+BRANCH="$(bp_branch_name <type> <issue> <short-slug>)"   # <type> = feat|fix según triage.type
+OUT=$(bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh" "$BRANCH" --headless)
 echo "$OUT"
 LINE=$(echo "$OUT" | grep '^WORKTREE_READY ' || true)
 if [ -z "$LINE" ]; then
@@ -258,7 +263,7 @@ WT_DIR="${LINE#WORKTREE_READY dir=}"; WT_DIR="${WT_DIR%% *}"
 ENV_OUT="$(bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" worktree-env "$WT_DIR")" || {
   echo "ABORT: worktree-env fallo (marker ausente o incompleto) — exit 30" >&2; exit 30; }
 eval "$ENV_OUT"
-export WORKTREE BRANCH PORT
+export WORKTREE BRANCH PORT DEFAULT_BRANCH
 
 # Hard gate: refuse to continue if the worktree isn't fully provisioned.
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-worktree "$WORKTREE" || exit 31
@@ -274,7 +279,7 @@ bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" heartbeat "$WORK
 
 El subcomando escribe `.b7/heartbeat` (formato UTC exacto que parsea b10) y ademas toca `b7.lock` — la staleness del lock es por mtime, un run vivo lo mantiene fresco. **Puntos de latido** (lista canonica): al sembrar aca, al inicio de cada iteracion del paso 4, al inicio del paso 5.0, al completar cada pantalla en 5.2, y antes de invocar b6 en 8c.
 
-**Verificación previa a cualquier escritura:** después de `verify-worktree OK`, toda invocación de Edit/Write/Bash debe operar sobre `$WORKTREE`. Si en algún momento `pwd` reporta el repo principal, detenerse — la siguiente escritura sería un parche en master.
+**Verificación previa a cualquier escritura:** después de `verify-worktree OK`, toda invocación de Edit/Write/Bash debe operar sobre `$WORKTREE`. Si en algún momento `pwd` reporta el repo principal, detenerse — la siguiente escritura sería un parche en la rama default.
 
 ### 2b. Comentario inicial en el issue — PASO OBLIGATORIO #2
 
@@ -326,7 +331,9 @@ Esto es entrada para b2 y para la revisión visual posterior. **Texto plano, no 
 Después de cada pasada del sub-agente, ejecutar el bloque de validación. **Skip-by-scope** primero:
 
 ```bash
-changed=$(git -C "$WORKTREE" diff --name-only "$(git -C "$WORKTREE" merge-base HEAD master)")
+. "$PLUGIN_ROOT/scripts/lib.sh"
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-$(bp_default_branch)}"
+changed=$(git -C "$WORKTREE" diff --name-only "$(git -C "$WORKTREE" merge-base HEAD "$DEFAULT_BRANCH")")
 echo "$changed" | grep -qE '\.(ts|svelte|js)$' && RUN_CHECK=1 || RUN_CHECK=0
 echo "$changed" | grep -qE '\.(test|spec)\.' && RUN_TEST=1 || RUN_TEST=0
 echo "$changed" | grep -qE '\.(ts|svelte|js|css)$' && RUN_LINT=1 || RUN_LINT=0
@@ -352,7 +359,7 @@ Si alguno falla:
 Parar el loop cuando todos los comandos habilitados estén verdes en una pasada final completa, OR cuando se trip un hard stop. La pasada final completa es `verify.sh` de b2 (corre TODOS los gates: branch guard, check:machine, format, grep anti-React scoped al diff, test:unit condicional y browser-gate) — el skip-by-scope de arriba NO se toca: sigue gobernando las iteraciones y alimentando iter-logs/error-hash:
 
 ```bash
-# cwd DEBE ser el worktree — corrido desde el repo principal el gate evalua master y da falsos exit 3
+# cwd DEBE ser el worktree — corrido desde el repo principal el gate evalua la rama default y da falsos exit 3
 (cd "$WORKTREE" && bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh")
 # exit 0 + VERIFY_RESULT ... = habilitado para el paso 6 (commit); exit 3-6 = volver al loop
 ```
@@ -385,12 +392,12 @@ Si `triage.screens[]` no está vacío y no se pasó `--no-screens`:
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server start "$WORKTREE"
 # Gate DURO: no basta con que algo responda en el puerto — tiene que ser ESTE
 # worktree. verify-port compara el cwd del proceso listener con $WORKTREE
-# (exit 40 = nadie escucha, exit 41 = lo sirve otro checkout, p.ej. master).
+# (exit 40 = nadie escucha, exit 41 = lo sirve otro checkout, p.ej. la rama default).
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "$PORT" "$WORKTREE" \
   || { echo "WARN: verify-port fallo (:${PORT} no sirve el worktree) — screens se omiten con nota"; }
 ```
 
-Si `verify-port` sale non-zero (nadie escucha, o el puerto lo sirve otro cwd que no es el worktree), omitir el review visual con una nota explícita en el run-report (no abortar el run completo) y saltar a 5.9. **No revisar pantallas contra un server que no sea el del worktree** — ese fue el incidente que este gate previene (screen-review contra master).
+Si `verify-port` sale non-zero (nadie escucha, o el puerto lo sirve otro cwd que no es el worktree), omitir el review visual con una nota explícita en el run-report (no abortar el run completo) y saltar a 5.9. **No revisar pantallas contra un server que no sea el del worktree** — ese fue el incidente que este gate previene (screen-review contra la rama default).
 
 #### 5.1 Auth: sesión scriptada (preferido) con fallback al Chrome real
 
@@ -507,9 +514,11 @@ Estado final esperado del issue: label `in-review`, comentario apuntando al PR, 
 **Contraste de impacto (señal, NO gate):** antes de invocar b6, contrastar el diff real contra `impact_files` (state.json) + `files_likely` (triage.json). Archivos fuera del set esperado indican scope-growth no declarado:
 
 ```bash
-python3 - "$WORKTREE" <<'PY'
+. "$PLUGIN_ROOT/scripts/lib.sh"
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-$(bp_default_branch)}"
+python3 - "$WORKTREE" "$DEFAULT_BRANCH" <<'PY'
 import json, os, subprocess, sys
-wt = sys.argv[1]
+wt, default_branch = sys.argv[1:3]
 def load(p, d):
     try: return json.load(open(os.path.join(wt, p)))
     except Exception: return d
@@ -517,7 +526,7 @@ state, triage = load(".b7/state.json", {}), load(".b7/triage.json", {})
 raw = state.get("impact_files", "")
 expected = {f for f in raw.replace(",", " ").split() if f and f not in ("[]", "-")}
 expected |= set(triage.get("files_likely", []))
-base = subprocess.run(["git","-C",wt,"merge-base","HEAD","master"], capture_output=True, text=True).stdout.strip()
+base = subprocess.run(["git","-C",wt,"merge-base","HEAD",default_branch], capture_output=True, text=True).stdout.strip()
 diff = subprocess.run(["git","-C",wt,"diff","--name-only",base], capture_output=True, text=True).stdout.split("\n")
 outside = [f for f in diff if f and f not in expected and not f.startswith(".b7/") and f != "CHANGELOG.md"]
 print("IMPACT_DRIFT: " + (" ".join(outside) if outside else "none"))

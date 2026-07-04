@@ -3,8 +3,8 @@
 # de forma MECANICA (lo que el juicio LLM no necesita mirar). Corre sobre el diff.
 #
 # Uso: bash check-slice.sh [base-ref]
-#   base-ref  rama/commit base a comparar (default: main o master, el que exista).
-#             Compara el working tree contra el merge-base, asi cubre tanto cambios
+#   base-ref  rama/commit base a comparar (default: rama default del repo via
+#             bp_default_branch). Compara el working tree contra el merge-base, asi cubre tanto cambios
 #             ya commiteados en la rama como cambios sin commitear (pre-commit b2).
 #
 # Checklist mecanico (slice-spec.md, checklist de conformidad):
@@ -20,14 +20,15 @@
 # Ultima linea: SLICE_CHECK ok | SLICE_CHECK violations=<n>
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/../../..}/scripts/lib.sh"
+
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "ERROR: no es un repo git" >&2; exit 2; }
 cd "$REPO_ROOT"
 
 BASE="${1:-}"
 if [ -z "$BASE" ]; then
-  for b in main master; do
-    if git show-ref -q --verify "refs/heads/$b"; then BASE="$b"; break; fi
-  done
+  BASE="$(bp_default_branch 2>/dev/null || true)"
 fi
 [ -z "$BASE" ] && { echo "ERROR: no se pudo determinar base-ref (probar: check-slice.sh <base>)" >&2; exit 2; }
 

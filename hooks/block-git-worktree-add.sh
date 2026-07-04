@@ -53,7 +53,7 @@ if printf '%s' "$cmd" | grep -Eq '(^|[^[:alnum:]_/-])git[[:space:]]+worktree[[:s
 BLOCKED: direct \`git worktree add\` is not allowed.
 
 Use b1-add-worktree instead:
-  bash "${PLUGIN_ROOT}/skills/b1-add-worktree/scripts/setup-worktree.sh" "<branch>" master --headless
+  bash "${PLUGIN_ROOT}/skills/b1-add-worktree/scripts/setup-worktree.sh" "<branch>" --headless
 
 Reason: direct \`git worktree add\` creates a worktree without:
   - .env* symlinks (no secrets, dev server cannot connect to DB)

@@ -44,6 +44,12 @@ B7_BOT_LABEL="${B7_BOT_LABEL:-auto-pr-bot}"
 # Portable: no asume instalacion en ~/.claude/skills.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+. "$PLUGIN_ROOT/scripts/lib.sh"
+
+# Rama base real del repo via bp_default_branch (nunca asumir master).
+# Vacio si el cwd no resuelve (p.ej. fuera de un repo); los subcomandos que la
+# necesitan re-resuelven o fallan con mensaje claro.
+DEFAULT_BRANCH="$(bp_default_branch 2>/dev/null || true)"
 
 # State dir is per-project. Caller passes CLAUDE_PROJECT_DIR via env (Claude Code sets this);
 # fall back to a hash of the current working directory's repo root for direct shell invocations.
@@ -180,11 +186,16 @@ cmd_check_budget() {
   fi
 
   # Count files changed (vs the worktree's branch base) and lines added/removed.
-  # We use the merge-base with master so partial work isn't double-counted across iterations.
+  # We use the merge-base with the default branch so partial work isn't double-counted across iterations.
   local base files added removed
-  base="$(cd "$worktree" && git merge-base HEAD master 2>/dev/null || echo)"
+  [ -n "$DEFAULT_BRANCH" ] || DEFAULT_BRANCH="$(cd "$worktree" && bp_default_branch 2>/dev/null || true)"
+  if [ -z "$DEFAULT_BRANCH" ]; then
+    echo "check-budget: cannot resolve default branch (bp_default_branch)" >&2
+    return 3
+  fi
+  base="$(cd "$worktree" && git merge-base HEAD "$DEFAULT_BRANCH" 2>/dev/null || echo)"
   if [ -z "$base" ]; then
-    echo "check-budget: cannot find merge-base with master" >&2
+    echo "check-budget: cannot find merge-base with $DEFAULT_BRANCH" >&2
     return 3
   fi
 
@@ -403,9 +414,9 @@ cmd_init_state() {
     url="$(python3 -c "import json; print(json.load(open('$outdir/issue.json')).get('url',''))" 2>/dev/null || echo)"
   fi
 
-  python3 - "$out" "$issue" "$title" "$url" <<'PY'
+  python3 - "$out" "$issue" "$title" "$url" "${DEFAULT_BRANCH:-main}" <<'PY'
 import json, sys, datetime
-out, issue, title, url = sys.argv[1:5]
+out, issue, title, url, default_branch = sys.argv[1:6]
 state = {
   "issue_number": issue,
   "issue_title": title,
@@ -441,7 +452,7 @@ state = {
   "pr_number": "—",
   "pr_url": "—",
   "abort_reason": "",
-  "changelog_link": "[CHANGELOG.md](../blob/master/CHANGELOG.md)",
+  "changelog_link": f"[CHANGELOG.md](../blob/{default_branch}/CHANGELOG.md)",
   "changelog_line_link": "—",
   "issue_comment_url": "—",
   "pr_body_inlined_or_link": "—",
@@ -555,7 +566,7 @@ cmd_verify_worktree() {
     cat >&2 <<HINT
 verify-worktree: this worktree was NOT created by b1-add-worktree/setup-worktree.sh.
 Recreate it with:
-  bash $PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh "<branch>" master --headless
+  bash $PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh "<branch>" --headless
 Then re-run b7. Do not patch the broken worktree in place.
 HINT
     return 31
@@ -603,7 +614,7 @@ PY
 cmd_verify_port() {
   # verify-port <port> <worktree-dir>
   # Confirma que quien escucha en <port> es un proceso cuyo cwd ES el worktree.
-  # Evita revisar/servir master cuando otro dev server viejo ocupa el puerto
+  # Evita revisar/servir la rama default cuando otro dev server viejo ocupa el puerto
   # (dev.sh sin --strictPort derivaba a PORT+1 en silencio). Ver issue #6.
   local port="${1:-}" dir="${2:-}"
   if [ -z "$port" ] || [ -z "$dir" ]; then

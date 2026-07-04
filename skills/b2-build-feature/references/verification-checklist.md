@@ -12,11 +12,11 @@ cuando verify.sh reporta `browser=required`.
 
 ## Browser Test
 
-### Start dev server (serve THIS checkout, not master)
+### Start dev server (serve THIS checkout, no la rama default)
 
 Serví siempre desde el checkout actual — si estás en un worktree, usá su `./dev.sh`
 (puerto propio del worktree), no `pnpm dev` (hardcodeado al puerto del repo principal).
-Un dev server viejo en el puerto puede estar sirviendo master: no confíes en que "algo
+Un dev server viejo en el puerto puede estar sirviendo la rama default: no confíes en que "algo
 responde", verificá que el listener sea ESTE checkout con `verify-port`:
 
 ```bash
@@ -24,7 +24,7 @@ responde", verificá que el listener sea ESTE checkout con `verify-port`:
 nohup ./dev.sh > dev-server.log 2>&1 &   # levanta vite --strictPort en el puerto del worktree
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "<port>" "$(pwd)"
-# exit 0 → B7_PORT_OK; exit 40 nadie escucha; exit 41 lo sirve otro cwd (p.ej. master)
+# exit 0 → B7_PORT_OK; exit 40 nadie escucha; exit 41 lo sirve otro cwd (p.ej. la rama default)
 ```
 
 ### Navigate to the page

@@ -12,6 +12,11 @@
 
 set -euo pipefail
 
+# El hook se ejecuta via `bash <ruta-en-el-plugin>` (wrapper generado por
+# setup-worktree.sh), asi que BASH_SOURCE apunta al plugin y lib.sh resuelve.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/../../..}/scripts/lib.sh"
+
 BUDGET_FILES="${B7_BUDGET_FILES:-25}"
 
 DENY_REGEX='^(package\.json|pnpm-lock\.yaml|package-lock\.json|yarn\.lock|\.env|\.env\..*|.*\.pem|.*\.key|secrets/.*|svelte\.config\.js|vite\.config\..*|infra/.*|\.github/workflows/.*|scripts/.*\.sh)$'
@@ -41,12 +46,13 @@ if [ -n "$bad" ]; then
 fi
 
 # File-count cap across the whole branch (vs the base branch), not just this commit.
-# Try master then main so the cap also applies in main-default repos.
+# Rama base resuelta via bp_default_branch (origin/HEAD -> gh -> main|master local);
+# si no resuelve, se salta el cap (mismo comportamiento que sin merge-base).
 base=""
-for b in master main; do
-  base="$(git merge-base HEAD "$b" 2>/dev/null || true)"
-  [ -n "$base" ] && break
-done
+DEFAULT_BRANCH="$(bp_default_branch 2>/dev/null || true)"
+if [ -n "$DEFAULT_BRANCH" ]; then
+  base="$(git merge-base HEAD "$DEFAULT_BRANCH" 2>/dev/null || true)"
+fi
 if [ -n "$base" ]; then
   count="$(git diff --name-only "$base" -- | wc -l | tr -d ' ')"
   if [ "$count" -gt "$BUDGET_FILES" ]; then

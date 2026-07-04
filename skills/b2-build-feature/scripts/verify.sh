@@ -3,10 +3,11 @@
 # Corre en el repo del feature (app SvelteKit), sobre el diff vs merge-base.
 #
 # Uso: bash verify.sh [base-ref]
-#   base-ref  rama/commit base a comparar (default: main o master, el que exista).
+#   base-ref  rama/commit base a comparar (default: rama default del repo via
+#             bp_default_branch).
 #
 # Gates en orden (para en el primero que falla):
-#   1. branch guard: rama actual master/main            -> exit 3
+#   1. branch guard: rama actual == rama default (o main/master) -> exit 3
 #   2. pnpm check:machine                               -> exit 4
 #   3. pnpm format (auto-fix, no-gate)
 #   4. grep anti-React SOLO en archivos cambiados       -> exit 5 (con file:line)
@@ -28,24 +29,25 @@ result() {
   echo "VERIFY_RESULT branch=$BRANCH_S check=$CHECK_S react=$REACT_S test=$TEST_S browser=$BROWSER_S svelte_files=$SVELTE_CSV"
 }
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/../../..}/scripts/lib.sh"
+
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "ERROR: no es un repo git" >&2; exit 2; }
 cd "$REPO_ROOT"
 
-# --- Gate 1: branch guard ---
+DEFAULT_BRANCH="$(bp_default_branch 2>/dev/null || true)"
+
+# --- Gate 1: branch guard (rama default + main/master como superset conservador) ---
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-if [ "$BRANCH" = "master" ] || [ "$BRANCH" = "main" ]; then
-  echo "FAIL: rama actual es '$BRANCH' — crear branch primero (git checkout -b feat/<feature>)" >&2
+if { [ -n "$DEFAULT_BRANCH" ] && [ "$BRANCH" = "$DEFAULT_BRANCH" ]; } \
+  || [ "$BRANCH" = "master" ] || [ "$BRANCH" = "main" ]; then
+  echo "FAIL: rama actual es '$BRANCH' — crear branch primero, p.ej. git checkout -b feat/<issue>-<slug> (patron configurable via git config b-pipeline.branchPattern; ver bp_branch_name en scripts/lib.sh)" >&2
   BRANCH_S=fail; result; exit 3
 fi
 BRANCH_S=ok
 
 # --- Scope: archivos cambiados vs merge-base + untracked (mismo criterio que check-slice.sh) ---
-BASE="${1:-}"
-if [ -z "$BASE" ]; then
-  for b in main master; do
-    if git show-ref -q --verify "refs/heads/$b"; then BASE="$b"; break; fi
-  done
-fi
+BASE="${1:-$DEFAULT_BRANCH}"
 [ -n "$BASE" ] || { echo "ERROR: no se pudo determinar base-ref (probar: verify.sh <base>)" >&2; exit 2; }
 MB="$(git merge-base "$BASE" HEAD 2>/dev/null)" || { echo "ERROR: base-ref invalido: $BASE" >&2; exit 2; }
 CHANGED="$(git diff --name-only "$MB"; git ls-files --others --exclude-standard)"

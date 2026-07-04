@@ -10,7 +10,7 @@
     {
       "name": "b-pipeline",
       "description": "Pipeline conversacion -> issue -> PR -> merge: genesis de issues (b0), triage, worktrees, build, commit, PR, review, orquestadores y cierre con gate humano.",
-      "version": "1.4.1",
+      "version": "1.5.0",
       "source": "./"
     }
   ]

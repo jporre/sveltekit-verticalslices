@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.5.0] — 2026-07-04
 
 ### feat — pipeline sin friccion: auto-merge por epic, screen-review observable, batch de aprobaciones, builds paralelos opt-in
 

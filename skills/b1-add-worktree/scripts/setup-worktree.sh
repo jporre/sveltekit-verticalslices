@@ -110,8 +110,13 @@ shopt -u nullglob
 
 # Pick a free dev port so this worktree can run alongside the parent and other worktrees.
 # Starts at 6026 (parent uses 6025) and walks up until lsof reports nothing listening.
+# Puertos ya asignados a worktrees hermanos (su dev server puede estar apagado ahora).
+# El 2>/dev/null + || true cubren glob sin matches (nullglob no esta activo aca y
+# pipefail haria morir el script en el primer worktree, que no tiene hermanos).
+ASSIGNED=" $(sed -n 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
+  "${REPO_PARENT}"/worktrees/*/.b7/worktree-ready.json 2>/dev/null | tr '\n' ' ' || true) "
 PORT=6026
-while lsof -iTCP:"$PORT" -sTCP:LISTEN -P -n >/dev/null 2>&1; do
+while lsof -iTCP:"$PORT" -sTCP:LISTEN -P -n >/dev/null 2>&1 || [[ "$ASSIGNED" == *" ${PORT} "* ]]; do
   PORT=$((PORT + 1))
 done
 echo "Selected dev port: $PORT"

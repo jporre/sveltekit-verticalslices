@@ -52,6 +52,7 @@ Lee el output completo. El script entrega:
 - **PR_CHECKS**: estado de los checks de CI (`gh pr checks`). Alimenta el punto 6 del Area 1.
 - **CLASSIFY_FILES**: archivos clasificados por tipo (LOAD_SERVER, REMOTE_FUNCTION, API_ENDPOINT, SVELTE_COMPONENT, etc.)
 - **FIX_REGRESSION_GATE**: `FIX_WITHOUT_TEST=true|false` — true cuando el PR es `fix/*` y el diff no toca ningun archivo `.(test|spec).` (gate de regresion; ver Area 2)
+- **SCREEN_EVIDENCE**: `UI_TOUCHED=true|false` + `BOT_PR=true|false` + `EVIDENCE=screenshots|skipped|none` (con skip la linea trae `EVIDENCE=skipped reason=<r>`; reason ausente = marker viejo) — gate de evidencia visual para PRs de bot que tocan UI (ver Area 2)
 - **CHANGED_SYMBOLS**: simbolos exportados del diff (lineas `NEW:` / `MODIFIED:` / `REMOVED:`, best-effort) + linea `CODEGRAPH: ok|absent` (probe informativo). Alimenta el punto 6 del Area 2 y el paso 2 del Area 5.
 
 ## Paso 2: Leer CLAUDE.md del proyecto
@@ -135,6 +136,29 @@ justificacion explicita de por que no aplica:
 ```
 
 Con `FIX_WITHOUT_TEST=false` (o PR no-`fix/*`) no hay finding por este gate.
+
+**Gate de evidencia visual (mecanico, del contexto):** la seccion `SCREEN_EVIDENCE`
+trae `UI_TOUCHED`, `BOT_PR` y `EVIDENCE`. El gate aplica SOLO con `BOT_PR=true` (label
+`auto-pr-bot`) Y `UI_TOUCHED=true`. A PRs humanos (`BOT_PR=false`) el gate NO aplica;
+con `UI_TOUCHED=false` tampoco hay finding.
+
+Con el gate activo y `EVIDENCE=none`, emitir este BLOCKER:
+
+```
+- **BLOCKER**: <PR> PR de bot toca UI sin evidencia visual ni skip declarado — correr b7 paso 5 o declarar skip valido
+```
+
+Con el gate activo y `EVIDENCE=skipped`, emitir este WARNING (skip declarado no bloquea)
+citando el reason de la linea (`EVIDENCE=skipped reason=<r>`); si la linea no trae reason
+(marker viejo), omitir el parentesis:
+
+```
+- **WARNING**: <PR> screen-review omitido (<r>) — evaluar si el PR necesita evidencia visual antes del merge
+```
+
+Con `EVIDENCE=screenshots` no hay finding por este gate. El BLOCKER se resuelve dentro
+del loop de b7: re-correr el paso 5 (screen-review + attach.sh) o postear el marker de
+skip valido en el PR — nunca requiere intervencion fuera del loop.
 
 Evalua:
 

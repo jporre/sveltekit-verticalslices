@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### feat — pipeline sin friccion: auto-merge por epic, screen-review observable, batch de aprobaciones, builds paralelos opt-in
+
+Review de friccion de b10-ship (workflow 31 agentes: 6 lectores, 4 analistas, 21 verificadores adversariales; 20 hallazgos aplicados). Causa raiz de la lentitud: gate humano por CADA PR + backpressure cap 3 que se llenaba porque nadie mergea + b7.lock global. Chrome se saltaba porque cada falla de infra degradaba a "nota" sin costo observable.
+
+- **Auto-merge por epic (b9 canal 3)**: `--auto-merge --epic=<N>` mergea sub-issue PRs sin gate humano por PR cuando TODO cumple: label `epic-auto-merge` en el epic (actor humano, removible en cualquier momento), pertenencia de TODOS los issues del PR verificada por b9 via endpoint parent (ISSUES vacio descalifica), nunca el closing_slice, b6 `blockers=0` fresco vs ultimo commit (stale re-reviewa `--light`), CI sin FAILURE (PENDING/no-mergeable saltan el PR; FAILURE corta el drenaje), merge siempre serial. El unico gate humano del epic pasa a ser `epic-approved` (final).
+- **Drain automatico de backpressure**: con `epic-auto-merge` vigente, exit 17 drena los closeable del epic via b9 auto-merge y sigue, en vez de parar a esperar labels. Cap dinamico por ola (`B7_MAX_OPEN_PRS` inline, max 8) tras drain exitoso.
+- **Screen-review observable (fin del skip gratis)**: `guardrails.sh screens-check` (exit 8 si falta el JSON de una pantalla sin skip valido; enum cerrado en `SKIPPED.json`) como check del DoD y precondicion del commit; token `screens=` en `B7_DONE`; marker `<!-- b7:screen-review=done|skipped -->` en el PR (b7 y b8); gate `SCREEN_EVIDENCE` en b6 (PR de bot que toca UI sin evidencia ni skip = BLOCKER); dev-server espera `B7_DEV_SERVER_WAIT_SECS=120` (antes ~30s — vite frio nunca llegaba) + 1 reintento ante verify-port 40; env-check avisa (warn) si faltan `B7_SESSION_USER_ID/EMAIL`; fallas de infra en b7-screen-review pasan de `fail` a `warn`+`infra_fail` (no queman iteraciones); lenguaje debil eliminado ("puede saltar", "Chrome real").
+- **Batch de aprobaciones por ola**: UNA AskUserQuestion multiSelect post-triage (complex → label `force-complex-ok`) y UNA al fin de ola (waivers → `regression-waiver-ok`, remueve `needs-human-review`), en vez de N preguntas seriales.
+- **Paralelismo**: reconcile de b10 emite `B10_APPROVED`/`B10_DIRTY` (drain-first rutea desde el snapshot sin pagar N evaluaciones b9); wave-verify (b6 de la ola en paralelo via Workflow); sharding opt-in del lock de b7 (`B7_PARALLEL=1`, shard `b7-issue-<N>.lock` atomico, cap 2, janitor shard-aware) + seccion wave-build en epic-mode; setup-worktree excluye puertos ya asignados a worktrees hermanos (evitaba verify-port 41 → skip del screen-review); b8 lanza sus screen-reviews en el mismo turno (antes seriales).
+
+**Archivos clave**: `skills/b9-close/SKILL.md`, `skills/b10-ship/{SKILL.md,references/epic-mode.md,scripts/run.sh}`, `skills/b7-issue-to-pr/{SKILL.md,scripts/{run,guardrails}.sh}`, `skills/b6-pr-review/{SKILL.md,scripts/pr-context.sh}`, `agents/b7-screen-review.md`, `skills/b8-swarm/SKILL.md`, `skills/b1-add-worktree/scripts/setup-worktree.sh`.
+
+**Riesgos / consideraciones**: el auto-merge degrada deliberadamente el invariante "ningun PR del bot sin ojo humano" a nivel PR — lo compensan el gate SCREEN_EVIDENCE de b6 (sin evidencia visual no hay blockers=0 en PRs de UI), la tabla consolidada de sub-PRs en el reporte de epic-review (obligatoria con auto-merge) y el label removible. `B7_PARALLEL` es opt-in y default off (comportamiento identico sin flag); wave-build exige puertos unicos + shard cableado (ya incluidos). El gate final `epic-approved` y el merge serial quedan intactos.
+
 ### fix — rama base detectada, no hardcodeada (bp_default_branch + bp_branch_name)
 
 El pipeline asumia `master` como rama base en ~18 sitios; en repos con default `main` fallaban `diff-summary.sh` y `check-budget` de b7 (merge-base), `epic-diff.sh` de b10 (rangos `..master`) y el link a CHANGELOG (`blob/master`). Ahora:

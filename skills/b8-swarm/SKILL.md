@@ -24,7 +24,7 @@ Este skill **no** declara `context: fork`. Corre en el contexto principal **a pr
 
 ## Lo que b8 NO hace
 
-- **No paraleliza el build.** Issues relacionadas comparten worktree y archivos: dos builds simultaneos se pisan. Build **secuencial** (`for...of await`), commit por issue; solo el **triage** es paralelo (read-only).
+- **No paraleliza el build.** Issues relacionadas comparten worktree y archivos: dos builds simultaneos se pisan. Build **secuencial** (`for...of await`), commit por issue; solo lo read-only es paralelo: triage y screen-reviews.
 - **No abre un PR por issue.** Un cluster = un PR. Si te encontras abriendo varios PRs, no es b8.
 - **No mergea.** El PR queda draft + b6-review adjunto. Merge + cierre + limpieza = `b9-close`, con ojo humano.
 - **No invoca b7.** Pega los mismos sub-skills (b1/b2/b3/b4/b6) directo; no copies logica de b7.
@@ -98,7 +98,7 @@ El build es secuencial porque las issues relacionadas tocan los mismos archivos;
 Si algun triage trae `screens[]` y no se paso `--no-screens` (y no es `--dry-run`):
 - Juntar todas las `screens[]` de los triages ready, **deduplicar por `route`**.
 - Levantar el dev server del worktree: `bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server start "$WORKTREE"` (espera solo hasta que responda en `$PORT`).
-- Un `Agent(b-pipeline:b7-screen-review)` (agente del plugin) por pantalla unica (`auth-required` → `not-evaluated`, no `fail`).
+- Un `Agent(b-pipeline:b7-screen-review)` (agente del plugin) por pantalla unica, TODOS los Agent calls lanzados en el MISMO turno (paralelo — mismo patron que b7 paso 5.2); `auth-required` → `not-evaluated`, no `fail`. Apagar el dev server solo despues de que todos retornen.
 - Apagar el dev server al terminar: `bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server stop "$WORKTREE"`.
 
 Cluster backend puro (sin screens) → saltar, anotar en el reporte. Un `fail` visual con sesion valida → devolver al build de ese issue.
@@ -108,6 +108,28 @@ Cluster backend puro (sin screens) → saltar, anotar en el reporte. Un `fail` v
 - `scripts/publish-docs.sh` de b7 NO sirve tal cual (es por-issue). Para b8, armar el cuerpo del PR a mano o con un `agent()` de redaccion (haiku): titulo = resumen del cluster; cuerpo con seccion por issue + **una linea `Closes #N` por cada issue ready commiteado**.
 - `b4-pull-request --draft --label auto-pr-bot --body-file <cuerpo>`.
 - El PR cierra **todas** las issues `Closes #` al mergear (GitHub las parsea sin importar el merge method).
+- Con el PR creado, ejecutar los `attach.sh` que dejaron los reviews del paso 5 (igual que b7 en `--wet`): `for s in "$WORKTREE"/.b7/review/*-attach.sh; do [ -f "$s" ] && bash "$s" "$PR_NUMBER"; done`. Postean el comentario con los nombres de los PNG que hace detectable `EVIDENCE=screenshots` en b6.
+
+**Marker de screen-review (OBLIGATORIO, apenas existe el PR y ANTES de la b6-pr-review del paso 8).** El gate SCREEN_EVIDENCE de b6 emite BLOCKER en todo PR `auto-pr-bot` que toca UI sin marker ni evidencia — sin este comentario, TODO PR cluster con UI queda bloqueado. Postear exactamente un marker, formato exacto sin variaciones:
+
+```bash
+pngs=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
+if [ "$pngs" -gt 0 ]; then
+  n=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' | wc -l | tr -d ' ')
+  gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=done screens=${n} -->"
+else
+  gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=skipped reason=<r> -->"
+fi
+```
+
+`done` SOLO con >=1 PNG en `.b7/review/`. Sin PNG, `<r>` sale de lo que paso en el paso 5 — enum cerrado, nada fuera de esto:
+
+| Caso del paso 5 | `<r>` |
+|---|---|
+| se paso `--no-screens` | `no-screens-flag` |
+| cluster backend puro (union de `screens[]` vacia) | `triage-empty` |
+| dev server no levanto en `$PORT` | `no-port` |
+| reviews corrieron pero todos con `infra_fail:true` | `infra-fail` |
 
 ### 7. Labels + sticky por issue — solo en `--wet`
 
@@ -119,6 +141,8 @@ gh issue comment <N> --body "🤖 Incluido en PR #<PR> (cluster: #<otros>). Ver 
 En `--dry-run` se saltan labels y comentarios.
 
 ### 8. UNA b6-pr-review — solo en `--wet`
+
+Precondicion: el marker `b7:screen-review=` del paso 6 ya posteado en el PR — el gate SCREEN_EVIDENCE de b6 lo lee; sin marker ni PNGs adjuntos, blocker deterministico.
 
 `b6-pr-review` con el numero del PR (review del **diff combinado**, no por issue). Adjuntar como comentario. Findings `high|critical` → volver al build del issue culpable (si el budget alcanza) o marcar `needs-human-review`.
 
@@ -217,7 +241,7 @@ Al cerrar (exito o abort), b8 debe haber:
 
 1. Liberado el lock (`b8.lock` borrado).
 2. Escrito `b8-runs/<stamp>.md` con: cola, theme/branch, worktree, outcome por issue, PR URL (o "dry-run").
-3. En `--wet`: dejado **1 PR draft** con `Closes #` por cada issue ready, labels de esos issues en `in-review`, b6-review adjunto.
+3. En `--wet`: dejado **1 PR draft** con `Closes #` por cada issue ready, labels de esos issues en `in-review`, marker `b7:screen-review=` posteado (+ attach.sh ejecutados si hubo PNGs), b6-review adjunto.
 4. En `--dry-run`: dejado el worktree con la rama combinada lista para inspeccion (`git log <rama-default>..HEAD`, `git diff <rama-default>`), sin PR, labels ni comentarios en GitHub.
 5. Si abortó: motivo claro (kill-switch, backpressure, tree sucio, build fallido con `--on-error=abort`).
 

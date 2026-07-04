@@ -10,8 +10,11 @@ set -euo pipefail
 #   acquire-lock              lock atomico b10.lock (stale tras 6h); emite B10_LOCK_TOKEN; exit 21 si otro corre
 #   release-lock [token]      con token: borra solo si coincide (no pisa el lock de otra sesion)
 #   reconcile <issue>         emite B10_PHASE=triage|build|verify|close|done|blocked + contexto
+#                             (phase=close con PR abierto: ademas B10_APPROVED=true|false|stale
+#                             y B10_DIRTY=true|false — solo lectura, rutean el drain-first epic)
 #   needs-info-check <issue>  emite B10_NEEDS_INFO_ANSWERED=true|false|unknown
-#   janitor                   worktrees b7 con heartbeat >2h y sin b7.lock vivo (candidatos a zombie)
+#   janitor                   worktrees b7 con heartbeat >2h y sin lock b7 fresco
+#                             (b7.lock o shard b7-issue-<N>.lock) — candidatos a zombie
 #
 # Exit codes: 0 ok | 2 uso | 12 gh auth | 17 backpressure | 18 tree sucio | 19 env-check | 20 killswitch | 21 lock
 
@@ -125,6 +128,36 @@ b6_marker() {
   [ -n "$v" ] && echo "b6:verdict=$v blockers=$b warnings=$w"
 }
 
+# Snapshot de aprobacion para drain-first (solo phase=close con PR abierto).
+# SOLO LECTURA: rutea, jamas autoriza — b9 re-valida label+staleness antes de
+# mergear y es el UNICO que remueve labels stale.
+close_snapshot() {
+  local pr="$1" wt="$2" ev actor labeled_at last_push
+  ev="$(bp_label_event "$pr" merge-approved || true)"
+  if [ -z "$ev" ]; then
+    echo "B10_APPROVED=false"
+  else
+    actor="${ev%%$'\t'*}"; labeled_at="${ev#*$'\t'}"
+    last_push="$(gh pr view "$pr" --json commits --jq '[.commits[].committedDate] | max' 2>/dev/null || true)"
+    case "$actor" in
+      ""|*"[bot]") echo "B10_APPROVED=false" ;;   # label de bot no es aprobacion
+      *)
+        if [ -n "$last_push" ] && [[ "$labeled_at" > "$last_push" ]]; then
+          echo "B10_APPROVED=true"
+        else
+          echo "B10_APPROVED=stale"   # push posterior al label (o commits ilegibles)
+        fi ;;
+    esac
+  fi
+  # B10_DIRTY se emite SIEMPRE junto a B10_APPROVED: el ruteo del drain exige el
+  # token literal. Sin worktree no hay nada que sincronizar => false.
+  if [ -n "$wt" ] && [ -n "$(git -C "$wt" status --porcelain 2>/dev/null || true)" ]; then
+    echo "B10_DIRTY=true"
+  else
+    echo "B10_DIRTY=false"
+  fi
+}
+
 cmd_needs_info_check() {
   local n="$1" comments marker_created last_answer
   comments="$(gh issue view "$n" --json comments)"
@@ -178,6 +211,7 @@ cmd_reconcile() {
         echo "B10_PHASE=verify"   # review presente pero con blockers: NO saltar a close
       else
         echo "B10_PHASE=close"
+        close_snapshot "$pr" "$wt"
       fi
     else
       echo "B10_B6=absent"
@@ -245,13 +279,20 @@ cmd_reconcile() {
 }
 
 cmd_janitor() {
-  local now wt hb age branch sd b7lock
+  local now wt hb age branch sd f mtime
   now="$(date +%s)"
-  sd="$(state_dir)"; b7lock="$sd/b7.lock"
-  if [ -f "$b7lock" ] && kill -0 "$(cat "$b7lock" 2>/dev/null)" 2>/dev/null; then
-    echo "B10_JANITOR=skip (b7.lock vivo — hay un build corriendo, no barrer)"
-    return 0
-  fi
+  sd="$(state_dir)"
+  # Shard-aware: con B7_PARALLEL=1 un build vivo sostiene b7-issue-<N>.lock, no
+  # b7.lock. Cualquier b7*.lock fresco (mtime, mismo criterio que guardrails b7:
+  # el heartbeat toca SU lock) = build corriendo, no barrer.
+  for f in "$sd"/b7*.lock; do
+    [ -f "$f" ] || continue
+    mtime="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)"
+    if [ $((now - mtime)) -lt "${B7_LOCK_STALE_SECS:-7200}" ]; then
+      echo "B10_JANITOR=skip ($(basename "$f") fresco — hay un build corriendo, no barrer)"
+      return 0
+    fi
+  done
   git worktree list --porcelain | awk '/^worktree /{print substr($0,10)}' | while IFS= read -r wt; do
     [ -f "$wt/.b7/worktree-ready.json" ] || continue
     [ -f "$wt/.b7/heartbeat" ] || continue

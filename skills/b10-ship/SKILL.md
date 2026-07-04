@@ -32,7 +32,9 @@ bash "$B10" preflight        # 20=killswitch, 12=gh auth, 18=tree sucio, 17=back
 bash "$B10" acquire-lock     # 21=otro run activo (stale a las 6h); emite B10_LOCK_TOKEN
 ```
 
-- **exit 17 (backpressure, ≥3 PRs auto-pr-bot abiertos):** NO abortar a secas. Listar los PRs abiertos (`gh pr list --label auto-pr-bot`) y ofrecer drenarlos primero (fase close sobre los que tengan aprobacion — ver "drain-first"). El propio gate de merge humano es lo que destraba.
+- **exit 17 (backpressure, ≥3 PRs auto-pr-bot abiertos):** NO abortar a secas.
+  - **Modo epic con `epic-auto-merge` vigente** (label en el EPIC, actor humano no-bot via `bp_label_event` — re-verificar en CADA corrida, el humano puede removerlo): auto-drenar. Orden: (1) correr `acquire-lock` ANTES de drenar (exit 21 → notificar y parar, JAMAS drenar sin lock); (2) set drenable = PRs `auto-pr-bot` abiertos cuyo issue es sub-issue del epic Y veredicto b6 `blockers=0` — NUNCA PRs fuera del epic, NUNCA `blockers>0`, NUNCA el closing_slice; (3) drenar con `Skill b-pipeline:b9-close "<PR> --auto-merge --epic=<N>"` serial, uno a uno; `mergeable != MERGEABLE` → saltar ese PR (queda para humano) y seguir; algun check de CI en FAILURE o merge rechazado por branch protection → cortar el drenaje COMPLETO y notificar (en desatendido FAILURE nunca es "preguntar"); (4) re-correr `preflight`; si sigue en 17 (PRs foraneos o saltados sostienen el cap) → caer al caso general de abajo. `B7_MAX_OPEN_PRS=3` queda intacto como cota de PRs huerfanos.
+  - **Caso general:** listar los PRs abiertos (`gh pr list --label auto-pr-bot`) y ofrecer drenarlos primero (fase close sobre los que tengan aprobacion — ver "drain-first"). El propio gate de merge humano es lo que destraba.
 - **exit 18 (working tree del repo principal sucio):** reportar los archivos y parar — b7/b8 abortarian igual a mitad de build.
 - **exit 20/21/12/19:** reportar y parar. **Tras exit 21 NO correr release-lock** — el lock es de otra sesion (puede estar legitimamente retenida en un gate humano).
 - Guardar `B10_LOCK_TOKEN` y liberar al terminar con `release-lock <token>` (exito o falla). El token evita borrar el lock de otra sesion.
@@ -65,7 +67,7 @@ Skill b-pipeline:b1-triage-issue "<N> --auto"
 Parsear la ultima linea `TRIAGE_RESULT {...}`. **Fallback si falta:** leer labels del issue (`ready`/`needs-info`/`blocked`/`duplicate` + `simple`/`medium`/`complex`).
 
 - `verdict=ready` y complexity `simple|medium` → fase 3.
-- `verdict=ready` y complexity `complex` → **GATE**: b7 baila con complejidad complex por politica propia. Preguntar via `AskUserQuestion`: "Issue #N es complex — ¿forzar b7 / construir interactivo (b2) / saltar?". Si elige forzar: `Skill b-pipeline:b7-issue-to-pr "<N> --lang=es --force-complex"` (b7 soporta el flag; los budgets siguen aplicando). En headless: comentar en el issue, no tocar labels, parar.
+- `verdict=ready` y complexity `complex` → **GATE**: b7 baila con complejidad complex por politica propia. ANTES de preguntar, consultar el label `force-complex-ok` del issue: `bp_label_event <N> force-complex-ok` con actor humano no-bot Y `labeled_at` POSTERIOR al ultimo comentario de triage (`## Evaluacion de Issue`) = decision "forzar" ya tomada (en modo epic la pone el batch post-triage — ver epic-mode.md) → `Skill b-pipeline:b7-issue-to-pr "<N> --lang=es --force-complex"` sin re-preguntar. Label de bot o anterior al triage → removerlo (stale) y seguir como si no existiera. Sin label valido: preguntar via `AskUserQuestion`: "Issue #N es complex — ¿forzar b7 / construir interactivo (b2) / saltar?". Si elige forzar: `Skill b-pipeline:b7-issue-to-pr "<N> --lang=es --force-complex"` (b7 soporta el flag; los budgets siguen aplicando). En headless sin label valido: comentar en el issue, no tocar labels, parar.
 - `verdict=needs-info|blocked|duplicate|closed` → las preguntas/razones ya quedaron en el issue (las posteo b1). Notificar (PushNotification si esta disponible) y parar. Reanudacion: cuando el reporter responda, el proximo re-run detecta el comentario nuevo (`B10_NEEDS_INFO_ANSWERED=true`) y re-triagea solo.
 
 ### 3. Build
@@ -74,7 +76,7 @@ Parsear la ultima linea `TRIAGE_RESULT {...}`. **Fallback si falta:** leer label
 Skill b-pipeline:b7-issue-to-pr "<N> --lang=es"
 ```
 
-Parsear la ultima linea `B7_DONE issue=<N> pr=<url|none> status=<s>`. b7 puede anexar un token opcional `lane=<S|M|L>` (carril del run; ver b7 paso 1b) — es informativo y el parser tolerante ya lo cubre (tokens `k=v` desconocidos se ignoran). No es obligatorio ni cambia el routing de esta fase. **Fallback:** `bash "$B10" reconcile <N>` — si aparece `B10_PR`, el build termino.
+Parsear la ultima linea `B7_DONE issue=<N> pr=<url|none> status=<s>`. b7 puede anexar tokens opcionales: `lane=<S|M|L>` (carril del run; ver b7 paso 1b) y `screens=<ok|skipped-<r>|fail|none>` (resultado del screen review; `none` = triage sin screens). Son informativos y el parser tolerante ya los cubre (tokens `k=v` desconocidos se ignoran) — no cambian el routing de esta fase, pero `screens` va al reporte final del run. **Fallback:** `bash "$B10" reconcile <N>` — si aparece `B10_PR`, el build termino.
 
 - `status=ok` → fase 4.
 - `status=needs-human-review` → label ya puesto por b7; notificar y parar (worktree intacto para correccion humana).
@@ -123,11 +125,11 @@ B10_DONE issue=<N> phase_final=<done|stopped-at-*> pr=<url|none>
 
 ## Modo epic (`--epic=<N>`)
 
-Leer `references/epic-mode.md` ANTES de despachar — loop principal, paralelismo, triage paralelo de ola y gate de epic-review viven ahi.
+Leer `references/epic-mode.md` ANTES de despachar — loop principal, drain-first con snapshot, paralelismo (triage/verify/wave-build), batch de aprobaciones por ola, cap dinamico de backpressure y gate de epic-review viven ahi.
 
 ## Runs zombie
 
-`reconcile` emite `B10_ZOMBIE=true` si el heartbeat del worktree tiene >2h. Tambien: `bash "$B10" janitor` lista todos (y se salta el barrido si hay un `b7.lock` con proceso vivo — un build corriendo NO es zombie aunque su heartbeat se atrase en fases largas como screen-review esperando login). **Nunca barrer con un build potencialmente vivo**: si hay duda (laptop suspendida, sesion colgada), preguntar al usuario antes del sweep. Accion del sweep: commit de lo que haya (`Skill b-pipeline:b3-git-commit`), push de la rama, label `pipeline-failed` + comentario diagnostico en el issue (fase, worktree, ultimo error de `.b7/iter-*.tail`), y recien ahi decidir re-run o escalar.
+`reconcile` emite `B10_ZOMBIE=true` si el heartbeat del worktree tiene >2h. Tambien: `bash "$B10" janitor` lista todos (y se salta el barrido si hay CUALQUIER lock b7 fresco en el state dir — `b7.lock` o shard `b7-issue-<N>.lock` con `B7_PARALLEL=1`; un build corriendo NO es zombie aunque su heartbeat se atrase en fases largas como screen-review esperando login). **Nunca barrer con un build potencialmente vivo**: si hay duda (laptop suspendida, sesion colgada), preguntar al usuario antes del sweep. Accion del sweep: commit de lo que haya (`Skill b-pipeline:b3-git-commit`), push de la rama, label `pipeline-failed` + comentario diagnostico en el issue (fase, worktree, ultimo error de `.b7/iter-*.tail`), y recien ahi decidir re-run o escalar.
 
 ## Reglas
 

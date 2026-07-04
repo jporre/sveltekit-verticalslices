@@ -23,7 +23,7 @@ Llegan en el prompt de este Agent call, como pares `clave=valor`:
 | `criteria_file` | `.b7/screens/BandejaTareasPage.md` | si |
 | `out_dir` | `.b7/review` | si |
 | `states` | `golden,empty,error` | no (default `golden`) |
-| `worktree` | `/Users/x/worktrees/6-foo` | no — si viene, el pre-flight gatea con `verify-port` (server debe servir ESE worktree, no la rama default); si falta, cae a `curl` (modo standalone) |
+| `worktree` | `/Users/x/worktrees/6-foo` | no — si viene, el pre-flight gatea con `verify-port` (server debe servir ESE worktree, no la rama default) y su basename entra al nombre de `SESSION`; si falta, cae a `curl` (modo standalone) |
 | `auth_cookie` | `auth-session=QZHi...` | no — si viene, se setea via `agent-browser cookies set` antes de navegar (la genera b7 con `mint-dev-session.sh`); si falta, las rutas protegidas terminan `auth-required` |
 
 ## Output (contrato con b7)
@@ -48,9 +48,12 @@ Crear en `<out_dir>/`:
       {"label": "empty",  "path": ".b7/review/BandejaTareasPage-empty.png"}
     ],
     "console_errors": ["..."],
+    "infra_fail": false,
     "duration_ms": 12340
   }
   ```
+
+  `infra_fail` es un campo **aditivo** (el enum `pass|warn|fail` de `verdict` no cambia): `true` SOLO cuando el review no pudo correr por falla de infraestructura pura (agent-browser ausente, verify-port 40/41, server sin respuesta, agent-browser colgado). Siempre acompana a `verdict: "warn"` con todos los criterios `not-evaluated`. Omitirlo o dejarlo `false` en reviews que si corrieron. b7 lo usa para NO quemar iteraciones del loop de implementacion en problemas que no son de codigo.
 - Las PNG correspondientes: `<out_dir>/<Name>-<estado>.png`.
 - `<Name>-attach.sh` — script ejecutable que comenta los nombres de los PNG en el PR. Lo llama `b7` solo en modo `--wet`.
 
@@ -58,16 +61,16 @@ Crear en `<out_dir>/`:
 
 ### 1. Pre-flight rapido
 
-- `command -v agent-browser >/dev/null` — si no existe el CLI, abortar con `verdict: fail` y `findings: [{severity:error, message:"agent-browser CLI no disponible"}]`.
-- Definir la sesion aislada: `SESSION="b7-<screen>"`.
+- `command -v agent-browser >/dev/null` — si no existe el CLI, abortar con `verdict: warn`, `"infra_fail": true`, todos los criterios `not-evaluated` y `findings: [{severity:error, message:"agent-browser CLI no disponible"}]` (falla de infra, no del feature).
+- Definir la sesion aislada UNA sola vez aca y usarla identica en TODOS los comandos, incluido el `close` del paso 6: `SESSION="b7-$(basename <worktree>)-<screen>"`. Si NO vino `worktree` (modo standalone), fallback `SESSION="b7-<screen>"`. El basename del worktree evita que dos runs paralelos con pantallas homonimas (ej. `Dashboard`) compartan sesion y se pisen cookie/estado.
 - El dev server del worktree lo levanta **b7** (paso 5.0) en `$PORT`. Verificar que responde y que sirve el checkout correcto:
   - **Si vino `worktree`** (invocado por b7): gatear con `verify-port` — confirma que el proceso que escucha en `<port>` tiene su cwd EN ese worktree, no en el checkout de la rama default. Esto previene el incidente de revisar pantallas contra la rama default cuando un dev server viejo ocupa el puerto:
     ```bash
     PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
     bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "<port>" "<worktree>"
     ```
-    Exit 40 (nadie escucha) o 41 (lo sirve otro cwd) → abortar con `verdict: fail` y `findings: [{severity:error, message:"verify-port fallo: :<port> no sirve el worktree (b7 paso 5.0 lo levanto? dev server viejo en el puerto?)"}]`.
-  - **Si NO vino `worktree`** (modo standalone): `curl -fsS http://localhost:<port>/ >/dev/null` (3 reintentos, 2s entre c/u). Si no responde, abortar con `verdict: fail` y `findings: [{severity:error, message:"dev server no responde en port X"}]`.
+    Exit 40 (nadie escucha) o 41 (lo sirve otro cwd) → abortar con `verdict: warn`, `"infra_fail": true`, criterios `not-evaluated` y `findings: [{severity:error, message:"verify-port fallo: :<port> no sirve el worktree (b7 paso 5.0 lo levanto? dev server viejo en el puerto?)"}]`. NUNCA evaluar contra un server que no sea el del worktree — solo cambia el verdict reportado, no el gate.
+  - **Si NO vino `worktree`** (modo standalone): `curl -fsS http://localhost:<port>/ >/dev/null` (3 reintentos, 2s entre c/u). Si no responde, abortar con `verdict: warn`, `"infra_fail": true`, criterios `not-evaluated` y `findings: [{severity:error, message:"dev server no responde en port X"}]`.
 - Crear `<out_dir>` si no existe.
 - Leer `<criteria_file>` (markdown plano del triage). Extraer los `acceptance_criteria_visual` como lista checkable.
 
@@ -133,11 +136,11 @@ Para cada `criterion` del archivo: marcar `passed` true/false comparando contra 
 
 Reglas de veredicto:
 
-- `fail`: ≥1 criterio no cumplido **con sesion valida** O console_errors con severity `error`
-- `warn`: criterios cumplidos pero con observaciones (rendimiento, accesibilidad, console warnings), **o** `auth-required` (sin cookie valida → criterios `not-evaluated`)
+- `fail`: RESERVADO a ≥1 criterio no cumplido **con sesion valida** O console_errors con severity `error`. NUNCA por falla de infra.
+- `warn`: criterios cumplidos pero con observaciones (rendimiento, accesibilidad, console warnings), **o** `auth-required` (sin cookie valida → criterios `not-evaluated`), **o** falla de infra pura (con `"infra_fail": true` y criterios `not-evaluated`)
 - `pass`: todos los criterios verdes, sin findings criticos
 
-`not-evaluated` NO es `fail`: una pantalla que no se pudo cargar por falta de sesion no significa que el feature este roto. b7 lo trata como nota, no como bloqueante.
+`not-evaluated` NO es `fail`: una pantalla que no se pudo cargar por falta de sesion no significa que el feature este roto. b7 lo trata como nota, no como bloqueante. Un `fail` de infra quemaria una iteracion del loop de implementacion de b7 en un problema que no es de codigo — por eso infra emite `warn` + `infra_fail`.
 
 ### 5. Generar attach.sh
 
@@ -177,8 +180,8 @@ Cerrar SOLO esta sesion: `agent-browser close --session "$SESSION"`. Nunca `clos
 
 ## Manejo de errores
 
-- Si `agent-browser` falla 2-3 veces consecutivas en una accion, abortar con `verdict: fail` y `findings: [{severity:error, message:"agent-browser no responde"}]`. No reintentar indefinidamente.
-- Si la ruta da 404/401/403, capturar la pagina de error como evidencia y marcar `verdict: fail` con findings explicativos.
+- Si `agent-browser` falla 2-3 veces consecutivas en una accion, abortar con `verdict: warn`, `"infra_fail": true`, criterios `not-evaluated` y `findings: [{severity:error, message:"agent-browser no responde"}]`. No reintentar indefinidamente.
+- Si la ruta da 404/401/403 **con sesion valida**, capturar la pagina de error como evidencia y marcar `verdict: fail` con findings explicativos — puede ser bug real del feature, NO es infra.
 - Si una de las N capturas falla pero las otras OK, `verdict: warn` con la falla en findings.
 
 ## Performance / tokens

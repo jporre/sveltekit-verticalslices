@@ -13,13 +13,15 @@ $ARGUMENTS
 
 Acepta: numero de issue (`121`), numero de PR (`#170` o `pr 170`), nombre de branch (`feat/121-...`), o nada (autodetecta desde el worktree actual). El primer token decide el modo de resolucion.
 
+Flags (despues del target): `--auto-merge --epic=<N>` — siempre en par; activan el canal auto-merge de PASO 4 (drains desatendidos de epic, los pasa b10). `--auto-merge` sin `--epic=<N>` es invalido: abortar de inmediato con `ABORT: --auto-merge requiere --epic=<N>`. Los gates de PASO 1 y PASO 2 corren igual con o sin flags.
+
 ---
 
 # b9-close — mergear PR + cerrar issue + limpiar worktree
 
 Cierre del flujo b. El feature ya fue implementado por `b7-issue-to-pr` y revisado por `b6-pr-review`. Este skill **no** reimplementa ni hace review profundo: **gatea** sobre que la revision paso, mergea con **aprobacion humana**, y deja el arbol limpio (PR cerrado, issue cerrado, worktree y branches borrados).
 
-**Filosofia:** ningun PR del bot va a la rama default sin ojo humano.
+**Filosofia:** ningun PR del bot va a la rama default sin autorizacion humana — por PR (label `merge-approved` o respuesta interactiva) o delegada a nivel de epic via label `epic-auto-merge` (canal auto-merge de PASO 4, re-verificado en cada corrida).
 
 ---
 
@@ -63,7 +65,7 @@ gh pr view "$PR" --json number,title,isDraft,mergeable,mergeStateStatus,reviewDe
 ```
 
 - `mergeable != "MERGEABLE"` (conflictos) → PARA, reporta los conflictos. No los resuelvas automatico.
-- Checks de CI en `FAILURE` → reporta y pregunta si igual seguir (no bloqueante por si solo; el proyecto puede no tener CI obligatoria).
+- Checks de CI en `FAILURE` → reporta y pregunta si igual seguir (no bloqueante por si solo; el proyecto puede no tener CI obligatoria). Con `--auto-merge` NUNCA preguntar: cortar el drenaje y notificar (regla del canal auto-merge, PASO 4).
 
 ## PASO 1.5: Sincronizar el worktree (todo commiteado y pusheado ANTES del merge)
 
@@ -114,9 +116,11 @@ b6-review:    presente (<fecha>) — <K blockers, M warnings>
 Estrategia:   squash + delete-branch
 ```
 
+Con `--auto-merge` emitir el mismo resumen igual (queda como registro del drain) y seguir de inmediato al PASO 4 sin esperar respuesta.
+
 ## PASO 4: Aprobacion humana (OBLIGATORIO — no saltar)
 
-Dos canales validos, en este orden:
+Tres canales validos, en este orden:
 
 **Canal asincrono — label `merge-approved`:** el usuario puede autorizar el merge desde GitHub web/movil agregando el label `merge-approved` al PR (GitHub bloquea aprobar el propio PR via review, por eso el canal es un label). Verificar label Y actor humano:
 
@@ -145,17 +149,79 @@ fi
 
 Si `HAS_LABEL=true` → aprobacion concedida, seguir al PASO 5 sin preguntar (reportar "aprobado via label merge-approved por @$ACTOR"). **La aprobacion via label equivale a "Mergear y limpiar"** (default del pipeline): PASO 6 corre completo.
 
+**Canal auto-merge — flags `--auto-merge --epic=<N>`:** solo para drains desatendidos de un epic (los despacha b10). El flag es input NO confiable: b9 verifica TODO por si mismo, en cada corrida (el label de confianza es removible en cualquier momento). Default-deny: este canal cubre SOLO el happy path — cualquier condicion fallida impide el auto-merge; la disposicion exacta (skip, corte de drenaje o caida a canales humanos) la fija la precedencia de fallas al final del canal. Seis condiciones, TODAS obligatorias:
+
+```bash
+EPIC_N="<N-del-flag-epic>"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+. "$PLUGIN_ROOT/scripts/lib.sh"
+AM_OK=true
+
+# 1. Confianza: label epic-auto-merge en el EPIC, puesto por actor humano no-bot.
+HAS_AM=$(gh issue view "$EPIC_N" --json labels --jq '[.labels[].name] | contains(["epic-auto-merge"])')
+AM_EV=$(bp_label_event "$EPIC_N" epic-auto-merge)
+AM_ACTOR="${AM_EV%%$'\t'*}"
+case "$AM_ACTOR" in *"[bot]"|"") HAS_AM=false ;; esac
+[ "$HAS_AM" = "true" ] || { echo "DESCALIFICADO: epic #$EPIC_N sin label epic-auto-merge puesto por humano"; AM_OK=false; }
+
+# 2+3. Pertenencia la verifica b9, NO el caller: TODOS los issues del PR (ISSUES de
+#      PASO 0) deben ser sub-issues de EPIC_N — uno solo fuera descalifica el PR
+#      entero (cubre PRs cluster de b8 con varios "Closes #"). Excluir el
+#      closing_slice es responsabilidad de b10 (tiene el snapshot y NUNCA pasa
+#      --auto-merge al despacharlo); el rechazo issue==epic de abajo es cinturon
+#      adicional, no la garantia. Ninguno puede tener needs-human-review (veto
+#      absoluto: seguridad, FIX_SIN_TEST — estado persistente que deja b7).
+# Guard: con ISSUES vacio (PR sin "Closes #N" parseable) el loop no itera y las
+# condiciones 2+3 pasarian de forma vacua — descalificar explicito ANTES del loop.
+[ -z "$ISSUES" ] && { echo "DESCALIFICADO: PR #$PR sin 'Closes #N' parseable — pertenencia no verificable"; AM_OK=false; }
+for i in $ISSUES; do
+  [ "$i" = "$EPIC_N" ] && { echo "DESCALIFICADO: #$i ES el epic #$EPIC_N"; AM_OK=false; continue; }
+  P=$(gh api "repos/{owner}/{repo}/issues/${i}/parent" --jq '.number' 2>/dev/null || true)
+  [ "$P" = "$EPIC_N" ] || { echo "DESCALIFICADO: #$i no es sub-issue de #$EPIC_N (parent=${P:-ninguno})"; AM_OK=false; }
+  NHR=$(gh issue view "$i" --json labels --jq '[.labels[].name] | contains(["needs-human-review"])')
+  [ "$NHR" = "true" ] && { echo "DESCALIFICADO: #$i tiene needs-human-review — veto absoluto"; AM_OK=false; }
+done
+
+# 4. Frescura de la review: timestamp del comentario/review que porta el marker b6
+#    vs ultimo push del PR (mismo patron de staleness que merge-approved).
+B6_AT=$(gh pr view "$PR" --json comments,reviews \
+  --jq '[(.comments[]?, .reviews[]?) | select(.body | test("b6:verdict=")) | (.createdAt // .submittedAt)] | max // empty')
+LAST_PUSH=$(gh pr view "$PR" --json commits --jq '[.commits[].committedDate] | max')
+```
+
+- **Condicion 4 — review con blockers=0 y fresca:** `bp_b6_verdict "$PR"` (corrido en PASO 2) con `blockers=0`; exit 3 (sin review) o `blockers>0` → DESCALIFICADO. Si `[[ "$LAST_PUSH" > "$B6_AT" ]]` (hubo push despues de la review — el marker no cubre HEAD) → NO abortar: re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"` (mismo patron de frescura de PASO 2), re-leer `bp_b6_verdict` y `B6_AT`; si persisten blockers>0 → DESCALIFICADO.
+- **Condicion 5 — CI y mergeable:**
+
+  ```bash
+  gh pr view "$PR" --json mergeable,statusCheckRollup \
+    --jq '{mergeable, checks: [.statusCheckRollup[]? | {status: (.status // .state), conclusion: (.conclusion // .state)}]}'
+  ```
+
+  - Algun check con conclusion `FAILURE`/`ERROR` → **cortar el drenaje**: `echo "ABORT: CI FAILURE en PR #$PR — drenaje del epic #$EPIC_N cortado, notificar"; exit 1`. En desatendido NUNCA preguntar.
+  - Algun check sin concluir (`IN_PROGRESS`/`QUEUED`/`PENDING`/conclusion vacia) → saltar este PR (reintento en el proximo drain). CI PENDING nunca mergea: skip, no merge optimista.
+  - `mergeable != "MERGEABLE"` → saltar este PR (queda para humano).
+  - Sin checks (lista vacia) → condicion cumplida (proyecto sin CI obligatoria).
+- **Condicion 6 — serial:** NUNCA paralelizar b9; un merge a la vez a la rama default. b10 despacha los PRs del drain uno a uno.
+
+Si `AM_OK=true` y las seis condiciones pasaron → aprobacion concedida. Reportar "aprobado via canal auto-merge: label epic-auto-merge en epic #$EPIC_N por @$AM_ACTOR". **Equivale a "Mergear y limpiar"**: PASO 5 y PASO 6 corren completos (rescue branch y prohibicion de `--force` intactos). Despues del merge de PASO 5, postear el audit trail en el PR:
+
+```bash
+gh pr comment "$PR" --body "auto-merged bajo epic-auto-merge #${EPIC_N} (b6 blockers=0, CI ok)"
+```
+
+**Precedencia de fallas:** las fallas con disposicion propia de la condicion 5 van primero y NO caen al catch-all — CI FAILURE corta el drenaje (ABORT); CI PENDING y `mergeable != "MERGEABLE"` saltan ESTE PR: reportar el skip y terminar sin merge (el PR queda para los canales humanos; el drain sigue con el proximo). Catch-all para el resto (guard de ISSUES vacio, condiciones 1-4): reportar cada linea DESCALIFICADO y caer al canal interactivo.
+
 **Canal interactivo — `AskUserQuestion`:**
 
 > ¿Mergear PR #<N> a la rama default con squash y limpiar el worktree?
 
 Opciones: **Mergear y limpiar** / **Solo mergear (conservar worktree)** / **Cancelar**.
 
-**No mergear sin uno de los dos canales.** En headless sin label y sin canal de respuesta: agregar label `awaiting-approval` al PR, reportar "requiere aprobacion humana — agregar label merge-approved al PR o re-correr en sesion" y abortar.
+**No mergear sin uno de los tres canales.** En headless sin label `merge-approved`, sin canal auto-merge satisfecho y sin canal de respuesta: agregar label `awaiting-approval` al PR, reportar "requiere aprobacion humana — agregar label merge-approved al PR o re-correr en sesion" y abortar. Excepciones bajo `--auto-merge`: CI FAILURE no deja `awaiting-approval` — corta el drenaje con ABORT (condicion 5); los saltos por CI PENDING o `mergeable != "MERGEABLE"` tampoco la dejan — terminan con reporte de skip (precedencia de fallas arriba).
 
 ## PASO 5: Merge + cierre del PR
 
-Solo si el usuario aprobo:
+Solo con aprobacion concedida por alguno de los tres canales del PASO 4:
 
 ```bash
 # Un-draft si esta en draft (no se puede mergear un draft).
@@ -178,7 +244,7 @@ Si el merge falla (p.ej. requiere aprobacion de reviewer en branch protection), 
 
 ## PASO 6: Limpieza local
 
-Solo si existe `$WORKTREE` y (el usuario eligio "Mergear y limpiar" O la aprobacion vino por label `merge-approved`):
+Solo si existe `$WORKTREE` y (el usuario eligio "Mergear y limpiar" O la aprobacion vino por label `merge-approved` O por el canal auto-merge):
 
 ```bash
 # Apagar cualquier dev server del worktree que haya quedado vivo.

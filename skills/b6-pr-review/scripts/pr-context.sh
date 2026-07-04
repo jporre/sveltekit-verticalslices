@@ -90,6 +90,37 @@ else
 fi
 
 echo ""
+echo "=== SCREEN_EVIDENCE ==="
+# Gate de evidencia visual (solo lectura del PR; la regla de severidad vive en el
+# SKILL): UI_TOUCHED por regex de archivos, BOT_PR por label auto-pr-bot, EVIDENCE
+# por comentarios del PR (marker b7:screen-review o comentario de attach.sh con PNG).
+if printf '%s\n' "$FILES" | grep -qE '(^|/)src/routes/|\.svelte$|\.remote\.ts$'; then
+  echo "UI_TOUCHED=true"
+else
+  echo "UI_TOUCHED=false"
+fi
+if echo "$META" | jq -e 'any(.labels[]?; .name == "auto-pr-bot")' >/dev/null; then
+  echo "BOT_PR=true"
+else
+  echo "BOT_PR=false"
+fi
+COMMENTS=$(gh pr view "$PR" --json comments)
+EVIDENCE=none
+SKIP_REASON=""
+if echo "$COMMENTS" | jq -e 'any(.comments[]?; (.body // "") | test("b7:screen-review=done") or (test("### .* Screenshots") and test("\\.png")))' >/dev/null; then
+  EVIDENCE=screenshots
+elif echo "$COMMENTS" | jq -e 'any(.comments[]?; (.body // "") | test("b7:screen-review=skipped"))' >/dev/null; then
+  EVIDENCE=skipped
+  # reason opcional (tolerante): marker viejo sin reason= emite EVIDENCE=skipped a secas
+  SKIP_REASON=$(echo "$COMMENTS" | jq -r '.comments[]?.body // ""' | grep -oE 'b7:screen-review=skipped reason=[a-z-]+' | head -1 | sed 's/.*reason=//' || true)
+fi
+if [ -n "$SKIP_REASON" ]; then
+  echo "EVIDENCE=skipped reason=$SKIP_REASON"
+else
+  echo "EVIDENCE=$EVIDENCE"
+fi
+
+echo ""
 echo "=== CHANGED_SYMBOLS ==="
 # Simbolos exportados tocados por el diff (best-effort, JS/TS). Reusa $DIFF.
 # NEW = agregado sin version eliminada; MODIFIED = firma tocada (linea +/-) o

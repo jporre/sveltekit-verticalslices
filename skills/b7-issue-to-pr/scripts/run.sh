@@ -72,7 +72,10 @@ export B7_ISSUE="$ISSUE"
 # que sobrevive al handoff. SIN trap EXIT a proposito: el lock debe sobrevivir a run.sh
 # porque la fase LLM lo retiene; se libera con `guardrails.sh release-lock` al cierre
 # del run (exito, abort o bail — ver SKILL.md, Manejo de errores).
-LOCK_PATH="$("$GUARDRAILS" acquire-lock "$PPID")"
+LOCK_PATH="$("$GUARDRAILS" acquire-lock "$PPID" "$ISSUE")"
+# Con B7_PARALLEL=1 acquire-lock emite `B7_LOCK_FILE=<path>` (shard por issue);
+# sin flag imprime el path pelado — el strip es no-op.
+LOCK_PATH="${LOCK_PATH#B7_LOCK_FILE=}"
 
 STATE_DIR="$("$GUARDRAILS" state-dir)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -92,16 +95,19 @@ mkdir -p "$SCRATCH_DIR"
 "$GUARDRAILS" context-snapshot "$SCRATCH_DIR" || true
 "$GUARDRAILS" init-state "$ISSUE" "$SCRATCH_DIR" || true
 
-# Inyectar mode/run_id/run_report en el state.json recién creado.
-python3 - "$SCRATCH_DIR/state.json" "$MODE" "$RUN_ID" "$RUN_REPORT" "$MAX_ITER" "$BUDGET_FILES" <<'PY'
+# Inyectar mode/run_id/run_report/lock_file en el state.json recién creado.
+# lock_file persistido: toda ruta terminal de la fase LLM libera ESE shard
+# (`release-lock "$(jq -r '.lock_file // empty' .b7/state.json)"` — ver SKILL.md).
+python3 - "$SCRATCH_DIR/state.json" "$MODE" "$RUN_ID" "$RUN_REPORT" "$MAX_ITER" "$BUDGET_FILES" "$LOCK_PATH" <<'PY'
 import json, sys
-p, mode, run_id, report, max_iter, budget_files = sys.argv[1:7]
+p, mode, run_id, report, max_iter, budget_files, lock_file = sys.argv[1:8]
 with open(p) as f: d = json.load(f)
 d["mode"] = mode
 d["run_id"] = run_id
 d["run_report_path"] = report
 d["max_iter"] = int(max_iter)
 d["budget_files"] = int(budget_files)
+d["lock_file"] = lock_file
 with open(p, "w") as f: json.dump(d, f, ensure_ascii=False, indent=2)
 PY
 

@@ -1,6 +1,6 @@
 # Anti-patrones SvelteKit (errores clasicos de devs React)
 
-Referencia para detectar codigo que fue escrito "pensando en React" dentro de un proyecto SvelteKit con Svelte 5.
+Ejemplos de codigo de cada anti-patron. La lista canonica y su numeracion viven inline en SKILL.md (Area 4); este archivo usa la misma numeracion.
 
 ## 1. Navegacion con JS en vez de HTML
 
@@ -84,25 +84,7 @@ function update() {
 </script>
 ```
 
-## 5. try/catch envolviendo error() o redirect()
-
-**Anti-patron**: Capturar las excepciones de control de flujo de SvelteKit.
-
-```typescript
-// MAL — SvelteKit no puede manejar el error/redirect
-try {
-  if (!user) error(401, {message: '...', code: 'AUTH_REQUIRED'})
-} catch (e) {
-  console.error(e) // silencia el error de SvelteKit
-}
-
-// BIEN — dejar que SvelteKit lo maneje
-if (!user) error(401, {message: '...', code: 'AUTH_REQUIRED'})
-```
-
-Si necesitas try/catch por otra razon, usa `isHttpError()` o `isRedirect()` para re-lanzar los de SvelteKit.
-
-## 6. Slot syntax (Svelte 4) en vez de snippets (Svelte 5)
+## 5. Slot syntax (Svelte 4) en vez de snippets (Svelte 5)
 
 **Anti-patron**: Usar `<slot />` que es sintaxis de Svelte 4.
 
@@ -117,6 +99,16 @@ let {children, header} = $props()
 <slot name="header" />
 {@render children()}
 {@render header?.()}
+```
+
+## 6. Eventos con on: (Svelte 4) en vez de on\* (Svelte 5)
+
+```svelte
+<!-- MAL: Svelte 4 -->
+<button on:click={handler}>Click</button>
+
+<!-- BIEN: Svelte 5 -->
+<button onclick={handler}>Click</button>
 ```
 
 ## 7. Named imports de shadcn-svelte (en vez de namespace)
@@ -148,35 +140,26 @@ import * as Card from '$lib/components/ui/card'
 <Select.Trigger placeholder="Elegir..." />
 ```
 
-## 9. Estado global mutable en servidor
-
-**Anti-patron**: Variables a nivel de modulo en archivos `.server.ts` que acumulan estado entre requests.
-
-```typescript
-// MAL: este array se comparte entre TODOS los requests de todos los usuarios
-let cache: Item[] = []
-
-export async function load() {
-  if (cache.length === 0) cache = await fetchItems()
-  return {items: cache} // data leak entre usuarios
-}
-```
-
-## 10. Eventos con on: (Svelte 4) en vez de on\* (Svelte 5)
+## 9. Lucide icons con import destructurado
 
 ```svelte
-<!-- MAL: Svelte 4 -->
-<button on:click={handler}>Click</button>
+<!-- MAL -->
+<script>
+import { Plus } from 'lucide-svelte'
+import { Plus } from '@lucide/svelte'
+</script>
 
-<!-- BIEN: Svelte 5 -->
-<button onclick={handler}>Click</button>
+<!-- BIEN -->
+<script>
+import Plus from '@lucide/svelte/icons/plus'
+</script>
 ```
 
-## 11. Remote function en src/lib/server (prohibido)
+## 10. Remote function en src/lib/server (prohibido)
 
 Los archivos `.remote.ts` NO pueden estar dentro de `src/lib/server/` (el cliente los importa). Viven colocados en la carpeta de ruta del feature como `src/routes/<feature>/<feature>.remote.ts`, nunca como `data.remote.ts` generico.
 
-## 12. Query sin refresh despues de mutacion
+## 11. Query sin refresh despues de mutacion
 
 ```svelte
 <!-- MAL: esperar auto-invalidacion -->
@@ -192,7 +175,36 @@ pendientesQ.refresh()
 </script>
 ```
 
-## 13. Filtrado servidor-side para datasets pequenos
+## 12. try/catch envolviendo error() o redirect()
+
+**Anti-patron**: Capturar las excepciones de control de flujo de SvelteKit.
+
+```typescript
+// MAL — SvelteKit no puede manejar el error/redirect
+try {
+  if (!user) error(401, {message: '...', code: 'AUTH_REQUIRED'})
+} catch (e) {
+  console.error(e) // silencia el error de SvelteKit
+}
+
+// BIEN — dejar que SvelteKit lo maneje
+if (!user) error(401, {message: '...', code: 'AUTH_REQUIRED'})
+```
+
+Si necesitas try/catch por otra razon, usa `isHttpError()` o `isRedirect()` para re-lanzar los de SvelteKit.
+
+## 13. Errores sin estructura (message + code)
+
+```typescript
+// MAL
+error(400, 'Algo salio mal')
+error(400, {message: 'Error'}) // falta code
+
+// BIEN
+error(400, {message: 'Titulo muy corto', code: 'INVALID_TITLE_LENGTH'})
+```
+
+## 14. Filtrado servidor-side para datasets pequenos
 
 Si el dataset tiene <1000 items, filtrar en cliente con `$derived`:
 
@@ -211,28 +223,4 @@ let filtered = $derived(allItems.filter(i => i.name.includes(search)))
 </script>
 ```
 
-## 14. Lucide icons con import destructurado
-
-```svelte
-<!-- MAL -->
-<script>
-import { Plus } from 'lucide-svelte'
-import { Plus } from '@lucide/svelte'
-</script>
-
-<!-- BIEN -->
-<script>
-import Plus from '@lucide/svelte/icons/plus'
-</script>
-```
-
-## 15. Errores sin estructura (message + code)
-
-```typescript
-// MAL
-error(400, 'Algo salio mal')
-error(400, {message: 'Error'}) // falta code
-
-// BIEN
-error(400, {message: 'Titulo muy corto', code: 'INVALID_TITLE_LENGTH'})
-```
+Nota: el estado global mutable en servidor (variables a nivel de modulo en `.server.ts`) se cubre en el Area 3 (seguridad) y en `security-checklist.md`, seccion 6.

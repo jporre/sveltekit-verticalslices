@@ -1,6 +1,6 @@
 ---
 name: b1-triage-issue
-description: Evaluate, label, and respond to GitHub issues before development starts. Use ALWAYS when a GitHub issue number or URL is mentioned as the starting point for work, when asked to "evaluate issue", "triage", "review issue", "revisar issue", "evaluar issue", "evaluar tarea N", "revisar tarea N", "check issue #N", or when someone says "there's an issue", "hay una tarea", or "mira el issue/tarea". In this codebase "tarea N" is shorthand for GitHub issue #N — treat them as synonyms. This is the mandatory first step before building features from GitHub issues — it ensures the issue is well-understood, properly labeled, and the evaluation comment is posted in the issue's original language. Do NOT use this skill when the user describes a feature directly without referencing a GitHub issue — that goes straight to b2-build-feature.
+description: 'Triage de un GitHub issue: evalua, etiqueta y postea el comentario de evaluacion antes de desarrollar. Usar cuando pidan triage/evaluar/revisar el issue #N o "tarea N" (tarea = issue en este codebase), o cuando otro skill (b10-ship, b7-issue-to-pr, b8-swarm) necesite un issue triageado. NO es la entrada de "resuelve el issue N" (eso es b10-ship) ni de features descritas sin issue (eso es b2-build-feature).'
 context: fork
 agent: Explore
 model: sonnet
@@ -16,20 +16,13 @@ $ARGUMENTS
 
 > Skill `context: fork`: el subagente solo ve este `SKILL.md`. El placeholder `$ARGUMENTS` es la UNICA via por la que el numero de issue tipeado llega al fork — el harness lo sustituye. El primer token es el numero/URL del issue. Si aparece vacio o sin sustituir, abortar pidiendo el numero de issue.
 
-**Flag `--auto`** (para orquestadores como b10-ship — modo desatendido, cero preguntas interactivas):
+**Flag `--auto`** (para orquestadores como b10-ship): modo desatendido, cero preguntas interactivas; los deltas van marcados "(Con `--auto`)" en cada step. Todo lo demas identico al modo normal.
 
-- Issue **cerrado** → abortar emitiendo `TRIAGE_RESULT {"issue":<N>,"verdict":"closed"}`, sin preguntar.
-- Issue **ya triageado** (labels de readiness o comentario `## Evaluacion de Issue` previo) → NO preguntar si re-triagear. Si hay comentarios humanos NUEVOS posteriores al comentario de evaluacion, re-evaluar incorporandolos (caso tipico: el reporter respondio las preguntas de needs-info). Si no hay nada nuevo, reusar el veredicto existente y emitir el `TRIAGE_RESULT` correspondiente.
-- Issue **nacido de b0** (label `ready` **sin** comentario `## Evaluacion de Issue`/`## Issue Evaluation`) → el grounding y el gate humano ya se pagaron en b0; **reusar sin fork de research** si no hay comentarios humanos posteriores a la creacion. Derivar el `TRIAGE_RESULT` de los labels (`verdict:ready` + `complexity` de `simple|medium|complex` + `type` de `feature|bug|enhancement` + `scope` de `scope:*`) y `blocked_by` de la seccion `## Blocked by` del body. Si aparecio un comentario humano posterior → triage completo normal.
-- Todo lo demas identico al modo normal.
-
-Development that starts from a GitHub issue must understand, research, and enrich it before any code gets written. Poorly specified issues waste implementation cycles. The objective is three outputs:
+Development that starts from a GitHub issue must understand, research, and enrich it before any code gets written. The objective is three outputs:
 
 1. Proper labels on the issue
 2. A structured evaluation comment **in the issue's language**
 3. A terminal summary telling the user whether the issue is ready to build
-
-In this project users often say "tarea N" meaning issue #N. Treat them as synonyms throughout this skill.
 
 ## Step 1: Fetch issue (two-phase, lazy comments)
 
@@ -56,7 +49,7 @@ gh issue view <N> --json comments \
   -q '.comments[] | select(.author.login | test("\\[bot\\]$|^github-actions$|^renovate";"i") | not) | select((.body|length) > 20)'
 ```
 
-This drops Renovate/dependabot/github-actions comments and reaction-only ones ("+1", "👍", emoji-only). They cost tokens without adding signal.
+This drops Renovate/dependabot/github-actions comments and reaction-only ones ("+1", "👍", emoji-only).
 
 Closed issues: warn the user, proceed only if they insist. (Con `--auto`: abortar emitiendo `TRIAGE_RESULT {"issue":<N>,"verdict":"closed"}`.)
 
@@ -64,7 +57,7 @@ Closed issues: warn the user, proceed only if they insist. (Con `--auto`: aborta
 
 Before any research, decide if the work can short-circuit. Triage that races to "needs-info" or "duplicate" doesn't need codebase grep.
 
-**Already triaged?** If labels include any of `ready`, `needs-info`, `blocked`, `duplicate`, OR a previous comment starts with `## Evaluacion de Issue` / `## Issue Evaluation`, surface the prior verdict and ask the user whether to re-triage. Don't redo research silently — it wastes tokens and risks contradicting prior alignment. (Con `--auto`: no preguntar — re-evaluar solo si hay comentarios humanos nuevos, si no reusar el veredicto. Ver Argumentos.)
+**Already triaged?** If labels include any of `ready`, `needs-info`, `blocked`, `duplicate`, OR a previous comment starts with `## Evaluacion de Issue` / `## Issue Evaluation`, surface the prior verdict and ask the user whether to re-triage. Don't redo research silently — it wastes tokens and risks contradicting prior alignment. (Con `--auto`: no preguntar — re-evaluar solo si hay comentarios humanos nuevos, si no reusar el veredicto.)
 
 **Issue de b0 (label `ready` sin comentario de evaluacion).** Un sub-issue creado por `b0-conversation-to-issues/create-epic.sh` nace con label `ready` pero **sin** comentario `## Evaluacion de Issue` — su grounding y gate humano ya se pagaron en b0. Con `--auto`, si no hay comentarios humanos posteriores a la creacion del issue: **reusar sin research**. Derivar el veredicto de los labels en vez de re-explorar:
 
@@ -84,7 +77,7 @@ Emitir el `TRIAGE_RESULT` con esos campos y terminar. Si aparecio un comentario 
 
 Identify the primary language from body + comments. **All GitHub responses (Step 7 comment) must be in that language.** Terminal output stays in your default.
 
-Spanish issue → Spanish comment. English → English. Mixed → use the body's language. Issue reporters read responses in their language; mismatched language signals a careless automated reply.
+Spanish issue → Spanish comment. English → English. Mixed → use the body's language; if mixed in equal parts, write in both.
 
 ## Step 4: Research the codebase (bounded)
 
@@ -126,8 +119,6 @@ Open a file only when the match count justifies it (>1 hit, or the path is the o
 gh search issues "<2-3 keywords> repo:$(gh repo view --json nameWithOwner -q .nameWithOwner)" --limit 10
 ```
 
-One `gh search issues` covers both issues and PRs by relevance — replaces separate `gh issue list` + `gh pr list` calls.
-
 **4e. Evidence-first (solo bugs / `type: fix`).** Un bug no es `ready` por afirmar un sintoma: hace falta al menos **un artefacto observado** que confirme sintoma y causa. Antes de marcar ready un `fix`, obtener evidencia observable y guardarla en `evidence` del triage:
 
 - `evidence.observed` — cita textual del artefacto: mensaje de error exacto, salida de comando, linea de log, o snippet de codigo (path:linea) que reproduce/explica el bug. Pegar lo observado, no parafrasear.
@@ -167,7 +158,7 @@ Acción cuando el issue es horizontal:
 
 **Excepción — concerns transversales:** auth, db, storage, notificaciones y audit son infra genuinamente transversal, no features. Un issue legítimamente backend (ej. "agregar índice a `taVentas`", "rotar el secreto de storage") NO es un mal slice — no exige pantalla. Marcar estos como `ready` normal; el `## Pantalla(s)` del body se reemplaza por `## Remote functions / endpoints` (mismo criterio que b0). La regla horizontal aplica a **features de producto** partidas por capa, no a infra transversal.
 
-**Flag `data_table` por pantalla:** al poblar cada pantalla del contrato de triage, marcar `data_table: true` cuando la pantalla lista datos tabulares — su `acceptance_criteria_visual` menciona columnas, orden, filtros o paginacion. Rutea el build al skill `bt1-data-table` (ver `triage-output.schema.json`). Omitir o `false` si la pantalla no muestra una tabla de datos.
+**Flag `data_table` por pantalla:** al poblar cada pantalla del contrato de triage, marcar `data_table: true` cuando la pantalla lista datos tabulares — su `acceptance_criteria_visual` menciona columnas, orden, filtros o paginacion. Rutea el build al skill `bt1-data-table` (ver `$CLAUDE_PLUGIN_ROOT/skills/b7-issue-to-pr/templates/triage-output.schema.json`). Omitir o `false` si la pantalla no muestra una tabla de datos.
 
 ### Risk checklist (conditional — only flag what the affected files trigger)
 
@@ -179,8 +170,6 @@ Walk this once using the file list from 4c. Each row produces at most one bullet
 | Touches `*.remote.ts` or `src/lib/server/db/schema` | **data**: needs Zod schema; if schema changes, include migration plan and `app.route_permissions` impact |
 | Adds a new route under `src/routes`                | **perms**: must register in `app.route_permissions` + assignment, or the layout guard redirects to fallback |
 | Affects public API or a core feature               | **docs**: update `docs/` (or a markdown colocated in the feature route folder) and `CHANGELOG`        |
-
-This single pass replaces three separate quality / security / docs review steps and only spends tokens where the change actually warrants attention.
 
 ## Step 6: Apply labels (combined with Step 7)
 
@@ -213,7 +202,7 @@ Never remove existing labels — only add the missing ones.
 
 ## Step 7: Post evaluation comment (compact template)
 
-Write the comment in the language detected in Step 3. Use the compact structure below. **Full per-classification examples live in `references/comment-templates.md` — read that file only when actually drafting.**
+Write the comment in the language detected in Step 3. Use the compact structure below. **Full per-classification examples live in `$CLAUDE_PLUGIN_ROOT/skills/b1-triage-issue/references/comment-templates.md` — read that file only when actually drafting.**
 
 Compact structure:
 
@@ -277,14 +266,7 @@ TRIAGE_RESULT {"issue":261,"verdict":"ready","complexity":"complex","type":"feat
 - `blocked_by`: numeros de issues que bloquean (de la seccion "Blocked by" del body o del analisis), `[]` si ninguno
 - Emitirla SIEMPRE, en todo modo y para todo veredicto, como linea final del output de terminal.
 
-## Model escalation
-
-Default `model: sonnet`. Most triages — duplicates, needs-info, simple/medium ready issues — don't need opus. Escalate to opus only if Step 5 lands on **complex** AND the issue spans multiple features with genuinely ambiguous boundaries. Spending opus on "this issue has no body" is waste.
-
 ## Edge cases
 
-- **Issue with no body** → `needs-info` via Step 2 short-circuit; a title alone is not a spec.
 - **Very old issues** → grep first; modules get renamed, referenced files may not exist.
 - **Multiple issues for one feature** → identify the primary, reference the others.
-- **Issue already labeled** → only add missing labels, never remove.
-- **Truly ambiguous language** → use the body's language; if mixed in equal parts, write in both.

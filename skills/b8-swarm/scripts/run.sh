@@ -5,12 +5,12 @@
 #   - construir cola desde gh issue list
 #   - imprimir B8_QUEUE / B8_RUN_REPORT / B8_LOCK como ultimas lineas parseables
 #
-# El loop de invocaciones a b7-issue-to-pr lo maneja Claude leyendo SKILL.md.
+# La ola (worktree + Workflow triage/build + PR) la maneja Claude leyendo SKILL.md.
 # Este script solo sirve para arrancar la ola con guardarrailes ya verificados.
 #
 # Usage:
 #   run.sh [--max=N] [--issues=N1,N2,...] [--dry-run] [--on-error=continue|abort]
-#          [--dwell=SECONDS] [--label=LABEL]
+#          [--label=LABEL]
 #
 # Exit codes:
 #   0  ok
@@ -31,7 +31,6 @@ MAX="${B8_MAX_PER_WAVE:-5}"
 ISSUES=""
 MODE="wet"
 ON_ERROR="continue"
-DWELL="${B8_DWELL_SECONDS:-10}"
 LABEL="${B8_DEFAULT_LABEL:-ready,auto-pr}"
 THEME=""
 
@@ -43,7 +42,6 @@ for arg in "$@"; do
     --dry-run)      MODE="dry-run" ;;
     --wet)          MODE="wet" ;;
     --on-error=*)   ON_ERROR="${arg#--on-error=}" ;;
-    --dwell=*)      DWELL="${arg#--dwell=}" ;;
     --no-screens)   : ;;  # consumido por el LLM driver, no afecta la cola
     --label=*)      LABEL="${arg#--label=}" ;;
     --*)
@@ -67,7 +65,8 @@ if ! "$GUARDRAILS" preflight; then
 fi
 
 LOCK_PATH="$("$GUARDRAILS" acquire-lock)"
-trap '"$GUARDRAILS" release-lock' EXIT
+# Sin trap: el lock cubre la ola completa. Lo libera Claude al cerrar (paso 9,
+# guardrails.sh release-lock), no la salida de este script.
 
 STATE_DIR="$("$GUARDRAILS" state-dir)"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -91,10 +90,10 @@ if [ -z "$QUEUE" ]; then
 - max: ${MAX}
 - label: ${LABEL}
 - on-error: ${ON_ERROR}
-- dwell: ${DWELL}s
 - started: $(date -u +%FT%TZ)
 - status: aborted (empty backlog)
 EOF
+  "$GUARDRAILS" release-lock   # no arranca ola: liberar aca mismo
   exit 22
 fi
 

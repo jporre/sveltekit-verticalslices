@@ -67,9 +67,9 @@ A few ideas explain the whole design:
 | **A git repo with a GitHub remote** | The pipeline reads issues and opens PRs against `origin`. | `gh repo view` |
 | **A SvelteKit project** | `b2-build-feature` is SvelteKit-specific (Remote Functions, Svelte 5, Drizzle, shadcn-svelte). | — |
 | **Node + a dev server** | The worktree runs `vite` so screens can be verified. | `npm run dev` works |
-| **Google Chrome + the claude-in-chrome extension** | Visual screen review drives your **real** Chrome and reuses your logged-in session. | Extension connected |
+| **`agent-browser` CLI** | Visual screen review drives its own browser (navigation, auth cookie, screenshots, console). | `agent-browser --help` |
 
-> If you only want issue → draft PR and you do not need visual review, Chrome is optional — screens are skipped with a note when the dev server or browser is unavailable.
+> If you only want issue → draft PR and you do not need visual review, `agent-browser` is optional — screens are skipped with a note when the dev server or browser is unavailable.
 
 ---
 
@@ -95,7 +95,7 @@ A few ideas explain the whole design:
    gh auth status
    ```
 
-That is it — there is no build step. The plugin auto-discovers its hooks from `hooks/hooks.json` and its skills from `skills/`.
+That is it — there is no build step. The plugin auto-discovers its hooks from `hooks/hooks.json`, its skills from `skills/`, and its agents from `agents/`.
 
 ---
 
@@ -151,8 +151,9 @@ Skills are namespaced `b-pipeline:<skill>`.
 | **b3-git-commit** | Conventional commits with intelligent staging; enforces a clean-tree gate. |
 | **b4-pull-request** | Creates the PR from the project template. |
 | **b6-pr-review** | Reviews a PR across five areas and writes a durable verdict marker (`<!-- b6:verdict=... -->`). |
-| **b7-screen-review** | Visual verification of one screen in your real Chrome against the triage's visual acceptance criteria. Invoked in parallel, one sub-agent per screen. |
 | **b9-close** | Canonical close: merges the PR, closes the issue, and cleans the worktree — behind a human approval gate. |
+
+The visual reviewer `b7-screen-review` is a plugin **agent**, not a skill: it is defined in `agents/b7-screen-review.md` and spawned by `b7-issue-to-pr` / `b8-swarm` via `subagent_type: "b-pipeline:b7-screen-review"`, one per screen in parallel. It verifies each screen against the triage's visual acceptance criteria using the `agent-browser` CLI.
 
 ---
 
@@ -168,7 +169,7 @@ This is exactly what happens when you run `/b-pipeline:b10-ship <issue>` — eac
 | Create isolated worktree, branch `feat/…` or `fix/…` | `b1-add-worktree` | `b7-issue-to-pr` (step 1) | Aborts if the worktree cannot be created |
 | Sticky status comment on the issue (`<!-- b7:status -->`) | `b7-issue-to-pr` | `b7-issue-to-pr` (step 2) | — |
 | Build the feature screen by screen | `b2-build-feature` | `b7-issue-to-pr` | — |
-| Visual verification of each screen in your real Chrome | `b7-screen-review` | `b7-issue-to-pr` (parallel, one sub-agent per screen) | Skipped with a note if dev server or Chrome is unavailable |
+| Visual verification of each screen | `b7-screen-review` (plugin agent) | `b7-issue-to-pr` (parallel, one agent per screen) | Skipped with a note if dev server or `agent-browser` is unavailable |
 | Conventional commits, grouped by theme | `b3-git-commit` | `b7-issue-to-pr` (step 3) | — |
 | Draft PR with `Closes #<issue>` + label sync (`ready` → `in-progress` → `in-review`) | `b4-pull-request` | `b7-issue-to-pr` (step 4) | — |
 | Auto-review across five areas, durable verdict marker (`<!-- b6:verdict=... -->`) | `b6-pr-review` | `b7-issue-to-pr` (step 5) | blockers > 0 → label `needs-human-review`, summarize, stop |
@@ -178,7 +179,7 @@ This is exactly what happens when you run `/b-pipeline:b10-ship <issue>` — eac
 
 ### A note on skill numbering
 
-The `bN-` prefixes reflect the order the skills were created, not the execution order, and directories are never renamed (links and history stay stable). That is why there are two `b1` skills (`b1-triage-issue`, `b1-add-worktree`) and two `b7` skills (`b7-issue-to-pr`, `b7-screen-review`), a single `b3` (`b3-git-commit`), and no `b5`.
+The `bN-` prefixes reflect the order the skills were created, not the execution order, and directories are never renamed (links and history stay stable). That is why there are two `b1` skills (`b1-triage-issue`, `b1-add-worktree`), one `b7` skill (`b7-issue-to-pr`) plus the `b7-screen-review` agent, a single `b3` (`b3-git-commit`), and no `b5`.
 
 ---
 
@@ -250,7 +251,13 @@ Triage reads and writes these labels; they are the pipeline's control plane. Cre
 - **Budgets.** `--max-iterations` and `--budget-files` bound every run.
 - **Backpressure.** With three or more open `auto-pr-bot` PRs, the pipeline offers to drain them before starting more.
 - **Per-worktree pre-commit hook.** `b1-add-worktree` installs a budget hook scoped to the worktree (via `core.hooksPath --worktree`), chaining any existing hook (husky/lefthook) first. It blocks commits that blow the file budget or touch a secret denylist (`*.pem`, `*.key`, `secrets/`).
-- **`git worktree add` guard (full disclosure of what runs on your machine).** Installing the plugin registers exactly one `PreToolUse` hook. It inspects every Bash command Claude is about to run and blocks a raw `git worktree add`, nudging you to `b1-add-worktree` (which sets up isolation correctly). The hook runs **locally only** — no network calls, no telemetry; it merely allows or blocks the command. Everything else in the plugin runs on demand, and GitHub access uses your own authenticated `gh` CLI.
+- **Hooks (full disclosure of what runs on your machine).** Installing the plugin registers the hooks declared in `hooks/hooks.json` — three scripts, four registrations:
+  - `PreToolUse` on **Bash** → `block-git-worktree-add.sh`: blocks a raw `git worktree add`, nudging you to `b1-add-worktree` (which sets up isolation correctly).
+  - `PreToolUse` on **Bash** → `block-env-dump.sh`: blocks commands that would dump secret-bearing env files (e.g. `.env`).
+  - `PreToolUse` on **Read** → `block-env-dump.sh`: same guard when Claude tries to read those files directly.
+  - `SessionStart` → `write-root-marker.sh`: writes the plugin's install path to `~/.claude/b-pipeline.root` so the pipeline's scripts can find it (skill snippets do not receive `CLAUDE_PLUGIN_ROOT`).
+
+  All hooks run **locally only** — no network calls, no telemetry; they merely allow or block an action (or write a local marker). Everything else in the plugin runs on demand, and GitHub access uses your own authenticated `gh` CLI.
 - **Worktree isolation.** The main checkout is never edited; all writes go to the worktree.
 
 ---

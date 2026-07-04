@@ -4,8 +4,8 @@
 # Subcommands:
 #   state-dir                              -> echo absolute path al state-dir
 #   preflight                              -> kill-switch + lock libre + gh auth + tree limpio
-#   acquire-lock                           -> crear lock, escribir pid; echo path
-#   release-lock                           -> borrar lock
+#   acquire-lock                           -> crear lock (cubre la ola completa); echo path
+#   release-lock                           -> borrar lock (lo llama Claude al cerrar la ola)
 #   backlog <label> <max>                  -> echo lista de issue numbers (uno por linea)
 #   backpressure                           -> exit 0 si hay cuota, exit 17 si lleno
 #   killswitch                             -> exit 0 si no hay STOP, exit 20 si lo hay
@@ -56,17 +56,14 @@ cmd_killswitch() {
 cmd_acquire_lock() {
   local sd; sd="$(state_dir)"
   local lock="$sd/b8.lock"
+  # El lock cubre la ola completa (worktree + build + PR), no un proceso vivo:
+  # archivo presente = ola en curso. Lo borra release-lock al cierre (paso 9).
+  # Si una ola murio sin cerrar: release-lock manual.
   if [ -f "$lock" ]; then
-    local oldpid
-    oldpid="$(cat "$lock" 2>/dev/null || echo)"
-    if [ -n "$oldpid" ] && kill -0 "$oldpid" 2>/dev/null; then
-      echo "b8: another swarm is running (pid $oldpid)" >&2
-      return 21
-    fi
-    # stale lock
-    rm -f "$lock"
+    echo "b8: another swarm is running (lock: $lock, desde $(cat "$lock" 2>/dev/null || echo '?'))" >&2
+    return 21
   fi
-  echo "$$" > "$lock"
+  date -u +%FT%TZ > "$lock"
   echo "$lock"
 }
 

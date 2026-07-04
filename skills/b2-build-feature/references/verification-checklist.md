@@ -22,7 +22,7 @@ responde", verificá que el listener sea ESTE checkout con `verify-port`:
 ```bash
 # Desde el worktree:
 nohup ./dev.sh > dev-server.log 2>&1 &   # levanta vite --strictPort en el puerto del worktree
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "<port>" "$(pwd)"
 # exit 0 → B7_PORT_OK; exit 40 nadie escucha; exit 41 lo sirve otro cwd (p.ej. master)
 ```
@@ -125,45 +125,8 @@ If any step found issues:
 
 ## Finalize
 
-After all verification passes, close out the work:
-
-### Feature doc (`<feature>.md`)
-
-Confirmar que existe `src/routes/<feature>/<feature>.md` (primera parada de debug):
-
-- Feature NUEVO → creado con las 6 secciones del slice-spec (Proposito, Pantallas y rutas,
-  Remote functions, Datos, Decisiones, Problemas conocidos).
-- Feature EXISTENTE con `.md` → actualizado si el cambio altero contratos o pantallas.
-- Feature legacy sin `.md` → generado esta primera vez que se toca.
-
-### Update CHANGELOG
-
-Add entry to `CHANGELOG.md` under a new date section:
-
-```markdown
-## [Sin versionar] - YYYY-MM-DD
-
-### Agregado
-
-- **Feature Name**: Brief description of what was added
-```
-
-### Commit on branch
-
-Invoke `Skill b-pipeline:b3-git-commit` — it stages only your files (not unrelated
-formatter changes), writes the conventional-commit message, and enforces the
-clean-tree gate. Do not hand-write `git add`/`git commit` here.
-
-### Report to user
-
-Summarize clearly:
-
-1. What was built (files, screens)
-2. What was tested (type check, browser pages, operations)
-3. What was NOT tested (if anything — e.g., "edit mode untested, no existing data")
-4. Branch name and status (ready for review/merge)
-
-Never say "done" without stating the testing status.
+El cierre del trabajo (doc `<feature>.md`, CHANGELOG, commit via b3, reporte) vive en
+Phase 4 del SKILL.md — unica fuente.
 
 ## Final Sign-Off
 

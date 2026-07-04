@@ -1,8 +1,10 @@
 # Checklist de Seguridad para PR Review
 
+Las reglas canonicas viven inline en SKILL.md (Area 3: tabla por clasificacion + lista "Para TODO el diff"). Este archivo trae los ejemplos de codigo y los detalles que la tabla no repite (formato de permisos, mapeo operacion → permiso, apendice).
+
 ## 1. Archivos +page.server.ts y +layout.server.ts (funciones load)
 
-Toda funcion `load` que devuelva datos protegidos DEBE verificar autenticacion:
+Ejemplo del check de `locals.user` (regla: tabla del Area 3):
 
 ```typescript
 // CORRECTO
@@ -17,11 +19,9 @@ export async function load({params}) {
 }
 ```
 
-**Excepciones validas**: Paginas publicas (login, landing, marketing) no necesitan auth.
-
 ## 2. Remote Functions (`<feature>.remote.ts`)
 
-Toda remote function DEBE llamar `requireUser()` o `requirePermission('verbo:sustantivo')` como primera operacion:
+Ejemplos de `requireUser()` / `requirePermission()` como primera operacion (regla: tabla del Area 3):
 
 ```typescript
 // CORRECTO — con permiso unitario
@@ -47,7 +47,6 @@ export const get_datos = query(async () => {
 - Formato: `verbo:sustantivo` (ej: `leer:documento`, `crear:post`, `editar:tarea`)
 - El verbo describe la accion: leer, crear, editar, eliminar, aprobar, exportar
 - El sustantivo describe la entidad
-- NO usar roles hardcodeados (`if role === 'admin'`)
 
 ### Mapeo operacion → permiso
 
@@ -62,7 +61,7 @@ export const get_datos = query(async () => {
 
 ## 3. API Endpoints (+server.ts)
 
-Endpoints deben verificar autenticacion via `locals.user` o API key:
+Ejemplos de auth via `locals.user` o API key (regla: tabla del Area 3):
 
 ```typescript
 // Con sesion
@@ -79,7 +78,7 @@ export async function POST({request}) {
 
 ## 4. Errores estructurados
 
-Todos los errores DEBEN usar el formato con `message` y `code`:
+Ejemplos del formato `{ message, code }` (regla: lista "Para TODO el diff"):
 
 ```typescript
 error(401, {message: 'No autenticado', code: 'AUTH_REQUIRED'})
@@ -87,18 +86,25 @@ error(403, {message: 'Sin permiso', code: 'FORBIDDEN'})
 error(404, {message: 'No encontrado', code: 'NOT_FOUND'})
 ```
 
-**No usar**: `error(401, 'string')` ni `throw new Error('...')` para errores HTTP.
-
 ## 5. Datos sensibles
 
 - No loggear tokens, passwords, o API keys
-- No hardcodear secrets en el codigo (usar `$env/static/private` o `$env/dynamic/private`)
 
 ## 6. Estado compartido en servidor
 
-- No usar variables mutables a nivel de modulo en archivos `.server.ts` como cache informal
-- El servidor maneja multiples requests; un singleton mutable filtra datos entre usuarios
-- Si necesitas cache, usar un mecanismo explicito y seguro
+Ejemplo del data leak (regla: lista "Para TODO el diff"):
+
+```typescript
+// MAL: este array se comparte entre TODOS los requests de todos los usuarios
+let cache: Item[] = []
+
+export async function load() {
+  if (cache.length === 0) cache = await fetchItems()
+  return {items: cache} // data leak entre usuarios
+}
+```
+
+Si necesitas cache, usar un mecanismo explicito y seguro.
 
 ## Apendice: Patrones de referencia
 

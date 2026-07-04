@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### refactor — review writing-great-skills: descriptions -48% + ruteo single-source + b7-screen-review a agent def
+
+Review completo del plugin contra el framework writing-great-skills (12 reviewers + 12 verificadores adversariales + 1 cross-cutting; 116 findings confirmados aplicados). Cambios principales:
+
+- **Descriptions**: 1199 -> 621 palabras siempre cargadas (-48%). Sinonimos colapsados a un trigger por rama, identidad/pasos movidos al body, 6 descriptions en ingles pasadas a espanol neutro sin tildes, tildes removidas de b9-close (archivo completo).
+- **Ruteo single-source**: description de b10-ship = tabla autoritativa (default + excepciones draft->b7, cluster->b8); b7-issue-to-pr y b8-swarm quedan con deflexion de una linea; resuelta la colision de triggers b1-triage vs b10 ("Use ALWAYS when a GitHub issue number is mentioned" eliminado); restatements de ruteo de entrada podados de los bodies (b0/b8/b9), cada body conserva solo su frontera de salida.
+- **b7-screen-review**: skill -> agent definition (`agents/b7-screen-review.md`, invocado via `subagent_type: b-pipeline:b7-screen-review` desde b7/b8). Fix del doble stack de browser: agent-browser CLI para todo (cookie, navegacion, screenshot a disco); bloque js sleep-only eliminado. `scripts/` y `templates/` del skill quedan en su lugar (b7 los referencia por path).
+- **fix b4-pull-request**: contrato `--label` cerrado con b7/b8 (flag documentado + ejemplo gh pr create); 6 ramas ask-the-user del template generico reemplazadas por una regla headless (context: fork no puede preguntar); `agent: Explore` removido (read-only, mal fit para crear PRs).
+- **fix b8-swarm scripts**: lock ahora cubre la ola completa (run.sh liberaba al salir del paso 1, dejando build+PR sin exclusion mutua); flag muerto `--dwell`/`B8_DWELL_SECONDS` eliminado.
+- **Progressive disclosure**: b7 gana `references/lane-s.md` y `references/dry-run.md`; b10 gana `references/epic-mode.md`; b0 mueve el script Workflow inline a `scripts/draft-bodies.workflow.js`.
+- **README**: seccion hooks actualizada a la realidad de hooks.json (2 matchers PreToolUse + SessionStart); tabla de skills a 11 + nota del agente.
+- **Higiene frontmatter**: `license: MIT` huerfano fuera de b3, `# prettier-ignore` fuera de b2, comentario documentando model/allowed-tools heredados en b2.
+
+**Archivos clave**: `skills/*/SKILL.md` (los 11), `agents/b7-screen-review.md` (nuevo), `skills/b8-swarm/scripts/{run,guardrails}.sh`, `README.md`.
+
+**Riesgos / consideraciones**: la invocacion `b-pipeline:b7-screen-review` requiere sesion nueva para registrar el agente; el fallback sin `auth_cookie` ya no reusa el Chrome real (pantallas protegidas -> `not-evaluated`, mismo routing que antes). Pendiente decision: b2/b6 siguen sin `model` fijo (heredan sesion, ahora documentado).
+
 ## [1.4.1] — 2026-07-03
 
 ### fix — codegraph-probe.sh: cache-key por $ROOT + smoke grep solo stderr (#37)

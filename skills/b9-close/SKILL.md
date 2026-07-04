@@ -1,6 +1,6 @@
 ---
 name: b9-close
-description: 'Cierre canónico de un feature ya revisado: mergea el PR en GitHub, cierra el issue y limpia el worktree dejando todo prolijo. Use cuando el usuario diga "cerrar el PR", "mergear el PR N", "finalizar/cerrar el issue N", "limpiar el worktree", "close PR", "dejar todo limpio". Es el PASO 4 del flujo b: corre DESPUÉS de que el feature está implementado (b7) y revisado (b6-pr-review). NO implementa ni revisa código en profundidad — gatea sobre que la revisión ya pasó, mergea con ojo humano, y limpia. Encadena opcionalmente: b6-pr-review (si falta review). PROHIBIDO mergear sin aprobación humana explícita y sin un b6-pr-review previo verde.'
+description: 'Cierre de un PR ya revisado: mergea a master con aprobacion humana, cierra sus issues y limpia el worktree. Usar cuando pidan "cerrar/mergear el PR N", "finalizar el issue N" (ya implementado), o "limpiar el worktree". PASO 4 del flujo b — corre despues de b7 (implementacion) y b6-pr-review (review); no implementa ni revisa.'
 allowed-tools: Bash, Read, AskUserQuestion, Skill, Agent
 model: sonnet
 ---
@@ -11,27 +11,21 @@ model: sonnet
 $ARGUMENTS
 ```
 
-Acepta: número de issue (`121`), número de PR (`#170` o `pr 170`), nombre de branch (`feat/121-...`), o nada (autodetecta desde el worktree actual). El primer token decide el modo de resolución.
+Acepta: numero de issue (`121`), numero de PR (`#170` o `pr 170`), nombre de branch (`feat/121-...`), o nada (autodetecta desde el worktree actual). El primer token decide el modo de resolucion.
 
 ---
 
 # b9-close — mergear PR + cerrar issue + limpiar worktree
 
-Cierre del flujo b. El feature ya fue implementado por `b7-issue-to-pr` y revisado por `b6-pr-review`. Este skill **no** reimplementa ni hace review profundo: **gatea** sobre que la revisión pasó, mergea con **aprobación humana**, y deja el árbol limpio (PR cerrado, issue cerrado, worktree y branches borrados).
+Cierre del flujo b. El feature ya fue implementado por `b7-issue-to-pr` y revisado por `b6-pr-review`. Este skill **no** reimplementa ni hace review profundo: **gatea** sobre que la revision paso, mergea con **aprobacion humana**, y deja el arbol limpio (PR cerrado, issue cerrado, worktree y branches borrados).
 
-**Filosofía:** ningún PR del bot va a master sin ojo humano. El paso de aprobación (PASO 4) es **obligatorio** y no se salta ni en headless.
-
-## Lo que b9-close NO hace
-
-- **No implementa** ni corrige código. Si el review encuentra blockers, devuelve al usuario / a b7 — no parchea acá.
-- **No mergea sin review verde + aprobación humana.** Si no hay `b6-pr-review` en el PR, ofrece correrlo; no avanza a ciegas.
-- **No fuerza** resolución de conflictos de merge. Si GitHub reporta conflicto, PARA y reporta.
+**Filosofia:** ningun PR del bot va a master sin ojo humano.
 
 ---
 
 ## PASO 0: Resolver PR + branch + worktree + issue
 
-Desde el repo principal. Resolver según el primer token de `$ARGUMENTS`:
+Desde el repo principal. Resolver segun el primer token de `$ARGUMENTS`:
 
 ```bash
 REPO_MAIN="$(git rev-parse --show-toplevel)"
@@ -39,10 +33,8 @@ ARG="<primer-token-de-$ARGUMENTS>"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 . "$PLUGIN_ROOT/scripts/lib.sh"
 
-# Modo issue (número pelado o "issue N"): buscar el PR que lo cierra.
-# CRITICO: bp_find_pr filtra el body con regex de frontera de digitos ([^0-9]|$)
-# — la busqueda server-side de gh matcheaba "Closes #2610" al pedir #261. Este es
-# el PR que se va a MERGEAR: un falso positivo mergea el PR equivocado.
+# Modo issue (numero pelado o "issue N"): buscar el PR que lo cierra.
+# Usar bp_find_pr, NUNCA gh search a mano: un falso positivo mergea el PR equivocado.
 PR=$(bp_find_pr "$ARG" open)
 # Modo PR (#N / "pr N"): usar directo.   Modo branch: gh pr list --head <branch>.
 # Sin arg: PR=$(gh pr list --head "$(git rev-parse --abbrev-ref HEAD)" --json number --jq '.[0].number')
@@ -51,7 +43,7 @@ PR=$(bp_find_pr "$ARG" open)
 # mitad de limpieza). Si aparece y esta MERGED, saltar directo a PASO 6/7.
 [ -z "$PR" ] && PR=$(bp_find_pr "$ARG" merged)
 
-[ -z "$PR" ] && { echo "ABORT: no encontré PR (abierto ni mergeado) para '$ARG'"; exit 1; }
+[ -z "$PR" ] && { echo "ABORT: no encontre PR (abierto ni mergeado) para '$ARG'"; exit 1; }
 
 BRANCH=$(gh pr view "$PR" --json headRefName --jq .headRefName)
 # TODOS los issues que cierra el PR (los PRs cluster de b8 traen varios "Closes #").
@@ -70,8 +62,8 @@ gh pr view "$PR" --json number,title,isDraft,mergeable,mergeStateStatus,reviewDe
   --jq '{number,title,isDraft,mergeable,mergeStateStatus,reviewDecision,checks:[.statusCheckRollup[]?.conclusion],labels:[.labels[].name]}'
 ```
 
-- `mergeable != "MERGEABLE"` (conflictos) → PARA, reportá los conflictos. No los resuelvas automático.
-- Checks de CI en `FAILURE` → reportá y preguntá si igual seguir (no bloqueante por sí solo; el proyecto puede no tener CI obligatoria).
+- `mergeable != "MERGEABLE"` (conflictos) → PARA, reporta los conflictos. No los resuelvas automatico.
+- Checks de CI en `FAILURE` → reporta y pregunta si igual seguir (no bloqueante por si solo; el proyecto puede no tener CI obligatoria).
 
 ## PASO 1.5: Sincronizar el worktree (todo commiteado y pusheado ANTES del merge)
 
@@ -94,7 +86,7 @@ git -C "$WORKTREE" push origin "$BRANCH"
 
 **Si este paso commiteo o pusheo algo nuevo, registrarlo** (`SYNCED=1`): el review existente NO cubre esos commits — ver el check de frescura en PASO 2.
 
-## PASO 2: Gate de revisión (¿corrió b6?)
+## PASO 2: Gate de revision (¿corrio b6?)
 
 ```bash
 # Lector unico del marker (cubre comentarios Y reviews). NO parsear el marker a mano.
@@ -105,16 +97,16 @@ bp_b6_verdict "$PR"
 # exit 3 -> sin marker (no hubo review)
 ```
 
-- **exit 0** → review presente. Del `B6_VERDICT`: si `blockers > 0` sin resolver, PARA y reportá.
-- **exit 3** → no hubo review. **Ofrecé correrlo ahora** (`Skill b-pipeline:b6-pr-review` con el número de PR). No mergees sin review.
+- **exit 0** → review presente. Del `B6_VERDICT`: si `blockers > 0` sin resolver, PARA y reporta — devuelve al usuario / a b7, no parchea aca.
+- **exit 3** → no hubo review. **Ofrece correrlo ahora** (`Skill b-pipeline:b6-pr-review` con el numero de PR). No mergees sin review.
 - **Frescura**: si PASO 1.5 commiteo/pusheo commits nuevos (`SYNCED=1`), el review existente no los cubre — re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"` antes de seguir. El commit de sync suele ser chico; `--light` combina con el size-gate para no re-revisar full una rama ya aprobada.
 
 ## PASO 3: Resumen pre-merge
 
-Presentá compacto:
+Presenta compacto:
 
 ```
-PR #<N> «<título>»  →  master
+PR #<N> «<titulo>»  →  master
 Issues:       #<i1>, #<i2>...  (se cierran solos al mergear via "Closes #")
 Branch:       <branch>          Worktree: <path o ninguno>
 Mergeable:    <estado>          CI: <ok|fail|n/a>
@@ -122,7 +114,7 @@ b6-review:    presente (<fecha>) — <K blockers, M warnings>
 Estrategia:   squash + delete-branch
 ```
 
-## PASO 4: Aprobación humana (OBLIGATORIO — no saltar)
+## PASO 4: Aprobacion humana (OBLIGATORIO — no saltar)
 
 Dos canales validos, en este orden:
 
@@ -133,7 +125,8 @@ HAS_LABEL=$(gh pr view "$PR" --json labels --jq '[.labels[].name] | contains(["m
 if [ "$HAS_LABEL" = "true" ]; then
   # UN solo sweep del endpoint de events via bp_label_event (scripts/lib.sh):
   # emite "actor<TAB>created_at" del ultimo evento labeled (vacio si no hubo).
-  . "$PLUGIN_ROOT/scripts/lib.sh"   # PLUGIN_ROOT resuelto en PASO 0
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+  . "$PLUGIN_ROOT/scripts/lib.sh"
   APPROVAL=$(bp_label_event "$PR" merge-approved)
   ACTOR="${APPROVAL%%$'\t'*}"          # vacio si no hubo evento labeled
   LABELED_AT="${APPROVAL#*$'\t'}"
@@ -158,14 +151,14 @@ Si `HAS_LABEL=true` → aprobacion concedida, seguir al PASO 5 sin preguntar (re
 
 Opciones: **Mergear y limpiar** / **Solo mergear (conservar worktree)** / **Cancelar**.
 
-**No mergear sin uno de los dos canales.** En headless sin label y sin canal de respuesta: agregar label `awaiting-approval` al PR, reportar "requiere aprobación humana — agregar label merge-approved al PR o re-correr en sesion" y abortar.
+**No mergear sin uno de los dos canales.** En headless sin label y sin canal de respuesta: agregar label `awaiting-approval` al PR, reportar "requiere aprobacion humana — agregar label merge-approved al PR o re-correr en sesion" y abortar.
 
 ## PASO 5: Merge + cierre del PR
 
-Solo si el usuario aprobó:
+Solo si el usuario aprobo:
 
 ```bash
-# Un-draft si está en draft (no se puede mergear un draft).
+# Un-draft si esta en draft (no se puede mergear un draft).
 gh pr ready "$PR"
 # Squash-merge: cierra el PR, borra la rama remota, y "Closes #<issue>" cierra el issue.
 gh pr merge "$PR" --squash --delete-branch
@@ -181,11 +174,11 @@ for i in $ISSUES; do
 done
 ```
 
-Si el merge falla (p.ej. requiere aprobación de reviewer en branch protection), reportá el motivo exacto de `gh` y PARA — no forzar.
+Si el merge falla (p.ej. requiere aprobacion de reviewer en branch protection), reporta el motivo exacto de `gh` y PARA — no forzar.
 
 ## PASO 6: Limpieza local
 
-Solo si existe `$WORKTREE` y (el usuario eligió "Mergear y limpiar" O la aprobacion vino por label `merge-approved`):
+Solo si existe `$WORKTREE` y (el usuario eligio "Mergear y limpiar" O la aprobacion vino por label `merge-approved`):
 
 ```bash
 # Apagar cualquier dev server del worktree que haya quedado vivo.
@@ -232,7 +225,7 @@ if ! git -C "$REPO_MAIN" worktree remove "$WORKTREE" 2>/dev/null; then
 fi
 git -C "$REPO_MAIN" worktree prune
 
-# Borrar la rama local (la remota ya la borró --delete-branch).
+# Borrar la rama local (la remota ya la borro --delete-branch).
 git -C "$REPO_MAIN" branch -D "$BRANCH" 2>/dev/null || true
 
 # Traer master mergeado al repo principal.
@@ -282,16 +275,9 @@ B9_MERGED pr=<N> sha=<sha-corto> issues=<i1,i2,...>
 ## Reglas
 
 - **"tarea N" == issue #N.**
-- **Aprobación humana en PASO 4 es no-negociable.** Sin ella no hay merge. El label `merge-approved` puesto por un humano cuenta como aprobacion (canal asincrono para sesiones headless).
-- **NUNCA `worktree remove --force` con codigo sin commitear.** Primero rescue branch pusheado a remoto; `--force` solo con porcelain vacio (artefactos ignorados).
-- **No mergear sin b6-pr-review** verde en el PR (PASO 2 ofrece correrlo si falta).
-- **No resolver conflictos de merge** automático — PARA y reportá.
 - **Squash por default** (historia limpia en master). Si el usuario pide `--merge` o `--rebase`, respetarlo.
-- **No correr `pnpm build`/`check`** acá — eso ya pasó en b7/BF. b9 solo cierra.
-- **Idempotente-ish:** si el PR ya está MERGED, saltar al PASO 6 (limpieza) directamente.
+- **No correr `pnpm build`/`check`** aca — eso ya paso en b7/BF. b9 solo cierra.
 
-## Relación con los otros skills b
+## Relacion con los otros skills b
 
-- `b7-issue-to-pr` termina en **PR draft + b6-review adjunto**. b9-close es el paso siguiente.
-- `b6-pr-review` es el review (PASO 3 del flujo). b9 lo **gatea**, no lo reemplaza.
-- b9-close es el cierre estándar para features que vienen de b7 con PR abierto (mergea el PR y cierra el issue). Un merge local manual sin PR queda fuera de este pipeline: hacerlo a mano.
+- b9-close mergea PRs del pipeline (con `Closes #`). Un merge local manual sin PR queda fuera de este pipeline: hacerlo a mano.

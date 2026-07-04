@@ -1,7 +1,7 @@
 ---
 name: b2-build-feature
-# prettier-ignore
-description: End-to-end SvelteKit feature development (remote functions + Svelte 5 + Drizzle + shadcn-svelte, verified in the browser) for BUILDING any screen, CRUD, form, dashboard, or data page via its two entry points — direct user description ("build feature", "create page", "crear pantalla", or a screen described without the word "feature") or a triaged GitHub issue — while issue routing, PR, and merge belong to the b7/b8/b10 orchestrators that invoke this skill for the build phase.
+# model/allowed-tools omitidos a proposito: hereda los de la sesion
+description: 'Construye cualquier pantalla SvelteKit — CRUD, form, dashboard o pagina de datos — desde una descripcion directa del usuario ("crear pantalla", "build feature", o una pantalla descrita sin la palabra feature) o desde un issue triageado. Ruteo de issues, PR y merge pertenecen a b7/b8/b10, que invocan este skill como fase de build.'
 ---
 
 # Build Feature
@@ -11,7 +11,9 @@ No unnecessary layers. The shortest path: **Drizzle query -> remote function -> 
 
 **Build lazy: stop at the first rung that holds.** Need it at all? (YAGNI, skip and say so) → stdlib/SvelteKit does it? → native platform feature (`<input type="date">`, CSS, DB constraint)? → already-installed dep? → one line? → only then the minimum code. No abstraction nobody asked for, no service layer for CRUD, no `query → fn → drizzle-wrapper → fn → query` indirection — the remote function queries Drizzle directly. Fewest files, shortest working diff. Mark deliberate shortcuts with a `// ponytail:` comment (the sanctioned exception to the no-comments default). Full discipline: `references/simplicity-ladder.md`.
 
-**Colocation: the route folder IS the feature folder.** Everything for a feature lives in one
+## Colocation
+
+**The route folder IS the feature folder.** Everything for a feature lives in one
 folder under `src/routes/` — page, remote functions, components, types. Only `+`-prefixed files
 are special to the router, so `<feature>.remote.ts`, sibling `.svelte` components, and
 `<feature>-types.ts` sit right next to `+page.svelte`. No `src/lib/features/` split, no thin
@@ -58,45 +60,7 @@ For the comprehensive React-to-Svelte guide, read `references/svelte5-not-react.
 ### The Form Trap (Your #1 Error Source)
 
 React trains you to handle forms with onSubmit + preventDefault + state + fetch. **SvelteKit remote functions handle all of that for you:**
-
-```svelte
-<!-- WRONG: React form handling -->
-<script>
-  let name = $state('')
-  async function handleSubmit(e) {
-    e.preventDefault()
-    await fetch('/api/users', { method: 'POST', body: JSON.stringify({ name }) })
-  }
-</script>
-<form onsubmit={handleSubmit}>
-  <input bind:value={name} />
-  <button>Save</button>
-</form>
-
-<!-- CORRECT: SvelteKit remote function form -->
-<script>
-  import { upsert_user, get_users } from './users.remote'
-  import { toast } from 'svelte-sonner'
-</script>
-<form {...upsert_user.enhance(async ({ form, submit }) => {
-  try {
-    await submit().updates(get_users)
-    form.reset()
-    toast.success('Saved')
-  } catch { toast.error('Error') }
-})}>
-  <input {...upsert_user.fields.name.as('text')} placeholder="Name" />
-  <button type="submit">Save</button>
-</form>
-```
-
-To edit existing records, pre-populate:
-
-```typescript
-function editItem(item) {
-  upsert_user.fields.set({id: item.id, name: item.name})
-}
-```
+el `<form>` se conecta con spread `{...upsert_x.enhance(...)}`, cada input con `{...upsert_x.fields.name.as('text')}`, y el modo edit se pre-popula con `upsert_x.fields.set({...})`. Nada de onsubmit + fetch manual. Patron completo con codigo: `references/forms-recipe.md`.
 
 ## Workflow: 4 Phases
 
@@ -118,6 +82,7 @@ git checkout -b feat/<feature-name>    # new feature
 git checkout -b fix/<description>      # bug fix
 ```
 
+**No worktrees para features simples** — una rama normal basta.
 For complex features that need isolation, create the worktree via `b1-add-worktree` —
 a raw `git worktree add` is BLOCKED by the plugin's PreToolUse hook (it skips the env
 symlinks, port allocation, and budget hook that `setup-worktree.sh` provisions):
@@ -154,10 +119,7 @@ src/routes/<feature>/
   <feature>-types.ts         # types (or export them straight from <feature>.remote.ts)
 ```
 
-The feature folder sits wherever the app's route tree places it: directly under
-`src/routes/<feature>/`, inside a route group (`src/routes/(app)/<feature>/`), or under a param
-(`src/routes/[country]/<feature>/`). The constant: everything for the feature is in that one
-folder, next to `+page.svelte`.
+Placement: the route folder IS the feature folder (ver Colocation arriba y `references/slice-spec.md`).
 
 Only add more files — all colocated in the same folder — when justified:
 
@@ -194,156 +156,31 @@ bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/scaffold-slice.sh" <fe
 Después rellenás esos archivos (pasos siguientes). Para editar un feature legacy
 existente NO scaffoldees: seguí su patrón interno.
 
-Write files in this exact order. Use absolute paths, avoid cd.
+Write files in this exact order. Use absolute paths, avoid cd. **Batch file writes** — escribe
+todos los archivos y verifica una sola vez. El codigo copy-paste completo de cada step vive en
+`references/feature-templates.md` (Template 1); aca solo el orden, nombres y gotchas:
 
-**Step 1: Types** (`types.ts`)
+**Step 1: Types** (`<feature>-types.ts`) — `InferSelectModel` sobre la tabla Drizzle; en features
+simples exporta los types directo desde `<feature>.remote.ts`. Si la tabla no existe, crea el
+schema Drizzle primero (skill `postgresql-table-design` si esta disponible).
 
-```typescript
-import type {InferSelectModel} from 'drizzle-orm'
-import {taProducts} from '$lib/server/db/schema'
-export type Product = InferSelectModel<typeof taProducts>
-```
+**Step 2: Remote functions** (`<feature>.remote.ts`, e.g. `products.remote.ts`) — el archivo CORE:
+`query` (list) + `form` (UN upsert con `id` opcional) + `command` (delete). Nombrado por feature,
+nunca `data.remote.ts` generico; NO va bajo `src/lib/server/` (el cliente lo importa). Toda remote
+function llama `requireUser()` (importado de `$lib/server`, ver `references/slice-spec.md`) como
+primera operacion — b6 marca BLOCKER si falta.
 
-If the DB table does not exist, create the Drizzle schema first. Read the `postgresql-table-design` skill for patterns (if available).
+**Step 3: Page** (`+page.svelte`) — la UI va directo en `+page.svelte`: importa el remote colocado
+y componentes siblings; sin wrapper `<Feature>Page.svelte`. Query con `$derived(await get_x())`,
+form con `{...upsert_x.enhance(...)}` + `fields.as(...)`, refresh con `.updates(get_x)` /
+`get_x.refresh()`.
 
-**Step 2: Remote Functions** (`<feature>.remote.ts`, e.g. `products.remote.ts`)
-The CORE file. Every data operation the UI needs goes here. Name it after the feature, never
-generic `data.remote.ts`. It must NOT live under `src/lib/server/` (client imports it):
-
-```typescript
-import {query, form, command} from '$app/server'
-import {z} from 'zod'
-import {requireAuthUser} from '$lib/server/auth-helpers'
-import {db} from '$lib/server/db'
-import {taProducts} from '$lib/server/db/schema'
-import {eq} from 'drizzle-orm'
-
-export const get_products = query(async () => {
-  requireAuthUser()
-  return db.query.taProducts.findMany({
-    orderBy: (t, {desc}) => [desc(t.createdAt)],
-  })
-})
-
-const upsertSchema = z.object({
-  id: z.string().optional(),
-  name: z.string().min(1, 'Requerido'),
-  price: z.number().min(0),
-})
-
-export const upsert_product = form(upsertSchema, async data => {
-  requireAuthUser()
-  if (data.id) {
-    const [updated] = await db.update(taProducts).set(data).where(eq(taProducts.id, data.id)).returning()
-    return updated
-  }
-  const [created] = await db.insert(taProducts).values(data).returning()
-  return created
-})
-
-export const delete_product = command(z.object({id: z.string()}), async ({id}) => {
-  requireAuthUser()
-  await db.delete(taProducts).where(eq(taProducts.id, id))
-})
-```
-
-**Step 3: Page** (`+page.svelte`)
-
-The UI goes straight in `+page.svelte` — it imports the colocated remote file and any sibling
-components. No separate `<Feature>Page.svelte` wrapper:
-
-```svelte
-<script lang="ts">
-import {get_products, upsert_product, delete_product} from './products.remote'
-import * as Card from '$lib/components/ui/card'
-import * as Table from '$lib/components/ui/table'
-import {Button} from '$lib/components/ui/button'
-import {Input} from '$lib/components/ui/input'
-import {toast} from 'svelte-sonner'
-
-const products = $derived(await get_products())
-
-async function handleDelete(id: string) {
-  await delete_product({id})
-  get_products.refresh()
-  toast.success('Deleted')
-}
-
-function editProduct(item: (typeof products)[0]) {
-  upsert_product.fields.set({id: item.id, name: item.name, price: item.price})
-}
-</script>
-
-<div class="space-y-6">
-  <Card.Root>
-    <Card.Header>
-      <Card.Title>Products</Card.Title>
-    </Card.Header>
-    <Card.Content>
-      <Table.Root>
-        <Table.Header>
-          <Table.Row>
-            <Table.Head>Name</Table.Head>
-            <Table.Head>Price</Table.Head>
-            <Table.Head class="w-24"></Table.Head>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {#each products as product (product.id)}
-            <Table.Row>
-              <Table.Cell>{product.name}</Table.Cell>
-              <Table.Cell>{product.price}</Table.Cell>
-              <Table.Cell>
-                <Button size="sm" variant="ghost" onclick={() => editProduct(product)}>Edit</Button>
-                <Button size="sm" variant="ghost" onclick={() => handleDelete(product.id)}>Delete</Button>
-              </Table.Cell>
-            </Table.Row>
-          {/each}
-        </Table.Body>
-      </Table.Root>
-    </Card.Content>
-  </Card.Root>
-
-  <Card.Root>
-    <Card.Header><Card.Title>Add / Edit</Card.Title></Card.Header>
-    <Card.Content>
-      <form
-        class="flex gap-2"
-        {...upsert_product.enhance(async ({form, submit}) => {
-          try {
-            await submit().updates(get_products)
-            form.reset()
-            toast.success('Saved')
-          } catch {
-            toast.error('Error')
-          }
-        })}
-      >
-        <Input {...upsert_product.fields.name.as('text')} placeholder="Name" />
-        <Input {...upsert_product.fields.price.as('number')} placeholder="Price" />
-        <Button type="submit">Save</Button>
-      </form>
-    </Card.Content>
-  </Card.Root>
-</div>
-```
-
-**Step 4: Route guard** (`+page.server.ts`, optional but recommended)
-
-The remote functions already check auth, but a load guard blocks rendering a page the user
-can't use:
-
-```typescript
-import {error} from '@sveltejs/kit'
-import type {PageServerLoad} from './$types'
-
-export const load: PageServerLoad = ({locals}) => {
-  if (!locals.user) error(401, {message: 'No autenticado', code: 'AUTH_REQUIRED'})
-}
-```
+**Step 4: Route guard** (`+page.server.ts`, opcional pero recomendado) — las remote functions ya
+chequean auth, pero un `load` que tira `error(401, {...})` si `!locals.user` evita renderizar una
+pagina que el usuario no puede usar.
 
 When a feature needs more screens, split into colocated sibling components and sub-route folders
-(`new/+page.svelte`, `[id]/+page.svelte`) — never into a `src/lib/features/` tree.
+(`new/+page.svelte`, `[id]/+page.svelte`) — the route folder IS the feature folder (ver Colocation).
 
 ### Phase 3: Verify (MANDATORY — no exceptions)
 
@@ -410,18 +247,13 @@ After verification passes:
 5. **Report to user** — summarize what was built, what was tested, what's ready for merge. If working from an issue, remind to use `Closes #<N>` in the PR body (the `b4-pull-request` skill will handle this if given the issue number)
 
 ## Golden Rules
-0. Commit your changes
-1. **One upsert form** — optional `id` field, never separate create/update
-2. **$derived for queries** — `$derived(await get_items())`, never $effect+fetch
-3. **form.fields.x.as('text') for form inputs** — no bind:value, no state; use `bind:value` only for non-form UI state (search, filters, toggles)
-4. **Namespace imports for shadcn** — `import * as Card from '...'`
-5. **Auth in remote functions** — `requireUser()`, never in services
-6. **error() throws** — don't catch it, SvelteKit handles it
-7. **href for navigation** — `<Button href="/x">`, never goto() for links
-8. **Colocate in the route folder** — `<feature>.remote.ts` + components + types live next to `+page.svelte`; 3-5 files, more = over-engineering. No `src/lib/features/`, no `ui/` subfolder
-9. **$derived for filtering** — client-side for <1000 items
-10. **snake_case functions** — `get_items`, `upsert_item`, `delete_item`
-11. **Lazy ladder** — stop at the first rung that holds; no unrequested abstraction; mark deliberate shortcuts with `// ponytail:` (see `references/simplicity-ladder.md`)
+1. **Auth in remote functions** — `requireUser()` importado de `$lib/server`, never in services
+2. **Colocate in the route folder** — the route folder IS the feature folder (ver Colocation y `references/slice-spec.md`)
+3. **$derived for filtering** — client-side for <1000 items
+4. **snake_case functions** — `get_items`, `upsert_item`, `delete_item`
+5. **Lazy ladder** — stop at the first rung that holds; no unrequested abstraction; mark deliberate shortcuts with `// ponytail:` (see `references/simplicity-ladder.md`)
+
+Todo lo demas (upsert unico, `$derived` para queries, `fields.as`, namespace imports, `error()` throws, `href`) ya vive en la tabla STOP de arriba.
 
 ## When to Read References
 
@@ -456,13 +288,3 @@ After verification passes:
 **Critical for medium/complex:** build by SCREEN not by LAYER. Each screen must type-check
 and work in the browser before starting the next. This prevents the "50 tasks complete,
 feature broken" failure mode. Read the complex features reference for the full strategy.
-
-## Minimizing Friction
-
-- **Branch always** — `feat/` for features, `fix/` for bugs. Never work on master
-- **No worktrees for simple features** — a regular branch is enough
-- **Absolute paths always** — never cd between directories
-- **Batch file writes** — write all files, then verify once
-- **Leverage existing skills** — don't reinvent patterns already documented
-- **Be honest about testing** — state what was tested and what wasn't
-- **Commit when finished** - use b3-git-commit skill

@@ -1,7 +1,7 @@
 ---
 name: b0-conversation-to-issues
-description: 'Convierte el HISTORIAL de la conversacion (o un plan/PRD/doc) en uno o varios GitHub issues bien scopeados, sliceados en VERTICAL (tracer-bullet), con dependencias y un epic de tracking — listos para drenar con b10-ship --epic. Es el paso GENESIS del pipeline, antes de b1-triage. Usar cuando el usuario diga "crea el/los issue(s) de esto", "convierte esto en issues/tareas", "arma las tareas en github", "saca los issues de lo que hablamos", "abre los tickets de esta conversacion", "turn this into issues", "create issues from this conversation/plan", "break this into tickets", "split this into vertical slices". Tambien cuando una sesion de diseño/brainstorm/planificacion converge en trabajo concreto que hay que registrar. Antes de crear NADA verifica con el usuario lo que REALMENTE pide (gate humano). NO implementa codigo, NO triagea, NO abre PRs — solo produce la estructura de issues que el resto del pipeline procesa.'
-allowed-tools: Bash, Read, Write, AskUserQuestion, Agent, Skill, Workflow
+description: 'Convierte la conversacion actual (o un plan/PRD/doc) en issues de GitHub sliceados en vertical (tracer-bullet), con dependencias y epic de tracking, listos para drenar con b10-ship --epic. Usar cuando el usuario pida convertir lo conversado o un plan en issues/tareas/tickets ("crea los issues de esto", "turn this into issues"), pida partir trabajo en vertical slices, o cuando una sesion de diseno/brainstorm converge en trabajo por registrar. Paso genesis, antes de b1-triage: no implementa, no triagea, no abre PRs.'
+allowed-tools: Bash, Read, Write, AskUserQuestion, Agent, Workflow
 model: opus
 ---
 
@@ -13,9 +13,7 @@ Paso **b0**: el genesis del pipeline. Toma lo discutido en la sesion y lo deja c
 
 ## SIN `context: fork` — a proposito
 
-Este skill corre en el **main loop**, NO en fork. Es deliberado y critico: la fuente de verdad es **el historial de la conversacion actual**, y un fork solo ve el cuerpo de este `SKILL.md` (no la sesion). Forkear este skill lo dejaria ciego a lo unico que necesita leer. Tambien necesita `AskUserQuestion` con el usuario presente para el gate de verificacion.
-
-El **trabajo de razonamiento** (destilar la necesidad, slicear, ordenar olas, el gate) se queda en el main loop por la misma razon. Lo que SI se delega a subagentes —siempre trabajo acotado y read-only o mecanico, posterior a las decisiones— es: el **grounding** en el codebase (Paso 2, opcionalmente en paralelo) y la **redaccion de bodies** ya aprobados (Paso 6, en paralelo para breakdowns grandes). Ningun subagente decide el slicing.
+Fuente de verdad = historial de esta sesion; usuario presente para el gate (`AskUserQuestion`). Razonamiento (destilar, slicear, gate) en el main loop; delegar solo grounding read-only (Paso 2) y redaccion de bodies aprobados (Paso 6). Ningun subagente decide el slicing.
 
 ## Argumentos
 
@@ -36,7 +34,7 @@ El **trabajo de razonamiento** (destilar la necesidad, slicear, ordenar olas, el
 $ARGUMENTS
 ```
 
-> El placeholder `$ARGUMENTS` es la via por la que llegan los flags tipeados — el harness lo sustituye. Si aparece vacio, usar defaults (fuente = conversacion, epic on, lang autodetectado).
+> Si `$ARGUMENTS` aparece vacio, usar defaults (fuente = conversacion, epic on, lang autodetectado).
 
 ## El principio: slices VERTICALES, no capas horizontales
 
@@ -63,7 +61,7 @@ Cada slice debe caber en un PR de b7: **simple (3-5 archivos)** o **medium (5-8)
 
 Antes de crear **nada** en GitHub, confirmar con el usuario. Esto es ADN del plugin (igual que b1-triage entiende antes de construir, y b9 nunca mergea sin un humano): **registrar mal una conversacion propaga el error por todo el pipeline**. Un issue mal scopeado se construye, se revisa y casi se mergea antes de que alguien note que no era lo pedido.
 
-El gate distingue **lo que se dijo literalmente** de **el objetivo real**. La gente describe soluciones ("agrega un boton que…") cuando el problema es otro ("no puedo encontrar mis pedidos atrasados"). El slicing debe atacar el objetivo, no transcribir frases.
+El gate ataca el objetivo real, no la solucion literal (problema XY).
 
 Mecanica del gate (Paso 5): presentar en texto el entendimiento + el breakdown propuesto (epic + slices + orden de olas), y recien ahi usar `AskUserQuestion` para confirmar / ajustar / corregir. **No** crear issues hasta tener el OK. Con `--yes` se omite (power users que confian en el breakdown), pero el default SIEMPRE confirma.
 
@@ -99,7 +97,7 @@ El probe SIEMPRE sale 0; el `CODEGRAPH_STATUS` elige la rama de grounding. `code
 Con la db usable, hacer **una query de codegraph por entidad en el main loop** (no delegar a subagentes):
 
 - `codegraph_search "<entidad>"` (o `codegraph query "<entidad>" -p .`) por cada entidad → rutas + tablas reales. Una sola consulta suele cubrir varias entidades relacionadas.
-- **NO** lanzar `Agent(Explore)`: la query directa es mas rapida y barata, y evita el fan-out (era hasta ~6 agentes por breakdown).
+- **NO** lanzar `Agent(Explore)`: la query directa es mas rapida y barata, y evita el fan-out.
 - Confirmar nombres de scope reales para las labels (`scope:<area>`).
 
 #### Rama B — status `stale`/`missing`/`broken`: fallback rg + Explore
@@ -126,8 +124,6 @@ Aplicar el principio de arriba. Para CADA slice definir:
 - **objetivo + pantalla(s)** con ruta, journey y criterios de aceptacion visuales.
 - **alcance**: que entra en ESTE slice y que queda explicitamente para otro.
 - **labels**: `feature|bug|enhancement` + `scope:<area>` (+ `simple|medium` como hint; b1-triage reconfirma).
-
-Detalle del cuerpo del issue: ver `references/slicing-guide.md` (template + ejemplo completo). **Leer ese archivo solo al momento de redactar** los bodies.
 
 ### Paso 4 — Ordenar en olas (dependencias)
 
@@ -186,33 +182,7 @@ El cuerpo de cada slice es independiente: distinto archivo, distinta pantalla. E
 - **Breakdown chico (≤5 slices):** redactar los bodies inline. Es rapido y mantiene un solo tono.
 - **Breakdown grande (≥6 slices):** **paralelizar la redaccion** via `Workflow` — un `agent()` (haiku/sonnet) por slice. Cada agente recibe lo MISMO para no divergir: (a) el template del slicing-guide, (b) la **lista completa de slices** (titulo + alcance de cada uno) para que su seccion `## Alcance` referencie bien lo que queda para OTROS slices, (c) los grounding facts (rutas/tablas reales del Paso 2), (d) el idioma. Devuelve `{id, body}`. El main loop ensambla los bodies devueltos en el array `issues` del plan JSON. Cap de paralelismo razonable: ~8.
 
-```js
-export const meta = {
-  name: 'b0-draft-bodies',
-  description: 'Redaccion paralela de los bodies de slices ya aprobados en el gate',
-  phases: [{ title: 'draft', detail: 'un agent() por slice, read-only sobre la conversacion ya destilada' }],
-}
-const A = (typeof args === 'string') ? JSON.parse(args) : (args || {})
-const BODY = { type: 'object', required: ['id', 'body'],
-  properties: { id: { type: 'string' }, body: { type: 'string' } } }
-
-phase('draft')
-const bodies = (await parallel(A.slices.map(s => () =>
-  agent(
-    `Redacta SOLO el body markdown del slice "${s.id}" (${s.title}). ` +
-    `Segui EXACTO el template de references/slicing-guide.md. Idioma: ${A.lang}. ` +
-    `Grounding (rutas/tablas reales): ${A.grounding}. ` +
-    `Para la seccion "## Alcance (slice vertical)", estos son los OTROS slices del epic ` +
-    `(lo que queda para cada uno): ${JSON.stringify(A.slices)}. ` +
-    `PROHIBIDO escribir "## Blocked by" o #numeros — las deps las inyecta el script. ` +
-    `Devolve {id:"${s.id}", body:"<markdown>"}.`,
-    { label: `body:${s.id}`, phase: 'draft', schema: BODY }
-  )
-))).filter(Boolean)
-return { bodies }
-```
-
-Invocacion: `Workflow({ script:<lo de arriba>, args:{ slices:[{id,title,scope}], lang:'es', grounding:'<resumen Paso 2>' } })`. Tras recibir `{bodies}`, mapear `id → body` y completar cada issue del plan. **El slicing NO se delega** — los agentes solo escriben prosa de slices que vos ya decidiste; no inventan slices nuevos ni cambian deps.
+Script del Workflow: cargar (Read) `scripts/draft-bodies.workflow.js` e invocar `Workflow({ script:<contenido>, args:{ slices:[{id,title,scope}], lang:'es', grounding:'<resumen Paso 2>' } })`. Tras recibir `{bodies}`, mapear `id → body` y completar cada issue del plan. **El slicing NO se delega** — los agentes solo escriben prosa de slices que vos ya decidiste; no inventan slices nuevos ni cambian deps.
 
 Correr el preview (no toca GitHub):
 
@@ -241,11 +211,7 @@ B0_DONE epic=<N|none> issues=<n1,n2,...> waves=<k> mode=created
 Resumen corto en terminal:
 
 - Epic creado (#N) + cantidad de slices + olas.
-- Como seguir:
-  - **Epic completo:** `/b-pipeline:b10-ship --epic=<N>` (drena el grafo respetando olas y gates).
-  - **Con cluster sugerido:** `/b-pipeline:b10-ship --epic=<N> --cluster`.
-  - **Un slice puntual primero:** `/b-pipeline:b7-issue-to-pr <n1>` (suele ser el tracer bullet).
-  - **Preview del plan de b10:** `/b-pipeline:b10-ship --epic=<N> --dry-run`.
+- Siguiente paso: `/b-pipeline:b10-ship --epic=<N>` (drena el grafo respetando olas y gates).
 
 Ultima linea SIEMPRE (machine-readable, por si otro orquestador la consume):
 
@@ -263,17 +229,11 @@ B0_DONE epic=<N|none> issues=<csv> waves=<k> mode=<created|dry-run>
 
 ## Que NO hacer
 
-- **No slicear horizontal.** Nada de "issue del schema", "issue de las remote functions", "issue de la UI". Cada issue cruza el stack y entrega una pantalla usable.
-- **No crear issues complex.** Un slice complex (8-15+ archivos) se parte en slices mas chicos. El bot no construye complex desatendido.
-- **No inventar requisitos.** Solo lo que esta en la conversacion / el doc. Lo que falte se pregunta en el gate.
-- **No crear sin el gate.** El default confirma con el usuario antes de tocar GitHub. Solo `--yes` lo salta.
-- **No escribir `## Blocked by`/`#numeros` en los bodies del plan.** Deps van en `blocked_by` (ids); el script los resuelve.
-- **No triagear ni construir aca.** b0 produce la estructura; b1 triagea, b7/b8 construyen, b9 cierra. No duplicar su logica.
-- **No meter slices de scopes distintos en un cluster.** b8 exige cohesion tematica.
 - **No usar `gh issue create` a mano** para esto — usar `create-epic.sh` (resuelve deps, linkea el epic, evita duplicados).
 
 ## Referencias
 
-- `references/slicing-guide.md` — vertical vs horizontal, metodo tracer-bullet, ejemplo completo con grafo de deps y plan JSON, y el template de cuerpo de issue. Leer al redactar los bodies (Paso 3).
+- `references/slicing-guide.md` — vertical vs horizontal, metodo tracer-bullet, ejemplo completo con grafo de deps y plan JSON, y el template de cuerpo de issue. Leer al redactar los bodies.
+- `scripts/draft-bodies.workflow.js` — script Workflow para redaccion paralela de bodies (breakdown >=6 slices).
 - `scripts/create-epic.sh` — creacion deterministica: labels + sub-issues + deps + epic + linkeo nativo. Soporta `--dry-run`.
 - `../b10-ship/scripts/epic-graph.sh` — lo que b10 usa para leer este grafo (referencia del contrato de deps/olas).

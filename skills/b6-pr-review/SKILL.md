@@ -1,7 +1,6 @@
 ---
 name: b6-pr-review
-description: |
-  Review an existing GitHub pull request with deep SvelteKit expertise. Use ALWAYS when the user asks to review a PR, says "review PR", "revisar PR", "revisa el PR", "PR review", "code review", mentions reviewing pull request code, or provides a PR number/URL for review. This skill reads the full diff, analyzes code quality, checks security patterns, and detects SvelteKit anti-patterns. It requires the PR to already exist on GitHub.
+description: 'Review de un PR existente en GitHub: calidad, seguridad y anti-patrones SvelteKit; publica el veredicto (marker b6). Usar cuando pidan revisar un PR ("revisar PR", "review PR", numero/URL de PR) o cuando b7/b8/b9/b10 encadenen la fase review (--auto, --light).'
 ---
 
 ## User Input
@@ -12,11 +11,7 @@ $ARGUMENTS
 
 **Flag `--auto`** (para orquestadores como b7/b10 — modo desatendido): no ofrecer acciones interactivas en el Paso 5; publicar el reporte directo como comentario del PR (con el marker de veredicto) y terminar con la linea `B6_VERDICT`.
 
-**Flag `--light`** (revision acotada para PRs chicos): reduce la profundidad de lectura sin cambiar el reporte ni el veredicto. **Modo efectivo = flag O size-gate**: el `pr-context.sh` emite la seccion `=== REVIEW_MODE ===` con `light` cuando `additions+deletions < 300 && changedFiles < 5`, sino `full`; si se pasa `--light`, se fuerza `light` aunque el gate diga `full`. En modo `light`:
-
-- **Area 2** (calidad de codigo): revisar solo los hunks del diff; NO leer los archivos completos.
-- **Areas 3 y 4** (seguridad, anti-patrones): usar solo las listas inline de este SKILL; NO leer los archivos `references/*`.
-- **Area 5** (duplicacion): revisar solo funciones NUEVAS exportadas; saltar el barrido de zonas de alto riesgo.
+**Flag `--light`** (revision acotada para PRs chicos): reduce la profundidad de lectura sin cambiar el reporte ni el veredicto. **Modo efectivo = flag O size-gate**: el `pr-context.sh` emite la seccion `=== REVIEW_MODE ===` con `light` o `full` segun su size-gate (los umbrales viven en el script); si se pasa `--light`, se fuerza `light` aunque el gate diga `full`. Las reglas por area del modo `light` estan en los callouts `> Modo light:` de las Areas 2–5.
 
 El reporte, el marker `<!-- b6:verdict -->` y la linea `B6_VERDICT` son **identicos en ambos modos** (los parsers de b7/b9/b10 no cambian); en `light` la cabecera del reporte agrega `modo: light`.
 
@@ -54,9 +49,10 @@ Lee el output completo. El script entrega:
 - **PR_DIFF_STAT**: diffstat per-archivo (solo en modo `full`)
 - **PR_DIFF**: el diff completo
 - **PR_COMMITS**: historial de commits
+- **PR_CHECKS**: estado de los checks de CI (`gh pr checks`). Alimenta el punto 6 del Area 1.
 - **CLASSIFY_FILES**: archivos clasificados por tipo (LOAD_SERVER, REMOTE_FUNCTION, API_ENDPOINT, SVELTE_COMPONENT, etc.)
 - **FIX_REGRESSION_GATE**: `FIX_WITHOUT_TEST=true|false` — true cuando el PR es `fix/*` y el diff no toca ningun archivo `.(test|spec).` (gate de regresion; ver Area 2)
-- **CHANGED_SYMBOLS**: simbolos exportados del diff (lineas `NEW:` / `MODIFIED:`, best-effort) + linea `CODEGRAPH: ok|absent` (probe informativo). Alimenta el punto 6 del Area 2 y el paso 2 del Area 5.
+- **CHANGED_SYMBOLS**: simbolos exportados del diff (lineas `NEW:` / `MODIFIED:` / `REMOVED:`, best-effort) + linea `CODEGRAPH: ok|absent` (probe informativo). Alimenta el punto 6 del Area 2 y el paso 2 del Area 5.
 
 ## Paso 2: Leer CLAUDE.md del proyecto
 
@@ -103,6 +99,7 @@ Evalua el PR como documento, no el codigo:
 3. **Referencia a issue**: Menciona el issue relacionado (#N)?
 4. **Scope**: El PR tiene un scope razonable? (no mezcla multiples features o fixes inconexos)
 5. **Commits**: Los mensajes de commit son informativos? Cada commit es atomico?
+6. **Checks de CI** (seccion `PR_CHECKS`): checks en fail son WARNING (BLOCKER si el fallo viene claramente del cambio del PR).
 
 Si el body esta vacio o es un placeholder, es un BLOCKER.
 
@@ -120,7 +117,8 @@ bajo `src/lib/features/`, `data.remote.ts`, `*.remote.ts` bajo `src/lib/server/`
 nuevo sin `<feature>.md`):
 
 ```bash
-bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh" "$(gh pr view "$PR" --json baseRefName -q .baseRefName)"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh" "$(gh pr view "$PR" --json baseRefName -q .baseRefName)"
 # → SLICE_CHECK ok | SLICE_CHECK violations=<n>
 ```
 
@@ -163,13 +161,13 @@ Evalua:
    - `goto()` donde bastaba un `href`
    - Filtrado server-side para pocos items (deberia ser `$derived`)
    - `$state` + `$effect` donde bastaba `$derived`
-6. **Callers de simbolos MODIFICADOS** (asi se escapo la regresion D5): si `CHANGED_SYMBOLS` trae lineas `MODIFIED:`, trazar los call sites de cada simbolo FUERA del diff. Con `CODEGRAPH: ok` usar `codegraph_callers`; sino fallback `rg -n '\b<simbolo>\('` (codegraph nunca es obligatorio). Un call site fuera del diff que la firma nueva rompe (argumentos, retorno, contrato) es **BLOCKER** citando `archivo:linea`. Sin lineas `MODIFIED:`, saltar este punto. Los hallazgos van dentro de '## 2. Calidad del Codigo' (sin secciones nuevas: cero impacto en parsers).
+6. **Callers de simbolos MODIFICADOS o ELIMINADOS** (asi se escapo la regresion D5): si `CHANGED_SYMBOLS` trae lineas `MODIFIED:` o `REMOVED:`, trazar los call sites de cada simbolo FUERA del diff. Con `CODEGRAPH: ok` usar `codegraph_callers`; sino fallback `rg -n '\b<simbolo>\('` (codegraph nunca es obligatorio). Un call site fuera del diff que la firma nueva rompe (argumentos, retorno, contrato) es **BLOCKER** citando `archivo:linea`; para un simbolo `REMOVED:`, cualquier call site que sobrevive es **BLOCKER**. Sin lineas `MODIFIED:` ni `REMOVED:`, saltar este punto. Los hallazgos van dentro de '## 2. Calidad del Codigo' (sin secciones nuevas: cero impacto en parsers).
 
 ---
 
 ### Area 3: Seguridad
 
-Patrones detallados y el apendice `requireAnyPermission`: `references/security-checklist.md`. Revisa CADA archivo segun su clasificacion (CLASSIFY_FILES) con esta tabla:
+La tabla y la lista inline de esta area son la fuente canonica de las reglas; `references/security-checklist.md` trae ejemplos de codigo, el mapeo operacion → permiso y el apendice `requireAnyPermission`. Revisa CADA archivo segun su clasificacion (CLASSIFY_FILES) con esta tabla:
 
 > **Modo `light`:** usar solo la tabla y la lista inline de esta area; NO leer `references/security-checklist.md`.
 
@@ -185,7 +183,7 @@ Patrones detallados y el apendice `requireAnyPermission`: `references/security-c
 
 ### Area 4: Anti-patrones SvelteKit (React-isms)
 
-Lee `references/sveltekit-antipatterns.md` para la lista completa. Busca estos patrones en el diff:
+La lista inline de abajo es la fuente canonica; `references/sveltekit-antipatterns.md` trae ejemplos de codigo de cada patron (misma numeracion). Busca estos patrones en el diff:
 
 > **Modo `light`:** usar solo la lista inline de esta area; NO leer `references/sveltekit-antipatterns.md`.
 
@@ -213,7 +211,7 @@ Cada anti-patron encontrado es al menos WARNING (BLOCKER si causa bugs).
 
 ### Area 5: Funcionalidad duplicada
 
-El PR puede introducir funciones que ya existen en el codebase con otro nombre o forma ligeramente distinta. Este problema es especialmente comun en proyectos donde multiples desarrolladores (o LLMs) agregan codigo sin conocer lo que ya existe.
+El PR puede introducir funciones que ya existen en el codebase con otro nombre o forma ligeramente distinta.
 
 > **Modo `light`:** revisar solo funciones NUEVAS exportadas; saltar el barrido completo de zonas de alto riesgo.
 
@@ -306,40 +304,37 @@ Presenta el reporte con este formato exacto:
 El marker HTML de la ultima linea es el **canal durable del veredicto**: queda en el comentario del PR en GitHub, sobrevive crashes de sesion, y los orquestadores (b9-close, b10-ship, b7) lo re-leen con `verdict.sh read <pr>` (lector unico; cubre comentarios y reviews). Incluirlo SIEMPRE al publicar el reporte en GitHub.
 
 **No escribir el marker a mano.** Escribir el cuerpo del reporte con findings de una
-linea, guardarlo en `/tmp/pr-review.md`, y dejar que `verdict.sh` compute y estampe
-el marker desde los counts:
+linea, guardarlo en `/tmp/pr-review-<repo>-<PR>.md` (repo = nombre del directorio del
+repo, PR = numero; asi corridas concurrentes no se pisan), y dejar que `verdict.sh`
+compute y estampe el marker desde los counts:
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 VERDICT="$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh"
-# 1) estampar el marker computado (blockers>0 -> request-changes; warnings>0 -> approve-with-changes; sino approve)
-bash "$VERDICT" stamp /tmp/pr-review.md      # imprime B6_VERDICT ... y anexa el marker
+# 1) estampar el marker computado
+bash "$VERDICT" stamp /tmp/pr-review-<repo>-<PR>.md      # imprime B6_VERDICT ... y anexa el marker
 # 2) verificar coherencia marker<->counts<->regla (exit 4 = mismatch; corregir el reporte, no el marker)
-bash "$VERDICT" check /tmp/pr-review.md
+bash "$VERDICT" check /tmp/pr-review-<repo>-<PR>.md
 ```
 
 `stamp` emite la linea machine-readable `B6_VERDICT verdict=... blockers=N warnings=M`; terminar el output de terminal con ella (agregando `pr=<numero>`).
 
 ## Paso 5: Publicar / ofrecer acciones
 
-**Con `--auto` (desatendido):** escribir el reporte a `/tmp/pr-review.md`, estampar +
-verificar el marker, y recien ahi publicar:
+**Con `--auto` (desatendido):** publicar directo — el archivo ya viene estampado y
+verificado del Paso 4:
 
 ```bash
-# 1) el cuerpo del reporte (findings de una linea) ya esta en /tmp/pr-review.md
-bash "$VERDICT" stamp /tmp/pr-review.md   # anexa el marker computado
-bash "$VERDICT" check /tmp/pr-review.md   # exit 4 = mismatch -> corregir el reporte antes de publicar
-# 2) publicar (el marker ya viaja en el archivo)
-gh pr comment <N> --body-file /tmp/pr-review.md
+gh pr comment <N> --body-file /tmp/pr-review-<repo>-<PR>.md
 ```
 
-Ningun otro paso escribe `/tmp/pr-review.md`: este skill es el unico productor.
+Ningun otro paso escribe `/tmp/pr-review-<repo>-<PR>.md`: este skill es el unico productor, y el nombre lleva repo+PR para que sesiones o repos concurrentes no se pisen el reporte.
 
 > IMPORTANTE: usar `gh pr comment`, NO `gh pr review --comment` — un review COMMENTED aparece en `--json reviews` y NO en `--json comments`, y los parsers del pipeline (b9-close PASO 2, b10 `b6_marker`) leen ambos pero el canal canonico es el comentario. Ademas `--approve`/`--request-changes` NO funcionan sobre PRs propios (GitHub bloquea self-review) y los PRs del flujo b se crean con el token del usuario. El veredicto viaja en el marker `<!-- b6:verdict=... -->`, no en el review state de GitHub.
 
 **Modo interactivo:** despues del reporte, ofrece al usuario:
 
-1. **Publicar en GitHub**: `gh pr comment <N> --body-file /tmp/pr-review.md` (incluye el marker de veredicto)
+1. **Publicar en GitHub**: `gh pr comment <N> --body-file /tmp/pr-review-<repo>-<PR>.md` (incluye el marker de veredicto)
 2. **Corregir los issues**: Si hay blockers o warnings, ofrecer crear un branch para corregirlos
 3. **Revisar archivos especificos**: Si el usuario quiere profundizar en algun archivo
 
@@ -347,4 +342,3 @@ Ningun otro paso escribe `/tmp/pr-review.md`: este skill es el unico productor.
 
 - Si el diff es muy largo (>3000 lineas), enfoca la revision en archivos de alto riesgo: remote functions, server loads, endpoints, y componentes principales. Menciona que archivos fueron revisados superficialmente.
 - Si encuentras un patron que no esta en las referencias pero es claramente problematico, reportalo igual con una explicacion.
-- Adapta la profundidad de la revision al tamano del PR. Un PR de 3 archivos no necesita el mismo nivel de detalle que uno de 30.

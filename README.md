@@ -81,7 +81,7 @@ A few ideas explain the whole design:
 1. **Add the marketplace.** Point Claude Code at this repository (a URL or a local path both work):
 
    ```bash
-   claude plugin marketplace add <url-or-path-to-this-repo>
+   claude plugin marketplace add https://github.com/jporre/sveltekit-verticalslices
    ```
 
 2. **Install the plugin:**

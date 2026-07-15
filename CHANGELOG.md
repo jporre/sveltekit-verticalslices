@@ -16,6 +16,20 @@ Dos mejoras sobre b0/b10: (1) b0 servia solo al FINAL de una conversacion madura
 
 **Riesgos / consideraciones**: cero cambios de scripts — el switch conecta mecanismos ya existentes de v1.5.0. Wave-build con locks sharded sigue sin probarse en un epic real (validar con un epic chico). El commit docs-only a la rama default es comportamiento nuevo de b0 (solo `docs/plans/`, post-gate).
 
+### feat — b11-genie: base sana o rescate de repo SvelteKit degradado
+
+El pipeline construia y revisaba CAMBIOS (un issue, un PR) pero no tenia como rescatar un repo que ya llego degradado: load functions y fetch manual ignorando remote functions, sintaxis Svelte 4, capas pass-through, duplicados, comentarios por todos lados, features desparramados fuera de `src/routes/`. b11-genie ("el genio de la botella") audita el codebase entero y lo migra hacia la misma doctrina que b2 usa para construir y b6 para revisar — o instala esa base en un proyecto nuevo.
+
+- **Solo invocacion directa del usuario**: ningun skill del pipeline lo encadena; la description lo declara explicito. Review de PR sigue siendo b6; feature nuevo sigue siendo b2.
+- **Escalera E1-E6 con orden fijo**: E1 base y seguridad (flags `remoteFunctions`/`async`, guards SEC-B/D/E) → E2 estructura (colocacion en `src/routes/<feature>/`) → E3 remote functions (load/actions/+server/fetch → query/form/command + single-flight, feature por feature) → E4 runas Svelte 5 y stack → E5 desingenieria y duplicados (deletion test, INVESTIGATE ante duda) → E6 comentarios y docs (`<feature>.md`, ARCHITECTURE.md, CLAUDE.md). Cada peldaño: transformar → `rung-verify.sh` contra baseline → commit via b3; peldaño roto se revierte y detiene la escalera.
+- **Gates**: nada se edita antes del gate humano de FASE 2 (plan aprobado via AskUserQuestion); `--audit` termina en el diagnostico; `--init` solo instala la base; `--feature`/`--hasta` acotan alcance.
+- **Scripts con contrato parseable**: `audit.sh` (secciones `=== E<n> ===` + `AUDIT_RESULT mode=base|rescate rungs=E1:n,...`; exit 3 = no es SvelteKit) y `rung-verify.sh` (`baseline` captura errores preexistentes; `E<n>` compara — el genio nunca se atribuye errores que ya estaban). Linea final `B11_RESULT`.
+- **Single-source**: catalogos AP1-14/SEC-A..F/CAL-1..7 se citan de b6, layout de slice-spec de b2 — cero duplicacion doctrinal. Lo propio: la escalera (`fix-ladder.md`), recetas R1-R7 de migracion a remote functions (`migrate-to-remote.md`, basadas en la doc oficial: query/form/command/prerender, query.batch, single-flight con `.refresh()`/`.updates()`/`.withOverride()`) y el modo base (`base-setup.md`).
+
+**Archivos clave**: `skills/b11-genie/{SKILL.md,scripts/{audit.sh,rung-verify.sh},references/{fix-ladder.md,migrate-to-remote.md,base-setup.md}}`, `README.md`.
+
+**Riesgos / consideraciones**: remote functions son API experimental (requiere SvelteKit >= 2.27; E3 se reporta bloqueado si la version no alcanza, no se intenta). `rung-verify` solo cubre types+build — en repos sin tests, E3/E5 pueden romper runtime sin detectarse; el reporte lo declara (frase de honestidad) y recomienda browser test pre-merge. Smoke-testeado contra fixture sintetico degradado (paths con espacios incluidos) y revisado con workflow adversarial de 31 agentes (26 hallazgos crudos → 22 confirmados y aplicados, entre ellos 2 BLOCKER del gate de verificacion: sentinel 999 que dejaba pasar builds rotos y check no-parseable contado como limpio); sin correr aun contra un repo real.
+
 ## [1.5.0] — 2026-07-04
 
 ### feat — pipeline sin friccion: auto-merge por epic, screen-review observable, batch de aprobaciones, builds paralelos opt-in

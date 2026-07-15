@@ -42,7 +42,7 @@ You give it an issue number. It:
 
 It runs unattended where it is safe to do so, and **stops and asks** where judgement is required (complex builds, every merge).
 
-**Don't have the issues yet?** Start one step earlier with **`b0-conversation-to-issues`**: it turns the current conversation (a design chat, a brainstorm, a plan) into well-scoped GitHub issues, **sliced vertically** (tracer-bullet), ordered by dependency, and grouped under an epic — the exact shape `b10-ship --epic` drains. It verifies what you *really* want before creating anything.
+**Don't have the issues yet?** Start one step earlier with **`b0-conversation-to-issues`**: it turns the current conversation (a design chat, a brainstorm, a plan) into well-scoped GitHub issues, **sliced vertically** (tracer-bullet), ordered by dependency, and grouped under an epic — the exact shape `b10-ship --epic` drains. It verifies what you *really* want before creating anything. You can even invoke it with nothing but a raw idea: **design mode** interviews you one question at a time (recommended answer included, codebase facts looked up instead of asked), keeps a living design doc in `docs/plans/`, and only converts to issues once the plan converges.
 
 ---
 
@@ -144,7 +144,7 @@ Skills are namespaced `b-pipeline:<skill>`.
 
 | Skill | Role |
 | --- | --- |
-| **b0-conversation-to-issues** | Genesis step (before triage). Turns the conversation (or a plan/PRD via `--from`) into vertically-sliced GitHub issues with dependencies and an epic, ready for `b10-ship --epic`. Verifies the real intent with a human gate before creating anything. |
+| **b0-conversation-to-issues** | Genesis step (before triage). Turns the conversation (or a plan/PRD via `--from`) into vertically-sliced GitHub issues with dependencies and an epic, ready for `b10-ship --epic`. With a raw idea it enters design mode first (`--design` to force): a 1-question-at-a-time interview that matures the idea into a `docs/plans/` design doc before slicing. Verifies the real intent with a human gate — including the execution mode (fast/supervised) — before creating anything. |
 | **b10-ship** | Top-level orchestrator. `<issue>` for one issue, or `--epic=<N>` to drain an epic's sub-issue graph. Chains triage → build → review → close with the human gates. |
 | **b7-issue-to-pr** | Single-issue orchestrator: triage → worktree → build → screen review → commit → **draft PR** → auto-review. Stops at the draft PR (does not merge). |
 | **b8-swarm** | Resolves a **cluster of related issues** in **one** combined PR (refactors, multi-step migrations, "Phase X.Y" series). One worktree, one branch, one PR. |
@@ -203,6 +203,8 @@ Epic mode adds three opt-in behaviors, all off by default and all still gated:
 - **Auto-merge drain.** Label the epic `epic-auto-merge` and sub-issue PRs merge without a per-PR approval as they clear review — `b9-close` independently re-checks epic membership, a fresh 0-blocker `b6` verdict, and green CI before every single merge (still one at a time). The epic's own closing slice is never auto-merged; it always waits for the `epic-approved` gate below.
 - **Batch approvals.** Instead of one prompt per issue, complex-issue decisions and regression waivers are grouped into a single `AskUserQuestion` per wave, each option showing its own evidence.
 - **Parallel builds (opt-in).** Set `B7_PARALLEL=1` in the environment to let an epic wave build a few independent, non-`complex` issues concurrently (capped, distinct scopes only). Omit it and builds stay sequential, which is the default and the safer choice for most repos.
+
+**Fast mode is one switch.** A live `epic-auto-merge` label (human actor) turns on the whole package at once — auto-merge drain, parallel wave builds (`B7_PARALLEL=1` implied), automatic same-scope clustering via `b8-swarm`, and the dynamic backpressure cap — no flags or env vars needed; `b0`'s gate can stamp the label at creation when you pick fast execution. Removing the label reverts everything to sequential + per-PR gates. The four human gates (complex batch, waiver batch, `epic-approved`, CI-failure stop) never turn off.
 
 See `skills/b10-ship/references/epic-mode.md` for the full mechanics if you are auditing or extending the pipeline.
 

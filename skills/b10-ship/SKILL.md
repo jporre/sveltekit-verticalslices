@@ -127,6 +127,8 @@ B10_DONE issue=<N> phase_final=<done|stopped-at-*> pr=<url|none>
 
 Leer `references/epic-mode.md` ANTES de despachar — loop principal, drain-first con snapshot, paralelismo (triage/verify/wave-build), batch de aprobaciones por ola, cap dinamico de backpressure y gate de epic-review viven ahi.
 
+**Switch unico — modo rapido:** si el epic trae `epic-auto-merge` vigente (actor humano no-bot; lo estampa b0 en el gate o el usuario a mano), el modo rapido se activa COMPLETO sin flags ni env vars: drenaje auto-merge + wave-build (`B7_PARALLEL=1` implicito) + cluster automatico por scope + cap dinamico. Quitar el label del epic apaga todo y vuelve a secuencial+gates. Detalle en epic-mode.md ("Modo rapido").
+
 ## Runs zombie
 
 `reconcile` emite `B10_ZOMBIE=true` si el heartbeat del worktree tiene >2h. Tambien: `bash "$B10" janitor` lista todos (y se salta el barrido si hay CUALQUIER lock b7 fresco en el state dir — `b7.lock` o shard `b7-issue-<N>.lock` con `B7_PARALLEL=1`; un build corriendo NO es zombie aunque su heartbeat se atrase en fases largas como screen-review esperando login). **Nunca barrer con un build potencialmente vivo**: si hay duda (laptop suspendida, sesion colgada), preguntar al usuario antes del sweep. Accion del sweep: commit de lo que haya (`Skill b-pipeline:b3-git-commit`), push de la rama, label `pipeline-failed` + comentario diagnostico en el issue (fase, worktree, ultimo error de `.b7/iter-*.tail`), y recien ahi decidir re-run o escalar.

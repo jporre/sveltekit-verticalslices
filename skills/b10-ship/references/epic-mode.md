@@ -2,6 +2,17 @@
 
 El epic es un tracking issue con sub-issues nativos de GitHub (vincular una vez con `epic-link.sh`). Las dependencias finas viven en la seccion `## Blocked by` de cada body.
 
+### Modo rapido — switch unico
+
+`epic-auto-merge` vigente en el EPIC (actor humano no-bot via `bp_label_event`; lo estampa b0 post-gate o el usuario a mano; re-verificar en CADA iteracion — quitarlo apaga todo) activa el modo rapido COMPLETO, sin flags ni env vars:
+
+- **Drenaje auto-merge** (drain-first punto 4 — la semantica original del label).
+- **Cluster automatico:** olas con ≥2 slices del mismo scope van por b8-swarm sin exigir `--cluster` (el flag queda para forzar cluster en epics SIN label).
+- **Wave-build:** la precondicion `B7_PARALLEL=1` se considera cumplida — prefijar `B7_PARALLEL=1` inline en los comandos de guardrails de los agentes, igual que siempre. El RESTO de la elegibilidad (scopes distintos, `files_likely`/`## Archivos previstos` sin interseccion, sin migraciones, nunca complex ni closing_slice) NO se relaja.
+- **Cap dinamico de backpressure** (con su precondicion de drain exitoso intacta).
+
+El label NO toca los gates humanos que sobreviven: batch complex post-triage, batch waivers fin de ola, epic-review + `epic-approved` antes del closing_slice, y CI FAILURE sigue cortando el drenaje. Sin el label: todo como se documenta abajo (secuencial por default, opt-ins explicitos).
+
 ### Loop principal
 
 ```bash
@@ -22,8 +33,8 @@ Con el snapshot en mano, despachar fases — **leer una vez, actuar en paralelo 
 3.5. **Verify de la ola:** issues con `live.phase=verify` y `live.b6=absent` (PR abierto sin marker de review) se revisan **todos juntos** via Workflow (ver "Verify de la ola (Workflow)"). Los `verify` con `blockers>0` NUNCA se re-reviewan: label `needs-human-review` + comentario resumen desde el main context (igual que la fase 4 single-issue). Ojo: el csv `buildable` de la linea `B10_EPIC_STATE` mezcla `triage|build|verify` — filtrar por el objeto `live` del JSON, no por el csv.
 4. **Siguiente ola — build:** issues con todas sus deps `CLOSED` y sin PR propio, ya triageados. Despachar con el cap de la iteracion (ver "Cap dinamico de backpressure").
    - Ola con 1 issue, o issues `complex` → cadena single-issue por issue, **secuencial** (ver "Paralelismo").
-   - Ola con ≥2 issues independientes `simple|medium`, **del mismo `scope`** (b8 exige cohesion tematica — issues de scopes distintos NUNCA van al mismo PR) y flag `--cluster` → `Skill b-pipeline:b8-swarm "--issues=<csv> --theme=<scope>"` (1 worktree, 1 PR combinado, commits por issue; el b9 multi-Closes limpia todo al mergear). Issues de la ola con scope distinto van por la cadena single-issue.
-   - Ola con ≥2 issues elegibles de scopes DISTINTOS y sharding de lock disponible (`B7_PARALLEL=1`) → builds en paralelo opt-in (ver "Wave-build (Workflow, opt-in)"). Sin esa precondicion: secuencial como arriba.
+   - Ola con ≥2 issues independientes `simple|medium`, **del mismo `scope`** (b8 exige cohesion tematica — issues de scopes distintos NUNCA van al mismo PR) y (flag `--cluster` O modo rapido vigente) → `Skill b-pipeline:b8-swarm "--issues=<csv> --theme=<scope>"` (1 worktree, 1 PR combinado, commits por issue; el b9 multi-Closes limpia todo al mergear). Issues de la ola con scope distinto van por la cadena single-issue.
+   - Ola con ≥2 issues elegibles de scopes DISTINTOS y sharding de lock disponible (modo rapido vigente O `B7_PARALLEL=1` explicito) → builds en paralelo (ver "Wave-build (Workflow, opt-in)"). Sin esa precondicion: secuencial como arriba.
 5. **Fin de ola:** los `needs-human-review` acumulados de la ola se resuelven en UNA pasada (ver "Batch de aprobaciones por ola", momento 2). Repetir mientras haya issues desbloqueados y el backpressure lo permita. Un issue frenado (needs-info, complex, zombie) NO bloquea a sus hermanos independientes. **Re-correr `epic-state.sh` al inicio de cada iteracion del loop** (tras drenar o construir algo cambia el grafo) — es barato (paralelo) y mantiene las decisiones sobre estado fresco.
 6. Al final, reportar el estado del grafo completo: cerrados / en PR / frenados (con razon) / bloqueados.
 
@@ -65,7 +76,7 @@ Regla unica: **read-only paraleliza, escritura a la rama default/worktree serial
 | Triage de una ola | **Si** (Workflow, 1 `agent()` por issue) | b1-triage es read-only; cada agente escribe su propio `triage-<n>.json`. |
 | Verify de una ola (b6) | **Si** (Workflow, 1 `agent()` por PR) | b6 es read-only sobre el repo; single-writer por repo+PR (`/tmp/pr-review-<repo>-<PR>.md`) y comenta solo SU PR. Unico write: commit+push en SU worktree/rama. |
 | Epic-review (diff + walkthrough) | **Si** parcial (Agent opus para el diff mientras se prepara el worktree) | El analisis del diff no toca estado. |
-| **Build** (b7 single-issue) | **NO por default / Si opt-in** (wave-build con `B7_PARALLEL=1`) | Default: b7 toma `b7.lock` global — un build a la vez — y backpressure corta a 3 PRs `auto-pr-bot` abiertos. Con sharding de lock (`b7-issue-<N>.lock`) + setup serial + slots dimensionados: ver "Wave-build (Workflow, opt-in)". NO para complex, migraciones, mismo scope ni el closing_slice. |
+| **Build** (b7 single-issue) | **NO por default / Si en modo rapido u opt-in** (wave-build: `epic-auto-merge` vigente o `B7_PARALLEL=1`) | Default: b7 toma `b7.lock` global — un build a la vez — y backpressure corta a 3 PRs `auto-pr-bot` abiertos. Con sharding de lock (`b7-issue-<N>.lock`) + setup serial + slots dimensionados: ver "Wave-build (Workflow, opt-in)". NO para complex, migraciones, mismo scope ni el closing_slice. |
 | **Build** (b8 cluster) | **NO entre clusters** (b8 ya paraleliza su triage interno) | Mismo lock + worktree compartido por cluster. |
 | **Merge / close** (b9) | **NO** | Dos merges concurrentes a la rama default conflictuan. Serial, uno a uno. |
 
@@ -165,7 +176,7 @@ Invocacion: `Workflow({ script:<lo de arriba>, args:{ assert_clean:"<PLUGIN_ROOT
 
 ### Wave-build (Workflow, opt-in)
 
-Builds de una ola en paralelo. **PRECONDICION DURA — sin ella, builds secuenciales como hoy:** `B7_PARALLEL=1` en el entorno del run + puertos unicos por worktree (`setup-worktree.sh` ya excluye los puertos reclamados por los markers `.b7/worktree-ready.json` de worktrees hermanos). El cableado del shard de lock cubre AMBAS vias: en headless `run.sh` de b7 pasa el issue a `acquire-lock` y persiste `lock_file` en `state.json`; en la via Skill (la que usan los agentes de este workflow) el paso 0 de b7 adquiere el shard explicito — por eso el prompt del agente DEBE prefijar `B7_PARALLEL=1` inline en cada comando de guardrails, incluido `acquire-lock`. `release-lock <lock-file>` borra solo SU shard; el janitor de b10 es shard-aware. Verificacion previa: solo que el flag vaya en el entorno/prompt del agente.
+Builds de una ola en paralelo. **PRECONDICION DURA — sin ella, builds secuenciales como hoy:** modo rapido vigente (o `B7_PARALLEL=1` explicito en el entorno del run) + puertos unicos por worktree (`setup-worktree.sh` ya excluye los puertos reclamados por los markers `.b7/worktree-ready.json` de worktrees hermanos). El cableado del shard de lock cubre AMBAS vias: en headless `run.sh` de b7 pasa el issue a `acquire-lock` y persiste `lock_file` en `state.json`; en la via Skill (la que usan los agentes de este workflow) el paso 0 de b7 adquiere el shard explicito — por eso el prompt del agente DEBE prefijar `B7_PARALLEL=1` inline en cada comando de guardrails, incluido `acquire-lock`. `release-lock <lock-file>` borra solo SU shard; el janitor de b10 es shard-aware. Verificacion previa: solo que el flag vaya en el entorno/prompt del agente.
 
 **Dimensionar ANTES de lanzar** (elimina el TOCTOU de backpressure sin serializar — los slots se deciden en el main context, nunca en N preflights concurrentes):
 

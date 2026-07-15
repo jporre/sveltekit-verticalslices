@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### feat — b0 modo diseño + modo rapido de epic con switch unico
+
+Dos mejoras sobre b0/b10: (1) b0 servia solo al FINAL de una conversacion madura — ahora acompaña desde la idea cruda; (2) la maquinaria de velocidad de v1.5.0 era toda opt-in manual (label a mano, `--cluster`, `B7_PARALLEL=1`) y nadie la activaba — el diseño ahora la conecta.
+
+- **b0 modo diseño**: Paso 0 evalua madurez de la conversacion (`--design` fuerza entrevista, `--yes` fuerza clasico). Idea cruda → entrevista 1x1 via AskUserQuestion (respuesta recomendada por pregunta, hechos verificados en el codebase antes de preguntar, resumen inteligente si hubo conversacion previa), checklist de convergencia con propuesta de cierre, y design doc `docs/plans/<tema>.md` actualizado a medida que cierran decisiones (sobrevive sesiones; `--from` lo retoma). b0 lo commitea docs-only a la rama default al crear el epic — tree limpio para b10 y contrato con epic-review (que ya leia `docs/plans/*.md`). Nuevo `references/design-interview.md`.
+- **Template de issue reforzado**: bodies ganan `## Seguridad / permisos` y `## Archivos previstos` (paths exactos del grounding — fija la estructura de carpetas y alimenta la elegibilidad de wave-build); las reglas globales (sin comentarios, simplicidad, browser-first) viven UNA vez en `## Reglas de ejecucion` del design doc, linkeado desde cada body.
+- **Olas anchas por diseño**: `blocked_by` SOLO con dependencia tecnica real; prohibido encadenar por orden estetico. Ejemplo de la guia corregido (s4-filter dependia de s2/s3 sin necesidad — ahora ola 1 ancha de 3 slices).
+- **Gate de b0 pregunta modo de ejecucion**: "rapido" estampa `epic-auto-merge` en el epic post-creacion via `gh issue edit` (evento labeled con token del usuario = actor humano valido para `bp_label_event`). `--fast` junto a `--yes` para headless. Preview del gate muestra el plan de ejecucion (que corre junto por ola, donde caen los gates).
+- **Switch unico en b10**: `epic-auto-merge` vigente activa el modo rapido COMPLETO — drenaje auto-merge + wave-build (`B7_PARALLEL=1` implicito) + cluster automatico por scope + cap dinamico — sin flags ni env vars; quitar el label vuelve todo a secuencial. Los 4 gates humanos sobreviven intactos (batch complex, batch waivers, epic-review/`epic-approved`, CI FAILURE corta el drenaje).
+
+**Archivos clave**: `skills/b0-conversation-to-issues/{SKILL.md,references/{design-interview.md,slicing-guide.md}}`, `skills/b10-ship/{SKILL.md,references/epic-mode.md}`.
+
+**Riesgos / consideraciones**: cero cambios de scripts — el switch conecta mecanismos ya existentes de v1.5.0. Wave-build con locks sharded sigue sin probarse en un epic real (validar con un epic chico). El commit docs-only a la rama default es comportamiento nuevo de b0 (solo `docs/plans/`, post-gate).
+
 ## [1.5.0] — 2026-07-04
 
 ### feat — pipeline sin friccion: auto-merge por epic, screen-review observable, batch de aprobaciones, builds paralelos opt-in

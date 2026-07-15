@@ -28,7 +28,7 @@ El primer slice atraviesa **todo el stack** por el camino mas delgado posible �
 1. **Una operacion por slice.** Listar / crear-editar / borrar / filtrar / exportar son slices distintos. (Crear y editar van **juntos**: en SvelteKit es UN formulario upsert con `id` opcional — no separar.)
 2. **Una pantalla o flujo corto por slice.** Si aparecen 4+ pantallas en un slice, es complex → partir.
 3. **Cap de tamaño = b7.** simple|medium segun el template (abajo). Si pinta complex, partir hasta que cada parte sea simple|medium.
-4. **Deps minimas.** Solo lo que de verdad bloquea (casi todo depende del tracer; los enriquecimientos rara vez dependen entre si salvo que compartan UI).
+4. **Deps SOLO reales, olas anchas.** `blocked_by` unicamente cuando el slice consume algo que otro CREA (schema, query, pantalla). Prohibido encadenar por orden estetico o "flujo natural": todo lo que solo depende del tracer va JUNTO en la ola 1, aunque sean 5 slices. Cada dep artificial es una ola extra de espera — las olas anchas son lo que b10 paraleliza.
 5. **Cohesion de scope para cluster.** Slices secuenciales del mismo `scope`, `simple|medium`, son candidatos a un PR combinado (b8). Scopes distintos → nunca el mismo cluster.
 
 > **Lo transversal NO es un slice.** auth, db, storage, notificaciones y audit son infra genuinamente cross-cutting (viven en `$lib`, no en una ruta). No generan un issue "feature" por sí solos: o son parte del alcance de un slice de pantalla (ej. el slice exige sesión), o son un issue de infra puntual (backend puro, sin `## Pantalla(s)`). No cortes "el módulo de auth" como si fuera una pantalla.
@@ -41,10 +41,8 @@ Grafo de slices:
 
 ```
         s1-list (tracer, ola 0)
-         /        \
-  s2-upsert     s3-delete      (ola 1, independientes entre si)
-         \        /
-        s4-filter               (ola 2)
+       /        |         \
+  s2-upsert  s3-delete  s4-filter    (ola 1, independientes entre si)
 ```
 
 | id | titulo | op | complejidad | blocked_by |
@@ -52,9 +50,9 @@ Grafo de slices:
 | s1-list | feat(productos): listar productos | listar (tracer) | simple | — |
 | s2-upsert | feat(productos): crear y editar producto | upsert | medium | s1-list |
 | s3-delete | feat(productos): eliminar con confirmacion | borrar | simple | s1-list |
-| s4-filter | feat(productos): filtros y busqueda | filtrar | simple | s2-upsert, s3-delete |
+| s4-filter | feat(productos): filtros y busqueda | filtrar | simple | s1-list |
 
-s2 y s3 quedan en la misma ola, mismo scope, simple|medium → **cluster sugerido** (un PR via b8).
+Ojo con s4: filtrar solo necesita que el LISTADO exista (s1) — encadenarlo tras s2/s3 "porque asi se usaria" seria una dep estetica que agrega una ola entera de espera. Los tres slices de la ola 1 son del mismo scope, simple|medium → **cluster sugerido** (un PR via b8).
 
 Plan JSON resultante (ordenado topologicamente):
 
@@ -93,8 +91,8 @@ Plan JSON resultante (ordenado topologicamente):
       "id": "s4-filter",
       "title": "feat(productos): filtros y busqueda",
       "labels": ["feature", "scope:productos", "simple"],
-      "blocked_by": ["s2-upsert", "s3-delete"],
-      "body": "## Objetivo\nEncontrar productos rapido filtrando por categoria y texto.\n\n## Pantalla\n- **Ruta**: `/productos`\n  - **Journey**: el usuario escribe en la busqueda y/o elige categoria; la tabla se filtra en vivo.\n  - **Criterios de aceptacion (visuales)**:\n    - [ ] Busqueda por texto filtra la tabla en vivo (`$derived`, client-side <1000 items).\n    - [ ] Selector de categoria filtra la tabla.\n    - [ ] Estado del filtro reflejado en la URL.\n\n## Alcance (slice vertical)\nFiltrado client-side sobre el listado ya existente. Depende de tener alta y borrado para tener datos que filtrar.\n\n## Complejidad estimada\nsimple."
+      "blocked_by": ["s1-list"],
+      "body": "## Objetivo\nEncontrar productos rapido filtrando por categoria y texto.\n\n## Pantalla\n- **Ruta**: `/productos`\n  - **Journey**: el usuario escribe en la busqueda y/o elige categoria; la tabla se filtra en vivo.\n  - **Criterios de aceptacion (visuales)**:\n    - [ ] Busqueda por texto filtra la tabla en vivo (`$derived`, client-side <1000 items).\n    - [ ] Selector de categoria filtra la tabla.\n    - [ ] Estado del filtro reflejado en la URL.\n\n## Alcance (slice vertical)\nFiltrado client-side sobre el listado ya existente (solo necesita s1). NO toca formulario ni borrado.\n\n## Complejidad estimada\nsimple."
     }
   ]
 }
@@ -118,6 +116,12 @@ Estructura minima que satisface a b1-triage (entidad, operacion, scope, criterio
     - [ ] ...
     - [ ] ...
 
+## Seguridad / permisos
+<que valida ESTE slice: sesion requerida, roles, ownership de los datos. "Solo exige sesion" tambien se declara explicito.>
+
+## Archivos previstos
+<paths EXACTOS del grounding donde vive cada pieza (schema, `.remote.ts`, `+page.svelte`). Fija la estructura de carpetas y habilita builds paralelos: wave-build exige archivos sin interseccion entre slices de la ola.>
+
 ## Alcance (slice vertical)
 <que entra en ESTE slice y que queda explicitamente para otro>
 
@@ -126,6 +130,8 @@ simple | medium  (simple = 3-5 archivos, medium = 5-8)
 ```
 
 Reglas del body:
+
+- Si existe design doc (`docs/plans/<tema>.md`), linkearlo al final del body (`> Diseño: docs/plans/<tema>.md`) — las reglas globales de ejecucion (sin comentarios, simplicidad, browser-first) viven UNA vez ahi, no se repiten por issue.
 
 - **No** escribir `## Blocked by` ni `#numeros` aqui — las deps van en `blocked_by` (slice-ids) del plan; el script las inyecta resolviendo a numeros reales.
 - Slice **backend puro** (sin pantalla): reemplazar `## Pantalla(s)` por `## Remote functions / endpoints` con los criterios de aceptacion no-visuales. b7 corre igual con `screens: []`.

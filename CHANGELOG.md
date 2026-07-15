@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-07-15
+
 ### feat — b0 modo diseño + modo rapido de epic con switch unico
 
 Dos mejoras sobre b0/b10: (1) b0 servia solo al FINAL de una conversacion madura — ahora acompaña desde la idea cruda; (2) la maquinaria de velocidad de v1.5.0 era toda opt-in manual (label a mano, `--cluster`, `B7_PARALLEL=1`) y nadie la activaba — el diseño ahora la conecta.

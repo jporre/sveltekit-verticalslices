@@ -7,7 +7,7 @@
 > | `AP1`-`AP14` | secciones 1-14 de `../../b6-pr-review/references/sveltekit-antipatterns.md` (mismo numero) |
 > | `SEC-A` / `SEC-B` / `SEC-C` | secciones 1 (+page.server.ts sin auth) / 2 (remote functions sin guard) / 3 (API endpoints) de `../../b6-pr-review/references/security-checklist.md` |
 > | `SEC-D` / `SEC-E` | secciones 5 (datos sensibles/secrets) / 6 (estado compartido en servidor) del mismo archivo |
-> | `CAL` (calidad), `DUP` (duplicados), `REG` (callers rotos) | notacion interna de b11; la doctrina vive en el SKILL.md de b6 (Areas 2 y 5) y en `../../b2-build-feature/references/simplicity-ladder.md` |
+> | `CAL` (calidad), `DUP` (duplicados), `REG` (callers rotos) | notacion interna de b-setup-or-fix; la doctrina vive en el SKILL.md de b6 (Areas 2 y 5) y en `../../b2-build-feature/references/simplicity-ladder.md` |
 
 Regla transversal: cada peldaño **entra** con el repo verde (vs baseline) y **sale** con `RUNG_VERIFY ok` + commit via b3. La salida de todo peldaño es MENOS codigo — si una transformacion agrega archivos o capas, esta mal hecha.
 

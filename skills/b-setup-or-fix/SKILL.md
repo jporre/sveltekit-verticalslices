@@ -1,6 +1,6 @@
 ---
-name: b11-genie
-description: 'El genio de la botella: audita un repo SvelteKit degradado (load functions y fetch manual en vez de remote functions, sintaxis Svelte 4, sobre-ingenieria, funciones duplicadas, exceso de comentarios, features desparramados) y lo migra por peldaños hacia la base canonica del plugin — o instala esa base en un proyecto nuevo. Usar SOLO cuando el usuario lo invoque directo: "rescata este repo", "limpia este proyecto", "audita el codebase", "define la base del proyecto", "genio de la botella". NO es review de un PR (eso es b6-pr-review) ni construccion de un feature nuevo (eso es b2-build-feature); ningun skill del pipeline lo encadena automatico.'
+name: b-setup-or-fix
+description: 'El experto: audita un repo SvelteKit degradado (load functions y fetch manual en vez de remote functions, sintaxis Svelte 4, sobre-ingenieria, funciones duplicadas, exceso de comentarios, features desparramados) y lo migra por peldaños hacia la base canonica del plugin — o instala esa base en un proyecto nuevo. Usar SOLO cuando el usuario lo invoque directo: "rescata este repo", "limpia este proyecto", "audita el codebase", "define la base del proyecto", "genio de la botella". NO es review de un PR (eso es b6-pr-review) ni construccion de un feature nuevo (eso es b2-build-feature); ningun skill del pipeline lo encadena automatico.'
 allowed-tools: Bash, Read, Write, Edit, Grep, Glob, AskUserQuestion, Skill, Agent
 # model/effort omitidos a proposito: hereda los de la sesion — el diagnostico y las migraciones necesitan el modelo mas capaz disponible
 ---
@@ -20,13 +20,13 @@ Sin argumentos: flujo completo (diagnostico → gate → escalera). Flags:
 
 ---
 
-# b11-genie — base sana o rescate de repo SvelteKit
+# b-setup-or-fix — base sana o rescate de repo SvelteKit
 
 Los otros skills del pipeline construyen y revisan **cambios** (un issue, un PR). Este opina sobre el **codebase entero**: detecta el codigo que se degrado — capas inutiles, event handlers que reinventan forms, datos que viajan por `load()`/`fetch` ignorando remote functions, duplicados, prosa — y lo migra por peldaños verificados hacia la misma doctrina que `b2-build-feature` usa para construir y `b6-pr-review` usa para revisar. El resultado: cada feature en su carpeta, remote functions como unica via de datos, runas Svelte 5, minimo comentario, documentacion en archivos.
 
 **Reglas criticas:**
 
-1. **Solo invocacion directa del usuario.** Ningun skill (b7, b8, b10) lo encadena, ni siquiera al detectar deuda. Sugerir `/b-pipeline:b11-genie` es lo maximo permitido a terceros.
+1. **Solo invocacion directa del usuario.** Ningun skill (b7, b8, b10) lo encadena, ni siquiera al detectar deuda. Sugerir `/b-pipeline:b-setup-or-fix` es lo maximo permitido a terceros.
 2. **Herramientas PRIMERO, analisis despues.** Cada fase arranca con un comando; el juicio LLM filtra lo que el script conto.
 3. **Nada se edita antes del gate humano de FASE 2.** El diagnostico completo siempre precede al primer `Edit`.
 4. **Un peldaño roto detiene la escalera.** Cada peldaño deja el repo verde (check + build vs baseline) antes del siguiente; si no verifica, se revierte ese peldaño y se para con reporte. Nunca se avanza sobre base rota.
@@ -60,7 +60,7 @@ grep -q '"@sveltejs/kit"' package.json || echo "ABORT: no es un proyecto SvelteK
 git status --porcelain               # debe salir vacio; sucio => ABORT: working tree sucio, commitea o stashea
 git checkout -b "genie/$(date +%Y%m%d)-<slug>" "$(bp_default_branch)"   # rama nueva DESDE la default — nunca colgada de una feature branch a medias
 
-bash "$PLUGIN_ROOT/skills/b11-genie/scripts/rung-verify.sh" baseline
+bash "$PLUGIN_ROOT/skills/b-setup-or-fix/scripts/rung-verify.sh" baseline
 ```
 
 - `<slug>` corto describiendo el alcance (`rescate`, `init`, o el `--feature`).
@@ -70,7 +70,7 @@ bash "$PLUGIN_ROOT/skills/b11-genie/scripts/rung-verify.sh" baseline
 ## FASE 1: Diagnostico (solo lectura)
 
 ```bash
-bash "$PLUGIN_ROOT/skills/b11-genie/scripts/audit.sh"
+bash "$PLUGIN_ROOT/skills/b-setup-or-fix/scripts/audit.sh"
 ```
 
 Emite secciones `=== E1 ===` … `=== E6 ===` con los hits (archivo:linea) y una linea final parseable:
@@ -110,7 +110,7 @@ Loop estricto por cada peldaño aprobado, en orden E1 → E6:
 2. **Verificar**:
 
    ```bash
-   bash "$PLUGIN_ROOT/skills/b11-genie/scripts/rung-verify.sh" E<n>
+   bash "$PLUGIN_ROOT/skills/b-setup-or-fix/scripts/rung-verify.sh" E<n>
    ```
 
    `RUNG_VERIFY ok` exige: check sin errores NUEVOS vs baseline + build no peor que baseline. Ademas: `svelte-autofixer` sobre cada `.svelte` tocado, y si hay dev server corriendo, browser test rapido de los features tocados (mismo criterio de b2: codigo que compila pero no se vio en browser NO esta listo).
@@ -122,7 +122,7 @@ Loop estricto por cada peldaño aprobado, en orden E1 → E6:
 ## FASE 4: Cierre y reporte
 
 ```bash
-bash "$PLUGIN_ROOT/skills/b11-genie/scripts/audit.sh"   # re-correr para el delta
+bash "$PLUGIN_ROOT/skills/b-setup-or-fix/scripts/audit.sh"   # re-correr para el delta
 ```
 
 Reporte final, corto y con el delta primero:

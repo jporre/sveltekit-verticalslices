@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ABOUTME: gate mecanico por peldaño de b11-genie — captura baseline de check+build y
+# ABOUTME: gate mecanico por peldaño de b-setup-or-fix — captura baseline de check+build y
 # ABOUTME: compara cada peldaño contra el, para no atribuirse errores preexistentes.
 # Uso: rung-verify.sh baseline   (correr una vez en FASE 0)
 #      rung-verify.sh E<n>       (tras cada peldaño; emite RUNG_VERIFY ok|fail rung=E<n>)
@@ -7,7 +7,7 @@ set -uo pipefail
 
 TOP=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 HASH=$(printf '%s' "$TOP" | cksum | cut -d' ' -f1)   # ponytail: hash del path para que repos con igual basename no colisionen en /tmp
-STATE="/tmp/b11-genie-$(basename "$TOP")-$HASH.baseline"
+STATE="/tmp/b-setup-or-fix-$(basename "$TOP")-$HASH.baseline"
 
 # detectar package manager por lockfile
 if   [ -f pnpm-lock.yaml ]; then PM=pnpm

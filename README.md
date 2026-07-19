@@ -155,7 +155,7 @@ Skills are namespaced `b-pipeline:<skill>`.
 | **b4-pull-request** | Creates the PR from the project template. |
 | **b6-pr-review** | Reviews a PR across five areas and writes a durable verdict marker (`<!-- b6:verdict=... -->`). |
 | **b9-close** | Canonical close: merges the PR, closes the issue, and cleans the worktree — behind a human approval gate. |
-| **b11-genie** | Standalone "genie in a bottle" — **user-invoked only, never chained by the pipeline**. Audits an entire degraded SvelteKit repo (load functions / manual fetch instead of Remote Functions, Svelte 4 syntax, over-engineering, duplicates, comment noise) and migrates it rung by rung (E1 security → E6 docs) toward the same doctrine b2 builds with and b6 reviews against — or installs that base in a fresh project (`--init`). Every rung is verified against a baseline and human-gated before any edit. |
+| **b-setup-or-fix** | Standalone "genie in a bottle" — **user-invoked only, never chained by the pipeline**. Audits an entire degraded SvelteKit repo (load functions / manual fetch instead of Remote Functions, Svelte 4 syntax, over-engineering, duplicates, comment noise) and migrates it rung by rung (E1 security → E6 docs) toward the same doctrine b2 builds with and b6 reviews against — or installs that base in a fresh project (`--init`). Every rung is verified against a baseline and human-gated before any edit. |
 
 The visual reviewer `b7-screen-review` is a plugin **agent**, not a skill: it is defined in `agents/b7-screen-review.md` and spawned by `b7-issue-to-pr` / `b8-swarm` via `subagent_type: "b-pipeline:b7-screen-review"`, one per screen in parallel. It verifies each screen against the triage's visual acceptance criteria using the `agent-browser` CLI.
 
@@ -304,8 +304,8 @@ The orchestrators are the happy path, but every skill works standalone:
 /b-pipeline:b1-add-worktree my-feature   # just create an isolated worktree
 /b-pipeline:b6-pr-review 128        # just review PR #128
 /b-pipeline:b9-close 128            # just merge PR #128 and clean up (with the gate)
-/b-pipeline:b11-genie --audit       # diagnose the whole repo, touch nothing
-/b-pipeline:b11-genie               # full rescue: audit -> human gate -> verified rungs
+/b-pipeline:b-setup-or-fix --audit       # diagnose the whole repo, touch nothing
+/b-pipeline:b-setup-or-fix               # full rescue: audit -> human gate -> verified rungs
 ```
 
 ---

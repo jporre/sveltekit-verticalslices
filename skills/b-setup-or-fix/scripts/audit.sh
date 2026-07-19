@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ABOUTME: diagnostico mecanico de b11-genie — cuenta hits por peldaño E1-E6 sobre el
+# ABOUTME: diagnostico mecanico de b-setup-or-fix — cuenta hits por peldaño E1-E6 sobre el
 # ABOUTME: codebase entero y emite AUDIT_RESULT parseable. Solo lectura, cero cambios.
 # Uso: audit.sh [ruta-src]   (default: src del cwd)
 # Exit: 0 ok | 3 no es proyecto SvelteKit
@@ -20,17 +20,17 @@ show() {
   n=$(printf '%s' "$hits" | grep -c . || true)
   echo "-- $label: $n"
   [ -n "$hits" ] && printf '%s\n' "$hits" | head -$MAX_HITS
-  echo "$n" >> /tmp/b11-audit-counts.$$
+  echo "$n" >> /tmp/b-setup-or-fix-audit-counts.$$
 }
 
 rung() { # rung <var>: suma el acumulador en <var> y lo resetea
   local total=0 c
-  while read -r c; do total=$((total + c)); done < /tmp/b11-audit-counts.$$
-  : > /tmp/b11-audit-counts.$$
+  while read -r c; do total=$((total + c)); done < /tmp/b-setup-or-fix-audit-counts.$$
+  : > /tmp/b-setup-or-fix-audit-counts.$$
   eval "$1=$total"
 }
-: > /tmp/b11-audit-counts.$$
-trap 'rm -f /tmp/b11-audit-counts.$$' EXIT
+: > /tmp/b-setup-or-fix-audit-counts.$$
+trap 'rm -f /tmp/b-setup-or-fix-audit-counts.$$' EXIT
 
 echo "=== STACK ==="
 KIT_VERSION=$(node -e "try{console.log(require('./node_modules/@sveltejs/kit/package.json').version)}catch(e){console.log('unknown')}" 2>/dev/null || echo unknown)
@@ -41,8 +41,8 @@ FEATURES=$(find "$SRC/routes" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -
 echo "features=$FEATURES"
 
 echo "=== E1 === base y seguridad"
-grep -qE 'remoteFunctions[[:space:]]*:[[:space:]]*true' svelte.config.js 2>/dev/null || { echo "-- falta kit.experimental.remoteFunctions en svelte.config.js"; echo 1 >> /tmp/b11-audit-counts.$$; }
-grep -qE 'async[[:space:]]*:[[:space:]]*true' svelte.config.js 2>/dev/null || { echo "-- falta compilerOptions.experimental.async en svelte.config.js"; echo 1 >> /tmp/b11-audit-counts.$$; }
+grep -qE 'remoteFunctions[[:space:]]*:[[:space:]]*true' svelte.config.js 2>/dev/null || { echo "-- falta kit.experimental.remoteFunctions en svelte.config.js"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
+grep -qE 'async[[:space:]]*:[[:space:]]*true' svelte.config.js 2>/dev/null || { echo "-- falta compilerOptions.experimental.async en svelte.config.js"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
 h=""
 while IFS= read -r f; do
   [ -n "$f" ] || continue
@@ -118,7 +118,7 @@ rung E5
 echo "=== E6 === comentarios y docs"
 COMMENT_LINES=$(grep -rE --include='*.ts' --include='*.svelte' '^[[:space:]]*//' "$SRC" 2>/dev/null | grep -cv 'ponytail:' || true)
 echo "-- lineas de comentario (sin ponytail): $COMMENT_LINES"
-[ "$COMMENT_LINES" -gt 50 ] && echo "$COMMENT_LINES" >> /tmp/b11-audit-counts.$$ || echo 0 >> /tmp/b11-audit-counts.$$
+[ "$COMMENT_LINES" -gt 50 ] && echo "$COMMENT_LINES" >> /tmp/b-setup-or-fix-audit-counts.$$ || echo 0 >> /tmp/b-setup-or-fix-audit-counts.$$
 h=""
 while IFS= read -r d; do
   [ -n "$d" ] || continue
@@ -126,7 +126,7 @@ while IFS= read -r d; do
 "
 done < <(find "$SRC/routes" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
 show "features sin <feature>.md colocado (CAL-6)" "$h"
-[ -f docs/ARCHITECTURE.md ] || [ -f ARCHITECTURE.md ] || { echo "-- falta doc nivel repo (ARCHITECTURE.md)"; echo 1 >> /tmp/b11-audit-counts.$$; }
+[ -f docs/ARCHITECTURE.md ] || [ -f ARCHITECTURE.md ] || { echo "-- falta doc nivel repo (ARCHITECTURE.md)"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
 rung E6
 
 MODE=rescate

@@ -31,13 +31,13 @@ if [ "${#POSITIONAL[@]}" -ge 2 ]; then
   BASE_BRANCH="${POSITIONAL[1]}"
 else
   if ! BASE_BRANCH="$(bp_default_branch)"; then
-    echo "ERROR: no se pudo resolver la rama default (bp_default_branch); pasar base-branch explicito" >&2
+    echo "ERROR: no se pudo resolver la rama default (bp_default_branch); pasar base-branch explícito" >&2
     exit 2
   fi
 fi
 
-# Precondicion: correr desde el repo PRINCIPAL, no desde un worktree linkeado
-# (show-toplevel devolveria el worktree y todo lo demas apuntaria mal).
+# Precondición: correr desde el repo PRINCIPAL, no desde un worktree linkeado
+# (show-toplevel devolvería el worktree y todo lo demás apuntaría mal).
 if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]; then
   echo "ERROR: ejecutar desde el repo principal, no desde un worktree" >&2
   exit 2
@@ -93,8 +93,8 @@ git worktree add "$WORKTREE_DIR" -b "$BRANCH_NAME" "$BASE_BRANCH"
 
 # Symlink every UNTRACKED .env* file from the main repo (.env, .env.local, etc.)
 # Worktrees share secrets/config with the parent so they stay in sync automatically.
-# Tracked files (.env.example) se saltan: ln -sf los pisaria con un symlink de path
-# absoluto que git ve como type-change -> b3 lo commitearia y romperia el repo remoto.
+# Tracked files (.env.example) se saltan: ln -sf los pisaría con un symlink de path
+# absoluto que git ve como type-change -> b3 lo commitearía y rompería el repo remoto.
 shopt -s nullglob
 for env_file in "${REPO_ROOT}"/.env "${REPO_ROOT}"/.env.*; do
   [ -f "$env_file" ] || continue
@@ -111,8 +111,8 @@ shopt -u nullglob
 # Pick a free dev port so this worktree can run alongside the parent and other worktrees.
 # Starts at 6026 (parent uses 6025) and walks up until lsof reports nothing listening.
 # Puertos ya asignados a worktrees hermanos (su dev server puede estar apagado ahora).
-# El 2>/dev/null + || true cubren glob sin matches (nullglob no esta activo aca y
-# pipefail haria morir el script en el primer worktree, que no tiene hermanos).
+# El 2>/dev/null + || true cubren glob sin matches (nullglob no está activo acá y
+# pipefail haría morir el script en el primer worktree, que no tiene hermanos).
 ASSIGNED=" $(sed -n 's/.*"port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' \
   "${REPO_PARENT}"/worktrees/*/.b7/worktree-ready.json 2>/dev/null | tr '\n' ' ' || true) "
 PORT=6026
@@ -139,9 +139,9 @@ echo "Created dev.sh shim (port ${PORT})"
 # NOTE: core.excludesFile (worktree scope) overrides the user's global
 # excludesFile for this worktree — common global patterns (.DS_Store) are
 # included below so nothing is lost.
-# Patrones ANCLADOS a raiz con "/" — sin anclar, gitignore matchea a cualquier
-# profundidad y ocultaria archivos legitimos (ej. tests/fixtures/expected.log).
-# .DS_Store queda global a proposito (nunca es codigo).
+# Patrones ANCLADOS a raíz con "/" — sin anclar, gitignore matchea a cualquier
+# profundidad y ocultaría archivos legítimos (ej. tests/fixtures/expected.log).
+# .DS_Store queda global a propósito (nunca es código).
 git -C "$WORKTREE_DIR" config extensions.worktreeConfig true
 git -C "$WORKTREE_DIR" config --worktree core.excludesFile "${WORKTREE_DIR}/.git-worktree-exclude"
 printf '%s\n' '/.b7/' '/dev.sh' '/*.log' '.DS_Store' '/dev-server.pid' '/.playwright-mcp/' '/.git-worktree-exclude' \
@@ -196,9 +196,9 @@ echo "Installing dependencies..."
 (cd "$WORKTREE_DIR" && pnpm install --frozen-lockfile)
 echo "Dependencies installed"
 
-# Codegraph: probe INFORMATIVO post-install, SIN sync. La db de codegraph esta
-# gitignored, asi que un worktree recien creado NO la tiene -> 'missing' es el
-# resultado correcto y esperado (no queremos indexar/sync aca). Nunca gate.
+# Codegraph: probe INFORMATIVO post-install, SIN sync. La db de codegraph está
+# gitignored, así que un worktree recién creado NO la tiene -> 'missing' es el
+# resultado correcto y esperado (no queremos indexar/sync acá). Nunca gate.
 CG_PROBE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/codegraph-probe.sh"
 if [ -x "$CG_PROBE" ]; then
   echo "Codegraph: $(CODEGRAPH_PROBE_NO_SYNC=1 CODEGRAPH_PROBE_TTL=0 bash "$CG_PROBE" "$WORKTREE_DIR" 2>/dev/null | tail -1)"

@@ -3,22 +3,22 @@ set -euo pipefail
 
 # assert-clean.sh <dir> [--fix]
 #
-# Verifica que el working tree de <dir> este limpio. Clasifica lo sucio en
-# CODIGO (debe commitearse, NUNCA se descarta) vs ARTEFACTOS conocidos del
+# Verifica que el working tree de <dir> esté limpio. Clasifica lo sucio en
+# CÓDIGO (debe commitearse, NUNCA se descarta) vs ARTEFACTOS conocidos del
 # pipeline b (generados por b7/screen-review/dev server).
 #
 # Exit codes (contrato estable — consumidores: b3-git-commit, b7 DoD, b9-close, b10-ship):
-#   0 -> limpio (o quedo limpio tras --fix)
-#   6 -> sucio con archivos de CODIGO (accion: commitear)
+#   0 -> limpio (o quedó limpio tras --fix)
+#   6 -> sucio con archivos de CÓDIGO (acción: commitear)
 #   7 -> sucio solo con artefactos (sin --fix, o --fix no pudo excluirlos)
-#   2 -> uso invalido / no es repo git
+#   2 -> uso inválido / no es repo git
 #
 # --fix: agrega los artefactos a info/exclude (idempotente). NOTA: info/exclude
 # es COMPARTIDO entre el repo principal y todos sus worktrees; los patrones que
 # se agregan son inertes fuera de un worktree (.b7/, dev.sh, etc. no existen en
 # el repo principal). Este script NUNCA borra ni descarta archivos.
 #
-# Ultima linea machine-readable en exits 0/6/7 (exit 2 = error de uso, sin linea):
+# Última línea machine-readable en exits 0/6/7 (exit 2 = error de uso, sin línea):
 #   ASSERT_CLEAN dir=<dir> status=clean|dirty code=N artifacts=M
 
 usage() { echo "Usage: $0 <dir> [--fix]" >&2; exit 2; }
@@ -30,9 +30,9 @@ FIX=0
 
 git -C "$DIR" rev-parse --git-dir >/dev/null 2>&1 || { echo "ERROR: $DIR no es un repo git" >&2; exit 2; }
 
-# Patrones de artefactos conocidos. PNGs y LOGs solo en la raiz (screenshots y
+# Patrones de artefactos conocidos. PNGs y LOGs solo en la raíz (screenshots y
 # logs sueltos del pipeline); un .png o .log dentro de src/, static/ o tests/
-# es CODIGO (asset o fixture legitimo) y jamas se excluye.
+# es CÓDIGO (asset o fixture legítimo) y jamás se excluye.
 is_artifact() {
   case "$1" in
     .b7|.b7/*)                          return 0 ;;
@@ -83,8 +83,8 @@ if [ "$ART_N" -gt 0 ] && [ "$FIX" -eq 1 ]; then
   mkdir -p "$(dirname "$EXCLUDE_FILE")"
   printf '%s' "$ART_LIST" | while IFS= read -r p; do
     [ -n "$p" ] || continue
-    # Anclar a raiz con "/": un patron sin slash inicial matchearia el mismo
-    # nombre a cualquier profundidad (semantica gitignore) y podria ocultar codigo.
+    # Anclar a raíz con "/": un patrón sin slash inicial matchearía el mismo
+    # nombre a cualquier profundidad (semántica gitignore) y podría ocultar código.
     pat="/$p"
     case "$p" in .b7|.b7/*) pat="/.b7/" ;; .playwright-mcp/*) pat="/.playwright-mcp/" ;; esac
     grep -qxF "$pat" "$EXCLUDE_FILE" 2>/dev/null || echo "$pat" >> "$EXCLUDE_FILE"
@@ -94,7 +94,7 @@ if [ "$ART_N" -gt 0 ] && [ "$FIX" -eq 1 ]; then
 fi
 
 if [ "$CODE_N" -gt 0 ]; then
-  echo "--- CODIGO sin commitear (commitear, NUNCA descartar) ---"
+  echo "--- CÓDIGO sin commitear (commitear, NUNCA descartar) ---"
   printf '%s' "$CODE_LIST"
 fi
 if [ "$ART_N" -gt 0 ]; then

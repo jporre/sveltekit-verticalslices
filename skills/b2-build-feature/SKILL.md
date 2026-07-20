@@ -1,7 +1,7 @@
 ---
 name: b2-build-feature
-# model/allowed-tools omitidos a proposito: hereda los de la sesion
-description: 'Construye cualquier pantalla SvelteKit — CRUD, form, dashboard o pagina de datos — desde una descripcion directa del usuario ("crear pantalla", "build feature", o una pantalla descrita sin la palabra feature) o desde un issue triageado. Ruteo de issues, PR y merge pertenecen a b7/b8/b10, que invocan este skill como fase de build.'
+# model/allowed-tools omitidos a propósito: hereda los de la sesión
+description: 'Construye cualquier pantalla SvelteKit — CRUD, form, dashboard o página de datos — desde una descripción directa del usuario ("crear pantalla", "build feature", o una pantalla descrita sin la palabra feature) o desde un issue triageado. Ruteo de issues, PR y merge pertenecen a b7/b8/b10, que invocan este skill como fase de build.'
 ---
 
 # Build Feature
@@ -60,7 +60,7 @@ For the comprehensive React-to-Svelte guide, read `references/svelte5-not-react.
 ### The Form Trap (Your #1 Error Source)
 
 React trains you to handle forms with onSubmit + preventDefault + state + fetch. **SvelteKit remote functions handle all of that for you:**
-el `<form>` se conecta con spread `{...upsert_x.enhance(...)}`, cada input con `{...upsert_x.fields.name.as('text')}`, y el modo edit se pre-popula con `upsert_x.fields.set({...})`. Nada de onsubmit + fetch manual. Patron completo con codigo: `references/forms-recipe.md`.
+el `<form>` se conecta con spread `{...upsert_x.enhance(...)}`, cada input con `{...upsert_x.fields.name.as('text')}`, y el modo edit se pre-popula con `upsert_x.fields.set({...})`. Nada de onsubmit + fetch manual. Patrón completo con código: `references/forms-recipe.md`.
 
 ## Workflow: 4 Phases
 
@@ -82,7 +82,7 @@ git checkout -b feat/<feature-name>    # new feature
 git checkout -b fix/<description>      # bug fix
 ```
 
-Patron de nombre configurable via `git config b-pipeline.branchPattern` (o env
+Patrón de nombre configurable vía `git config b-pipeline.branchPattern` (o env
 `B_PIPELINE_BRANCH_PATTERN`), placeholders `{type}` `{issue}` `{slug}`; default
 `{type}/{issue}-{slug}`. Con lib.sh sourceado (`. "$PLUGIN_ROOT/scripts/lib.sh"`):
 `git checkout -b "$(bp_branch_name feat <issue> <slug>)"`.
@@ -134,22 +134,22 @@ Only add more files — all colocated in the same folder — when justified:
 - `<feature>.server.ts` — only if there is real business logic (rules, orchestration), NOT for simple CRUD
 - sub-routes (`new/`, `[id]/`) get their own colocated `+page.svelte` and, if needed, a scoped `*.remote.ts`
 
-### Phase 1.5: Analisis de impacto (condicional)
+### Phase 1.5: Análisis de impacto (condicional)
 
-**Trigger:** el plan modifica simbolos EXISTENTES — un helper compartido de `$lib`, un `*.remote.ts` que ya tiene consumidores, o `schema.ts`. **Skip greenfield:** si el plan solo crea archivos nuevos en `src/routes/<feature>/`, saltar esta fase (impact set vacio) y seguir a Phase 2.
+**Trigger:** el plan modifica símbolos EXISTENTES — un helper compartido de `$lib`, un `*.remote.ts` que ya tiene consumidores, o `schema.ts`. **Skip greenfield:** si el plan solo crea archivos nuevos en `src/routes/<feature>/`, saltar esta fase (impact set vacío) y seguir a Phase 2.
 
-Antes de escribir codigo, construir el **impact set** (archivos afectados) por cada simbolo a modificar:
+Antes de escribir código, construir el **impact set** (archivos afectados) por cada símbolo a modificar:
 
-- Con codegraph disponible (`CODEGRAPH_STATUS=ok` del probe): tool `codegraph_impact` sobre el simbolo.
+- Con codegraph disponible (`CODEGRAPH_STATUS=ok` del probe): tool `codegraph_impact` sobre el símbolo.
 - Fallback sin codegraph (status != ok): `rg -l '<simbolo>' src`
 
-**Gate de scope-growth:** si el impact set trae archivos fuera del feature que NO estan en el plan, resolver ANTES de codear — o se agregan al plan explicitamente, o se declara scope-growth (el issue es mas grande de lo previsto; corriendo bajo b7, reportarlo al sticky del issue). Nunca tocar archivos no planificados en silencio.
+**Gate de scope-growth:** si el impact set trae archivos fuera del feature que NO están en el plan, resolver ANTES de codear — o se agregan al plan explícitamente, o se declara scope-growth (el issue es más grande de lo previsto; corriendo bajo b7, reportarlo al sticky del issue). Nunca tocar archivos no planificados en silencio.
 
 Corriendo bajo b7, el impact set se persiste en `.b7/state.json` campo `impact_files` (paso 4 de b7).
 
 ### Phase 2: Build
 
-**Feature NUEVO: arrancá del esqueleto por script — no improvises la estructura.**
+**Feature NUEVO: arranca del esqueleto por script — no improvises la estructura.**
 `scaffold-slice.sh` crea el slice colocado mínimo compilable (`+page.svelte`,
 `<feature>.remote.ts`, `<feature>.md`) siguiendo `references/slice-spec.md` (regla 99%,
 sin `ui/`, sin `data.remote.ts` genérico, sin capa service):
@@ -159,22 +159,22 @@ bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/scaffold-slice.sh" <fe
 # → SCAFFOLD_OK dir=src/routes/<feature> files=<csv>
 ```
 
-Después rellenás esos archivos (pasos siguientes). Para editar un feature legacy
-existente NO scaffoldees: seguí su patrón interno.
+Después rellenas esos archivos (pasos siguientes). Para editar un feature legacy
+existente NO scaffoldees: sigue su patrón interno.
 
 Write files in this exact order. Use absolute paths, avoid cd. **Batch file writes** — escribe
-todos los archivos y verifica una sola vez. El codigo copy-paste completo de cada step vive en
-`references/feature-templates.md` (Template 1); aca solo el orden, nombres y gotchas:
+todos los archivos y verifica una sola vez. El código copy-paste completo de cada step vive en
+`references/feature-templates.md` (Template 1); acá solo el orden, nombres y gotchas:
 
 **Step 1: Types** (`<feature>-types.ts`) — `InferSelectModel` sobre la tabla Drizzle; en features
 simples exporta los types directo desde `<feature>.remote.ts`. Si la tabla no existe, crea el
-schema Drizzle primero (skill `postgresql-table-design` si esta disponible).
+schema Drizzle primero (skill `postgresql-table-design` si está disponible).
 
 **Step 2: Remote functions** (`<feature>.remote.ts`, e.g. `products.remote.ts`) — el archivo CORE:
 `query` (list) + `form` (UN upsert con `id` opcional) + `command` (delete). Nombrado por feature,
-nunca `data.remote.ts` generico; NO va bajo `src/lib/server/` (el cliente lo importa). Toda remote
+nunca `data.remote.ts` genérico; NO va bajo `src/lib/server/` (el cliente lo importa). Toda remote
 function llama `requireUser()` (importado de `$lib/server`, ver `references/slice-spec.md`) como
-primera operacion — b6 marca BLOCKER si falta.
+primera operación — b6 marca BLOCKER si falta.
 
 **Step 3: Page** (`+page.svelte`) — la UI va directo en `+page.svelte`: importa el remote colocado
 y componentes siblings; sin wrapper `<Feature>Page.svelte`. Query con `$derived(await get_x())`,
@@ -183,7 +183,7 @@ form con `{...upsert_x.enhance(...)}` + `fields.as(...)`, refresh con `.updates(
 
 **Step 4: Route guard** (`+page.server.ts`, opcional pero recomendado) — las remote functions ya
 chequean auth, pero un `load` que tira `error(401, {...})` si `!locals.user` evita renderizar una
-pagina que el usuario no puede usar.
+página que el usuario no puede usar.
 
 When a feature needs more screens, split into colocated sibling components and sub-route folders
 (`new/+page.svelte`, `[id]/+page.svelte`) — the route folder IS the feature folder (ver Colocation).
@@ -192,7 +192,7 @@ When a feature needs more screens, split into colocated sibling components and s
 
 Code that compiles but hasn't been tested in a browser is NOT done.
 
-0. **Conformidad del slice (mecánico)** — antes de type-check, corré:
+0. **Conformidad del slice (mecánico)** — antes de type-check, corre:
    ```bash
    bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh"
    # → SLICE_CHECK ok | SLICE_CHECK violations=<n>
@@ -200,7 +200,7 @@ Code that compiles but hasn't been tested in a browser is NOT done.
    Cualquier `VIOLATION` (feature nuevo bajo `src/lib/features/`, `data.remote.ts`,
    `*.remote.ts` bajo `src/lib/server/`, slice nuevo sin `<feature>.md`) se corrige
    ANTES de seguir. Es la misma verificación que corre b6 en el review.
-1. **Correr `verify.sh`** — los gates mecanicos como script (branch guard, `check:machine`,
+1. **Correr `verify.sh`** — los gates mecánicos como script (branch guard, `check:machine`,
    `format`, grep anti-React scoped al diff, `test:unit` condicional, browser-gate):
    ```bash
    bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh"
@@ -210,7 +210,7 @@ Code that compiles but hasn't been tested in a browser is NOT done.
    Si sale non-zero: corregir lo que reporta y re-correr hasta exit 0. No avanzar
    con un gate en `fail`.
 2. **Autofixer** — correr MCP `svelte-autofixer` sobre cada archivo del csv
-   `svelte_files=` de la linea `VERIFY_RESULT`. Si reporta issues: corregir y volver
+   `svelte_files=` de la línea `VERIFY_RESULT`. Si reporta issues: corregir y volver
    al paso 1 (verify.sh de nuevo — el fix puede romper types o formato).
 3. **Browser test con `agent-browser`** — SOLO si `VERIFY_RESULT` dice `browser=required`
    (el diff toca `src/routes/**`, `*.svelte` o `*.remote.ts`). Con `browser=not-needed`
@@ -234,9 +234,9 @@ After verification passes:
 1. **Write/update the feature doc `<feature>.md`** — colocado en `src/routes/<feature>/<feature>.md`.
    Es la primera parada de debug (ver `references/slice-spec.md`). No es opcional:
    - **Feature NUEVO** → crear `<feature>.md` con las 6 secciones del slice-spec:
-     **Proposito** (2-3 lineas, lenguaje de usuario), **Pantallas y rutas** (que se ve, donde),
-     **Remote functions** (nombre + una linea de contrato c/u), **Datos** (tablas/vistas que toca),
-     **Decisiones** (por que asi, atajos `ponytail:` relevantes), **Problemas conocidos**.
+     **Propósito** (2-3 líneas, lenguaje de usuario), **Pantallas y rutas** (qué se ve, dónde),
+     **Remote functions** (nombre + una línea de contrato c/u), **Datos** (tablas/vistas que toca),
+     **Decisiones** (por qué así, atajos `ponytail:` relevantes), **Problemas conocidos**.
    - **Feature EXISTENTE con `.md`** → actualizarlo en ESTE PR si el cambio altera contratos
      (remote functions, datos) o pantallas.
    - **Feature legacy tocado SIN `.md`** → generarlo esta primera vez que un issue lo toca.
@@ -259,7 +259,7 @@ After verification passes:
 4. **snake_case functions** — `get_items`, `upsert_item`, `delete_item`
 5. **Lazy ladder** — stop at the first rung that holds; no unrequested abstraction; mark deliberate shortcuts with `// ponytail:` (see `references/simplicity-ladder.md`)
 
-Todo lo demas (upsert unico, `$derived` para queries, `fields.as`, namespace imports, `error()` throws, `href`) ya vive en la tabla STOP de arriba.
+Todo lo demás (upsert único, `$derived` para queries, `fields.as`, namespace imports, `error()` throws, `href`) ya vive en la tabla STOP de arriba.
 
 ## When to Read References
 

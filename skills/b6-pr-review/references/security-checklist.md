@@ -1,6 +1,6 @@
 # Checklist de Seguridad para PR Review
 
-Las reglas canonicas viven inline en SKILL.md (Area 3: tabla por clasificacion + lista "Para TODO el diff"). Este archivo trae los ejemplos de codigo y los detalles que la tabla no repite (formato de permisos, mapeo operacion → permiso, apendice).
+Las reglas canónicas viven inline en SKILL.md (Area 3: tabla por clasificación + lista "Para TODO el diff"). Este archivo trae los ejemplos de código y los detalles que la tabla no repite (formato de permisos, mapeo operación → permiso, apéndice).
 
 ## 1. Archivos +page.server.ts y +layout.server.ts (funciones load)
 
@@ -13,7 +13,7 @@ export async function load({locals}) {
   // ...
 }
 
-// INCORRECTO — load sin verificacion devuelve datos a cualquiera
+// INCORRECTO — load sin verificación devuelve datos a cualquiera
 export async function load({params}) {
   return {items: await getItems(params.country)}
 }
@@ -21,7 +21,7 @@ export async function load({params}) {
 
 ## 2. Remote Functions (`<feature>.remote.ts`)
 
-Ejemplos de `requireUser()` / `requirePermission()` como primera operacion (regla: tabla del Area 3):
+Ejemplos de `requireUser()` / `requirePermission()` como primera operación (regla: tabla del Area 3):
 
 ```typescript
 // CORRECTO — con permiso unitario
@@ -30,13 +30,13 @@ export const get_informes = query(async () => {
   return listInformes()
 })
 
-// CORRECTO — solo autenticacion (datos propios del usuario)
+// CORRECTO — solo autenticación (datos propios del usuario)
 export const get_mi_perfil = query(async () => {
   const user = requireUser()
   return getPerfil(user.id)
 })
 
-// INCORRECTO — sin verificacion
+// INCORRECTO — sin verificación
 export const get_datos = query(async () => {
   return listDatos() // cualquier visitante puede llamar esto
 })
@@ -45,12 +45,12 @@ export const get_datos = query(async () => {
 ### Formato de permisos
 
 - Formato: `verbo:sustantivo` (ej: `leer:documento`, `crear:post`, `editar:tarea`)
-- El verbo describe la accion: leer, crear, editar, eliminar, aprobar, exportar
+- El verbo describe la acción: leer, crear, editar, eliminar, aprobar, exportar
 - El sustantivo describe la entidad
 
-### Mapeo operacion → permiso
+### Mapeo operación → permiso
 
-| Operacion | Tipo remote function | Permiso esperado   |
+| Operación | Tipo remote function | Permiso esperado   |
 | --------- | -------------------- | ------------------ |
 | Listar    | query                | leer:[entidad]     |
 | Ver       | query                | leer:[entidad]     |
@@ -61,10 +61,10 @@ export const get_datos = query(async () => {
 
 ## 3. API Endpoints (+server.ts)
 
-Ejemplos de auth via `locals.user` o API key (regla: tabla del Area 3):
+Ejemplos de auth vía `locals.user` o API key (regla: tabla del Area 3):
 
 ```typescript
-// Con sesion
+// Con sesión
 export async function GET({locals}) {
   if (!locals.user) error(401, {message: 'No autenticado', code: 'AUTH_REQUIRED'})
 }
@@ -72,7 +72,7 @@ export async function GET({locals}) {
 // Con API key
 export async function POST({request}) {
   const apiKey = request.headers.get('x-api-key')
-  if (apiKey !== env.API_KEY) error(401, {message: 'API key invalida', code: 'INVALID_API_KEY'})
+  if (apiKey !== env.API_KEY) error(401, {message: 'API key inválida', code: 'INVALID_API_KEY'})
 }
 ```
 
@@ -104,11 +104,11 @@ export async function load() {
 }
 ```
 
-Si necesitas cache, usar un mecanismo explicito y seguro.
+Si necesitas caché, usar un mecanismo explícito y seguro.
 
-## Apendice: Patrones de referencia
+## Apéndice: Patrones de referencia
 
-Variante de `requirePermission` cuando la operacion acepta cualquiera de varios permisos:
+Variante de `requirePermission` cuando la operación acepta cualquiera de varios permisos:
 
 ```typescript
 function requireAnyPermission(...permisos: string[]) {

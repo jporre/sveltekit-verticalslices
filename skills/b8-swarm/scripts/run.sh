@@ -3,7 +3,7 @@
 #   - parsear args
 #   - preflight (kill-switch, lock, gh auth, working tree, backpressure)
 #   - construir cola desde gh issue list
-#   - imprimir B8_QUEUE / B8_RUN_REPORT / B8_LOCK como ultimas lineas parseables
+#   - imprimir B8_QUEUE / B8_RUN_REPORT / B8_LOCK como últimas líneas parseables
 #
 # La ola (worktree + Workflow triage/build + PR) la maneja Claude leyendo SKILL.md.
 # Este script solo sirve para arrancar la ola con guardarrailes ya verificados.
@@ -20,7 +20,7 @@
 #   18 working tree dirty
 #   20 kill-switch
 #   21 lock held
-#   22 backlog vacio
+#   22 backlog vacío
 
 set -euo pipefail
 
@@ -82,7 +82,7 @@ else
 fi
 
 if [ -z "$QUEUE" ]; then
-  echo "b8: backlog vacio (label=$LABEL)" >&2
+  echo "b8: backlog vacío (label=$LABEL)" >&2
   cat > "$RUN_REPORT" <<EOF
 # b8 swarm ${STAMP}
 
@@ -93,7 +93,7 @@ if [ -z "$QUEUE" ]; then
 - started: $(date -u +%FT%TZ)
 - status: aborted (empty backlog)
 EOF
-  "$GUARDRAILS" release-lock   # no arranca ola: liberar aca mismo
+  "$GUARDRAILS" release-lock   # no arranca ola: liberar acá mismo
   exit 22
 fi
 

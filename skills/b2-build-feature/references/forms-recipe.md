@@ -24,7 +24,7 @@ import { db } from '$lib/server/db'
 import { taItem } from '$lib/server/db/schema'
 import { eq } from 'drizzle-orm'
 
-// Bootstrap self-contained: si $lib/server ya expone requireUser(), importalo en vez de redefinirlo aqui (slice-spec: transversal)
+// Bootstrap self-contained: si $lib/server ya expone requireUser(), impórtalo en vez de redefinirlo aquí (slice-spec: transversal)
 function requireUser() {
   const { locals } = getRequestEvent()
   if (!locals.user) error(401, { message: 'No autenticado', code: 'AUTH_REQUIRED' })
@@ -40,8 +40,8 @@ const upsertSchema = z.object({
   id: z.string().optional(),
   nombre: z.string().min(1, 'Nombre requerido'),
   activo: z.coerce.boolean(),                 // Checkbox via hidden input (string -> bool)
-  categoria: z.string().min(1, 'Elegi una categoria'), // Select
-  plan: z.enum(['free', 'pro'], { message: 'Elegi un plan' }),  // RadioGroup
+  categoria: z.string().min(1, 'Elige una categoría'), // Select
+  plan: z.enum(['free', 'pro'], { message: 'Elige un plan' }),  // RadioGroup
   vence: z.string().min(1, 'Fecha requerida'), // Calendar/date -> YYYY-MM-DD
 })
 
@@ -71,7 +71,7 @@ Client: spread the form on `<form>`, native fields via `.as()`, toast on success
 </script>
 
 <Card.Root>
-  <Card.Header><Card.Title>Nuevo item</Card.Title></Card.Header>
+  <Card.Header><Card.Title>Nuevo ítem</Card.Title></Card.Header>
   <Card.Content>
     <form
       class="flex flex-col gap-4"
@@ -124,19 +124,19 @@ input the form actually submits. Errors come from `fields.categoria.issues()`.
   import * as Select from '$lib/components/ui/select'
   let categoria = $state('')
   const categorias = [
-    { value: 'a', label: 'Categoria A' },
-    { value: 'b', label: 'Categoria B' },
+    { value: 'a', label: 'Categoría A' },
+    { value: 'b', label: 'Categoría B' },
   ]
   const invalid = $derived(upsert_item.fields.categoria.issues().length > 0)
 </script>
 
 <div class="grid gap-2">
-  <Label>Categoria</Label>
+  <Label>Categoría</Label>
   <!-- hidden input carries the value into the form submission -->
   <input {...upsert_item.fields.categoria.as('hidden', categoria)} />
   <Select.Root type="single" bind:value={categoria}>
     <Select.Trigger aria-invalid={invalid}>
-      {categorias.find((c) => c.value === categoria)?.label ?? 'Elegi una categoria'}
+      {categorias.find((c) => c.value === categoria)?.label ?? 'Elige una categoría'}
     </Select.Trigger>
     <Select.Content>
       {#each categorias as c}
@@ -238,7 +238,7 @@ format to `YYYY-MM-DD` for the hidden input the schema expects.
   <input {...upsert_item.fields.vence.as('hidden', venceStr)} />
   <Popover.Root>
     <Popover.Trigger aria-invalid={invalid}>
-      {venceStr || 'Elegi una fecha'}
+      {venceStr || 'Elige una fecha'}
     </Popover.Trigger>
     <Popover.Content class="w-auto p-0">
       <Calendar type="single" bind:value={vence} minValue={today(getLocalTimeZone())} />

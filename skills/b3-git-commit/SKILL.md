@@ -1,6 +1,6 @@
 ---
 name: b3-git-commit
-description: 'Commits en formato conventional commits: analiza el diff, agrupa cambios en commits logicos y garantiza working tree limpio al terminar. Usar cuando el usuario pida commitear, o cuando otro skill del pipeline b (b2/b7/b8/b9/b10) necesite crear commits.'
+description: 'Commits en formato conventional commits: analiza el diff, agrupa cambios en commits lógicos y garantiza working tree limpio al terminar. Usar cuando el usuario pida commitear, o cuando otro skill del pipeline b (b2/b7/b8/b9/b10) necesite crear commits.'
 model: haiku
 allowed-tools: Bash
 ---
@@ -13,7 +13,7 @@ allowed-tools: Bash
 $ARGUMENTS
 ```
 
-Opcional: numero de issue (ej `262` o `#262`). Si viene, agregar footer `Refs #N` al commit principal (o `Closes #N` si el usuario lo pide explicitamente — en el flujo b el `Closes` vive en el PR, no en el commit).
+Opcional: número de issue (ej `262` o `#262`). Si viene, agregar footer `Refs #N` al commit principal (o `Closes #N` si el usuario lo pide explícitamente — en el flujo b el `Closes` vive en el PR, no en el commit).
 
 Tipos: feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert
 
@@ -67,20 +67,20 @@ EOF
 
 If commit fails due to hooks, fix and create NEW commit (don't amend).
 
-### 5. Verificacion final (OBLIGATORIO — no saltar)
+### 5. Verificación final (OBLIGATORIO — no saltar)
 
-El skill NUNCA termina con working tree sucio. Como ultimo paso, SIEMPRE correr:
+El skill NUNCA termina con working tree sucio. Como último paso, SIEMPRE correr:
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" . --fix
 ```
 
-Segun exit code:
+Según exit code:
 
 - **0** → limpio, terminado. Mostrar el commit graph.
-- **6** (codigo sin commitear) → los archivos listados bajo `--- CODIGO ---` pertenecen al cambio: stagearlos y commitearlos (en el commit logico que corresponda, o un commit extra `chore: incluir archivos restantes del cambio`). Re-correr la verificacion. Repetir hasta exit 0. PROHIBIDO terminar reportando exito con exit 6.
+- **6** (código sin commitear) → los archivos listados bajo `--- CODIGO ---` pertenecen al cambio: stagearlos y commitearlos (en el commit lógico que corresponda, o un commit extra `chore: incluir archivos restantes del cambio`). Re-correr la verificación. Repetir hasta exit 0. PROHIBIDO terminar reportando éxito con exit 6.
 - **7** (artefactos que `--fix` no pudo excluir, ej. tracked/staged) → reportarlos al usuario con el listado; no descartarlos.
-- **2** (invocacion invalida / el directorio no es repo git) → abortar reportando el error textual; no reintentar ni dar el commit por verificado.
+- **2** (invocación inválida / el directorio no es repo git) → abortar reportando el error textual; no reintentar ni dar el commit por verificado.
 
 Este gate existe porque cambios fuera del commit bloquean el worktree y detienen el flujo b completo (b9-close no puede cerrar). El productor de commits garantiza el tree limpio, no el consumidor.

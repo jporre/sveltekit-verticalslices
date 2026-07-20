@@ -5,17 +5,17 @@ set -euo pipefail
 #
 # Crea la estructura de issues que consume b10-ship --epic a partir de un PLAN JSON.
 # El LLM (skill b0-conversation-to-issues) razona el slicing y escribe el plan; este
-# script hace el trabajo mecanico/deterministico contra GitHub:
+# script hace el trabajo mecánico/determinístico contra GitHub:
 #
 #   1. Asegura que existan todas las labels (las crea si faltan).
-#   2. Crea cada sub-issue EN ORDEN, resolviendo deps de slice-id -> #numero real.
-#      Las deps se materializan como una seccion "## Blocked by\n- #N" en el body
-#      (convencion que parsea epic-graph.sh de b10).
+#   2. Crea cada sub-issue EN ORDEN, resolviendo deps de slice-id -> #número real.
+#      Las deps se materializan como una sección "## Blocked by\n- #N" en el body
+#      (convención que parsea epic-graph.sh de b10).
 #   3. Crea el issue epic de tracking (rollup con checklist de los sub-issues).
-#   4. Vincula los sub-issues como sub-issues NATIVOS bajo el epic via epic-link.sh.
+#   4. Vincula los sub-issues como sub-issues NATIVOS bajo el epic vía epic-link.sh.
 #
-# Idempotencia-lite: si ya existe un issue ABIERTO con titulo identico, lo reusa
-# (no duplica) y resuelve las deps contra ese numero. Re-correr no spamea.
+# Idempotencia-lite: si ya existe un issue ABIERTO con título idéntico, lo reusa
+# (no duplica) y resuelve las deps contra ese número. Re-correr no spamea.
 #
 # Schema del plan (ver references/slicing-guide.md):
 #   {
@@ -26,7 +26,7 @@ set -euo pipefail
 #       "labels": ["scope:x"],
 #       "closing_slice": "epic"|null  // "epic" => el epic depende de TODOS los subs
 #     },                              //            (se vuelve el closing_slice de b10)
-#     "issues": [                     // ORDEN TOPOLOGICO: una dep siempre va antes
+#     "issues": [                     // ORDEN TOPOLÓGICO: una dep siempre va antes
 #       { "id":"s1", "title":"...", "body":"...", "labels":["feature","scope:x"],
 #         "blocked_by":[] },
 #       { "id":"s2", "title":"...", "body":"...", "labels":[...],
@@ -34,10 +34,10 @@ set -euo pipefail
 #     ]
 #   }
 #
-# Output: lineas "ok:/skip:" por issue + ultima linea machine-readable:
+# Output: líneas "ok:/skip:" por issue + última línea machine-readable:
 #   B0_DONE epic=<N|none> issues=<csv> waves=<n> mode=<created|dry-run>
 #
-# Exit: 2 args | 3 plan invalido | 5 fallo gh create | 6 epic-link fallo (no fatal: se reporta)
+# Exit: 2 args | 3 plan inválido | 5 fallo gh create | 6 epic-link fallo (no fatal: se reporta)
 
 [ -n "${1:-}" ] || { echo "Usage: $0 <plan.json> [--dry-run]" >&2; exit 2; }
 PLAN="$1"
@@ -74,7 +74,7 @@ lang = plan.get("lang", "es")
 if not issues:
     sys.stderr.write("ERROR: el plan no tiene issues\n"); sys.exit(3)
 
-# --- validacion: ids unicos, deps conocidas y topologicamente anteriores ---
+# --- validación: ids únicos, deps conocidas y topológicamente anteriores ---
 ids = [it.get("id") for it in issues]
 if any(not i for i in ids):
     sys.stderr.write("ERROR: todo issue necesita 'id'\n"); sys.exit(3)
@@ -90,8 +90,8 @@ for it in issues:
             sys.stderr.write(f"ERROR: '{it['id']}' depende de id desconocido '{d}'\n"); sys.exit(3)
         if d not in seen:
             sys.stderr.write(
-                f"ERROR: '{it['id']}' depende de '{d}' que aparece despues — "
-                f"el array 'issues' debe estar en orden topologico (deps primero)\n")
+                f"ERROR: '{it['id']}' depende de '{d}' que aparece después — "
+                f"el array 'issues' debe estar en orden topológico (deps primero)\n")
             sys.exit(3)
     seen.add(it["id"])
 
@@ -137,14 +137,14 @@ have = {x["name"] for x in json.loads(r.stdout)} if r.returncode == 0 and r.stdo
 for lab in sorted(want - have):
     sh(["gh", "label", "create", lab, "--color", "BFD4F2", "--description", "b0-conversation-to-issues"])
 
-# --- idempotencia-lite: indexar issues abiertos por titulo exacto ---
+# --- idempotencia-lite: indexar issues abiertos por título exacto ---
 r = sh(["gh", "issue", "list", "--state", "open", "--limit", "300", "--json", "number,title"])
 existing = {x["title"]: x["number"] for x in json.loads(r.stdout)} if r.returncode == 0 and r.stdout.strip() else {}
 
 def create_issue(title, body, labels):
     if title in existing:
         n = existing[title]
-        print(f"skip: #{n} ya existe (titulo identico) — {title}")
+        print(f"skip: #{n} ya existe (título idéntico) — {title}")
         return n
     with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
         f.write(body); path = f.name
@@ -157,16 +157,16 @@ def create_issue(title, body, labels):
         sys.stderr.write(f"ERROR creando '{title}': {r.stderr}\n"); sys.exit(5)
     m = re.search(r"/issues/(\d+)", r.stdout)
     if not m:
-        sys.stderr.write(f"ERROR: no pude parsear el numero del issue creado: {r.stdout}\n"); sys.exit(5)
+        sys.stderr.write(f"ERROR: no pude parsear el número del issue creado: {r.stdout}\n"); sys.exit(5)
     n = int(m.group(1))
-    existing[title] = n  # por si dos slices comparten titulo (no deberian)
+    existing[title] = n  # por si dos slices comparten título (no deberían)
     print(f"ok:   #{n} {title}")
     return n
 
 # --- crear sub-issues en orden, materializando ## Blocked by ---
-# Cada sub-issue lleva "ready" (dedup) ademas de sus labels de plan: b1 --auto lo
+# Cada sub-issue lleva "ready" (dedup) además de sus labels de plan: b1 --auto lo
 # reconoce como issue de b0 y reusa el veredicto sin fork de research. El epic queda
-# afuera (se crea mas abajo sin "ready").
+# afuera (se crea más abajo sin "ready").
 num = {}
 for it in issues:
     body = it["body"].rstrip()
@@ -183,14 +183,14 @@ if epic:
     if not body:
         head = "Epic de seguimiento. Sub-issues:" if lang == "es" else "Tracking epic. Sub-issues:"
         rows = "\n".join(f"- [ ] #{num[it['id']]} {it['title']}" for it in issues)
-        foot = ("\n\nProcesar con `/b-pipeline:b10-ship --epic=<N>` (reemplazar N por el numero de este epic)."
+        foot = ("\n\nProcesar con `/b-pipeline:b10-ship --epic=<N>` (reemplazar N por el número de este epic)."
                 if lang == "es" else
                 "\n\nDrain with `/b-pipeline:b10-ship --epic=<N>` (replace N with this epic's number).")
         body = f"{head}\n{rows}{foot}"
     if epic.get("closing_slice") == "epic":
         # El epic mismo es el slice de cierre: depende de TODOS los subs.
         # epic-graph.sh lo detecta (deps cubren >=80% del grafo) y b10 lo construye
-        # ultimo, tras el gate de epic-review.
+        # último, tras el gate de epic-review.
         body += "\n\n## Blocked by\n" + "\n".join(f"- #{num[it['id']]}" for it in issues)
     labels = list(dict.fromkeys((epic.get("labels") or []) + ["epic"]))
     epic_n = create_issue(epic["title"], body, labels)

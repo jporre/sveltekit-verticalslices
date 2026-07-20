@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # check-slice.sh — valida la conformidad de un cambio contra references/slice-spec.md
-# de forma MECANICA (lo que el juicio LLM no necesita mirar). Corre sobre el diff.
+# de forma MECÁNICA (lo que el juicio LLM no necesita mirar). Corre sobre el diff.
 #
 # Uso: bash check-slice.sh [base-ref]
 #   base-ref  rama/commit base a comparar (default: rama default del repo via
-#             bp_default_branch). Compara el working tree contra el merge-base, asi cubre tanto cambios
+#             bp_default_branch). Compara el working tree contra el merge-base, así cubre tanto cambios
 #             ya commiteados en la rama como cambios sin commitear (pre-commit b2).
 #
-# Checklist mecanico (slice-spec.md, checklist de conformidad):
-#   1. Nada NUEVO bajo src/lib/features/ (tolerancia legacy: EDITAR ahi es OK).
-#   2. Remote nombrado: sin data.remote.ts; ningun *.remote.ts bajo src/lib/server/.
+# Checklist mecánico (slice-spec.md, checklist de conformidad):
+#   1. Nada NUEVO bajo src/lib/features/ (tolerancia legacy: EDITAR ahí es OK).
+#   2. Remote nombrado: sin data.remote.ts; ningún *.remote.ts bajo src/lib/server/.
 #   3. Feature NUEVO (slice colocado con +page.svelte/*.remote.ts nuevos) trae su .md.
 #   4. (WARNING) Archivos NUEVOS en $lib fuera de la tabla de excepciones del spec.
 #
@@ -17,7 +17,7 @@
 #   0  sin violaciones (puede haber WARNINGs)
 #   1  1+ violaciones
 #   2  error de uso / entorno
-# Ultima linea: SLICE_CHECK ok | SLICE_CHECK violations=<n>
+# Última línea: SLICE_CHECK ok | SLICE_CHECK violations=<n>
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,7 +32,7 @@ if [ -z "$BASE" ]; then
 fi
 [ -z "$BASE" ] && { echo "ERROR: no se pudo determinar base-ref (probar: check-slice.sh <base>)" >&2; exit 2; }
 
-MB="$(git merge-base "$BASE" HEAD 2>/dev/null)" || { echo "ERROR: base-ref invalido: $BASE" >&2; exit 2; }
+MB="$(git merge-base "$BASE" HEAD 2>/dev/null)" || { echo "ERROR: base-ref inválido: $BASE" >&2; exit 2; }
 
 # name-status del working tree vs merge-base: A=added, M=modified, D=deleted, R=renamed.
 # git diff NO lista archivos untracked (nuevos sin `git add`); los sumamos como A
@@ -62,7 +62,7 @@ while IFS=$'\t' read -r status path rest; do
 
   # --- Check 2: remote nombrado ---
   if [ "$base" = "data.remote.ts" ]; then
-    viol "remote generico prohibido (usar <feature>.remote.ts): $path"
+    viol "remote genérico prohibido (usar <feature>.remote.ts): $path"
   fi
   case "$path" in
     src/lib/server/*.remote.ts|src/lib/server/**/*.remote.ts)
@@ -70,7 +70,7 @@ while IFS=$'\t' read -r status path rest; do
   esac
 
   # Solo los cambios que AGREGAN archivos disparan los checks de estructura.
-  # (EDITAR un archivo existente = M/D => tolerancia legacy, no es violacion.)
+  # (EDITAR un archivo existente = M/D => tolerancia legacy, no es violación.)
   [ "$status" = "A" ] || continue
 
   # --- Check 1: nada nuevo bajo src/lib/features/ ---
@@ -83,7 +83,7 @@ while IFS=$'\t' read -r status path rest; do
   # --- Check 4 (WARNING): $lib nuevo fuera de la tabla de excepciones ---
   case "$path" in
     src/lib/components/ui/*) : ;;                 # shadcn-svelte
-    src/lib/server/db/*) : ;;                     # conexion/schema DB
+    src/lib/server/db/*) : ;;                     # conexión/schema DB
     src/lib/*)
       warn "archivo NUEVO en \$lib — justificar como transversal 3+ features o mover al slice: $path" ;;
   esac

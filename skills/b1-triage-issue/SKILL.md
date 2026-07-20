@@ -1,6 +1,6 @@
 ---
 name: b1-triage-issue
-description: 'Triage de un GitHub issue: evalua, etiqueta y postea el comentario de evaluacion antes de desarrollar. Usar cuando pidan triage/evaluar/revisar el issue #N o "tarea N" (tarea = issue en este codebase), o cuando otro skill (b10-ship, b7-issue-to-pr, b8-swarm) necesite un issue triageado. NO es la entrada de "resuelve el issue N" (eso es b10-ship) ni de features descritas sin issue (eso es b2-build-feature).'
+description: 'Triage de un GitHub issue: evalúa, etiqueta y postea el comentario de evaluación antes de desarrollar. Usar cuando pidan triage/evaluar/revisar el issue #N o "tarea N" (tarea = issue en este codebase), o cuando otro skill (b10-ship, b7-issue-to-pr, b8-swarm) necesite un issue triageado. NO es la entrada de "resuelve el issue N" (eso es b10-ship) ni de features descritas sin issue (eso es b2-build-feature).'
 context: fork
 agent: Explore
 model: sonnet
@@ -14,9 +14,9 @@ model: sonnet
 $ARGUMENTS
 ```
 
-> Skill `context: fork`: el subagente solo ve este `SKILL.md`. El placeholder `$ARGUMENTS` es la UNICA via por la que el numero de issue tipeado llega al fork — el harness lo sustituye. El primer token es el numero/URL del issue. Si aparece vacio o sin sustituir, abortar pidiendo el numero de issue.
+> Skill `context: fork`: el subagente solo ve este `SKILL.md`. El placeholder `$ARGUMENTS` es la ÚNICA vía por la que el número de issue tipeado llega al fork — el harness lo sustituye. El primer token es el número/URL del issue. Si aparece vacío o sin sustituir, abortar pidiendo el número de issue.
 
-**Flag `--auto`** (para orquestadores como b10-ship): modo desatendido, cero preguntas interactivas; los deltas van marcados "(Con `--auto`)" en cada step. Todo lo demas identico al modo normal.
+**Flag `--auto`** (para orquestadores como b10-ship): modo desatendido, cero preguntas interactivas; los deltas van marcados "(Con `--auto`)" en cada step. Todo lo demás idéntico al modo normal.
 
 Development that starts from a GitHub issue must understand, research, and enrich it before any code gets written. The objective is three outputs:
 
@@ -59,15 +59,15 @@ Before any research, decide if the work can short-circuit. Triage that races to 
 
 **Already triaged?** If labels include any of `ready`, `needs-info`, `blocked`, `duplicate`, OR a previous comment starts with `## Evaluacion de Issue` / `## Issue Evaluation`, surface the prior verdict and ask the user whether to re-triage. Don't redo research silently — it wastes tokens and risks contradicting prior alignment. (Con `--auto`: no preguntar — re-evaluar solo si hay comentarios humanos nuevos, si no reusar el veredicto.)
 
-**Issue de b0 (label `ready` sin comentario de evaluacion).** Un sub-issue creado por `b0-conversation-to-issues/create-epic.sh` nace con label `ready` pero **sin** comentario `## Evaluacion de Issue` — su grounding y gate humano ya se pagaron en b0. Con `--auto`, si no hay comentarios humanos posteriores a la creacion del issue: **reusar sin research**. Derivar el veredicto de los labels en vez de re-explorar:
+**Issue de b0 (label `ready` sin comentario de evaluación).** Un sub-issue creado por `b0-conversation-to-issues/create-epic.sh` nace con label `ready` pero **sin** comentario `## Evaluacion de Issue` — su grounding y gate humano ya se pagaron en b0. Con `--auto`, si no hay comentarios humanos posteriores a la creación del issue: **reusar sin research**. Derivar el veredicto de los labels en vez de re-explorar:
 
 - `verdict` = `ready` (por el label)
 - `complexity` = `simple` | `medium` | `complex` (el label de complejidad presente)
 - `type` = `feature` | `bug` | `enhancement`
 - `scope` = valor de `scope:*`
-- `blocked_by` = numeros `#N` de la seccion `## Blocked by` del body (o `[]` si no hay)
+- `blocked_by` = números `#N` de la sección `## Blocked by` del body (o `[]` si no hay)
 
-Emitir el `TRIAGE_RESULT` con esos campos y terminar. Si aparecio un comentario humano posterior a la creacion → correr triage completo normal (el humano cambio algo).
+Emitir el `TRIAGE_RESULT` con esos campos y terminar. Si apareció un comentario humano posterior a la creación → correr triage completo normal (el humano cambió algo).
 
 **Trivially incomplete?** If `body` is empty or <100 chars and no acceptance criteria appear in the first comments, skip Steps 3-4 entirely and go straight to Step 6/7 as `needs-info`. There is nothing to ground.
 
@@ -83,18 +83,18 @@ Spanish issue → Spanish comment. English → English. Mixed → use the body's
 
 Only reach this step when Step 2 didn't short-circuit. The goal is grounding, not exhaustive exploration.
 
-**4-probe. Probe codegraph antes de grepear (fallback rg siempre disponible).** No confiar en "existe `.codegraph/`": la db puede estar rota o stale. Correr el probe compartido; el `CODEGRAPH_STATUS` elige la via de grounding y se anota en `grounding_source` del triage.
+**4-probe. Probe codegraph antes de grepear (fallback rg siempre disponible).** No confiar en "existe `.codegraph/`": la db puede estar rota o stale. Correr el probe compartido; el `CODEGRAPH_STATUS` elige la vía de grounding y se anota en `grounding_source` del triage.
 
 ```bash
 bash "$CLAUDE_PLUGIN_ROOT/skills/b1-add-worktree/scripts/codegraph-probe.sh" .   # -> CODEGRAPH_STATUS=ok|stale|missing|broken
 ```
 
 - `ok` → usar `codegraph_search "<entidad>"` en el main loop para aterrizar paths reales; `grounding_source: "codegraph"`.
-- `stale`/`missing`/`broken` → NO invocar tools `codegraph_*` (datos stale o fallan); usar el `rg` de 4a como fallback; `grounding_source: "rg"`. El probe SIEMPRE sale 0; codegraph es recomendacion, nunca gate.
+- `stale`/`missing`/`broken` → NO invocar tools `codegraph_*` (datos stale o fallan); usar el `rg` de 4a como fallback; `grounding_source: "rg"`. El probe SIEMPRE sale 0; codegraph es recomendación, nunca gate.
 
-**Gate anti-fabricacion en `files_likely`.** Todo path que exista en el repo DEBE venir del output de una herramienta (codegraph/rg/fd), no de memoria. Un archivo que aun no existe y hay que crear va como glob marcado (ej. `src/routes/<feature>/+page.svelte (nuevo)`). No listar un path existente sin haberlo visto en un output. Si no se pudo verificar ningun path, dejar `files_likely: []` y decirlo en el triage.
+**Gate anti-fabricación en `files_likely`.** Todo path que exista en el repo DEBE venir del output de una herramienta (codegraph/rg/fd), no de memoria. Un archivo que aún no existe y hay que crear va como glob marcado (ej. `src/routes/<feature>/+page.svelte (nuevo)`). No listar un path existente sin haberlo visto en un output. Si no se pudo verificar ningún path, dejar `files_likely: []` y decirlo en el triage.
 
-**4a-doc. Read the feature doc FIRST (antes del grep).** Si el issue es un bug o cambio sobre un feature EXISTENTE, leer su doc colocado `src/routes/<feature>/<feature>.md` (o el `docs/` legacy si el feature vive bajo `src/lib/features/`) ANTES de grepear entidades. El `.md` es la primera parada de debug: da proposito, pantallas/rutas, remote functions, datos y problemas conocidos sin escanear codigo. Si existe, citarlo en el triage (seccion Archivos / Files) y usarlo para acotar el grep de 4a. Si no existe, seguir con 4a normal.
+**4a-doc. Read the feature doc FIRST (antes del grep).** Si el issue es un bug o cambio sobre un feature EXISTENTE, leer su doc colocado `src/routes/<feature>/<feature>.md` (o el `docs/` legacy si el feature vive bajo `src/lib/features/`) ANTES de grepear entidades. El `.md` es la primera parada de debug: da propósito, pantallas/rutas, remote functions, datos y problemas conocidos sin escanear código. Si existe, citarlo en el triage (sección Archivos / Files) y usarlo para acotar el grep de 4a. Si no existe, seguir con 4a normal.
 
 ```bash
 # El nombre del feature suele salir de las entidades del issue.
@@ -119,12 +119,12 @@ Open a file only when the match count justifies it (>1 hit, or the path is the o
 gh search issues "<2-3 keywords> repo:$(gh repo view --json nameWithOwner -q .nameWithOwner)" --limit 10
 ```
 
-**4e. Evidence-first (solo bugs / `type: fix`).** Un bug no es `ready` por afirmar un sintoma: hace falta al menos **un artefacto observado** que confirme sintoma y causa. Antes de marcar ready un `fix`, obtener evidencia observable y guardarla en `evidence` del triage:
+**4e. Evidence-first (solo bugs / `type: fix`).** Un bug no es `ready` por afirmar un síntoma: hace falta al menos **un artefacto observado** que confirme síntoma y causa. Antes de marcar ready un `fix`, obtener evidencia observable y guardarla en `evidence` del triage:
 
-- `evidence.observed` — cita textual del artefacto: mensaje de error exacto, salida de comando, linea de log, o snippet de codigo (path:linea) que reproduce/explica el bug. Pegar lo observado, no parafrasear.
-- `evidence.source` — de donde salio: comando corrido, `path:linea`, URL de CI, o comentario `#N`.
+- `evidence.observed` — cita textual del artefacto: mensaje de error exacto, salida de comando, línea de log, o snippet de código (path:línea) que reproduce/explica el bug. Pegar lo observado, no parafrasear.
+- `evidence.source` — de dónde salió: comando corrido, `path:línea`, URL de CI, o comentario `#N`.
 
-Si NO se logra observar el sintoma ni ubicar la causa en codigo, degradar a **needs-info**: la verificacion pendiente pasa a ser una pregunta concreta (ej. "No pude reproducir el error; pega la salida exacta de `<comando>` o el stack trace"). Un `fix` sin `evidence.observed` no avanza: b7 tiene un gate deterministico (jq) que lo trata como needs-info y baila.
+Si NO se logra observar el síntoma ni ubicar la causa en código, degradar a **needs-info**: la verificación pendiente pasa a ser una pregunta concreta (ej. "No pude reproducir el error; pega la salida exacta de `<comando>` o el stack trace"). Un `fix` sin `evidence.observed` no avanza: b7 tiene un gate determinístico (jq) que lo trata como needs-info y baila.
 
 ## Step 5: Evaluate quality and risk
 
@@ -158,7 +158,7 @@ Acción cuando el issue es horizontal:
 
 **Excepción — concerns transversales:** auth, db, storage, notificaciones y audit son infra genuinamente transversal, no features. Un issue legítimamente backend (ej. "agregar índice a `taVentas`", "rotar el secreto de storage") NO es un mal slice — no exige pantalla. Marcar estos como `ready` normal; el `## Pantalla(s)` del body se reemplaza por `## Remote functions / endpoints` (mismo criterio que b0). La regla horizontal aplica a **features de producto** partidas por capa, no a infra transversal.
 
-**Flag `data_table` por pantalla:** al poblar cada pantalla del contrato de triage, marcar `data_table: true` cuando la pantalla lista datos tabulares — su `acceptance_criteria_visual` menciona columnas, orden, filtros o paginacion. Rutea el build al skill `bt1-data-table` (ver `$CLAUDE_PLUGIN_ROOT/skills/b7-issue-to-pr/templates/triage-output.schema.json`). Omitir o `false` si la pantalla no muestra una tabla de datos.
+**Flag `data_table` por pantalla:** al poblar cada pantalla del contrato de triage, marcar `data_table: true` cuando la pantalla lista datos tabulares — su `acceptance_criteria_visual` menciona columnas, orden, filtros o paginación. Rutea el build al skill `bt1-data-table` (ver `$CLAUDE_PLUGIN_ROOT/skills/b7-issue-to-pr/templates/triage-output.schema.json`). Omitir o `false` si la pantalla no muestra una tabla de datos.
 
 ### Risk checklist (conditional — only flag what the affected files trigger)
 
@@ -219,7 +219,7 @@ Compact structure:
 
 **Riesgos / Risks**: only the bullets the Step 5 checklist triggered. Omit the section entirely if none.
 
-**Evidencia / Evidence** (solo bugs / `type: fix`): cita el artefacto observado de Step 4e — error exacto, salida de comando, o `path:linea` de la causa — con su fuente. Omitir la seccion si el issue no es un bug. Un `fix` marcado ready SIN esta seccion es incoherente: o hay evidencia, o el veredicto es needs-info.
+**Evidencia / Evidence** (solo bugs / `type: fix`): cita el artefacto observado de Step 4e — error exacto, salida de comando, o `path:línea` de la causa — con su fuente. Omitir la sección si el issue no es un bug. Un `fix` marcado ready SIN esta sección es incoherente: o hay evidencia, o el veredicto es needs-info.
 
 **Plan**: numbered steps (ready)
    — OR —
@@ -237,7 +237,7 @@ EOF
 
 For `needs-info`, anchor every question in the codebase. Bad: "¿puedes aclarar?". Good: "El issue menciona 'ventas' pero existen `taVentas` (cabecera) y `taVentasDetalle` (líneas). ¿Cuál entidad gestiona la pantalla?".
 
-**Marker obligatorio en needs-info:** el comentario de preguntas termina SIEMPRE con un marker HTML invisible con timestamp UTC, para que la reanudacion automatica detecte respuestas posteriores comparando fechas de comentarios:
+**Marker obligatorio en needs-info:** el comentario de preguntas termina SIEMPRE con un marker HTML invisible con timestamp UTC, para que la reanudación automática detecte respuestas posteriores comparando fechas de comentarios:
 
 ```
 <!-- b10:questions 2026-06-10T15:30:00Z -->
@@ -255,7 +255,7 @@ Short summary, no markdown headings:
   - **duplicate**: "Duplica #X. Recomiendo cerrar referenciando."
   - **blocked**: "Bloqueado por #Y. Esa tarea debe mergear primero."
 
-**Ultima linea OBLIGATORIA machine-readable** (la parsean orquestadores como b10-ship; fallback de ellos: leer labels del issue):
+**Última línea OBLIGATORIA machine-readable** (la parsean orquestadores como b10-ship; fallback de ellos: leer labels del issue):
 
 ```
 TRIAGE_RESULT {"issue":261,"verdict":"ready","complexity":"complex","type":"feature","scope":"campaigns","blocked_by":[]}
@@ -263,8 +263,8 @@ TRIAGE_RESULT {"issue":261,"verdict":"ready","complexity":"complex","type":"feat
 
 - `verdict`: `ready` | `needs-info` | `duplicate` | `blocked` | `closed`
 - `complexity`: `simple` | `medium` | `complex`
-- `blocked_by`: numeros de issues que bloquean (de la seccion "Blocked by" del body o del analisis), `[]` si ninguno
-- Emitirla SIEMPRE, en todo modo y para todo veredicto, como linea final del output de terminal.
+- `blocked_by`: números de issues que bloquean (de la sección "Blocked by" del body o del análisis), `[]` si ninguno
+- Emitirla SIEMPRE, en todo modo y para todo veredicto, como línea final del output de terminal.
 
 ## Edge cases
 

@@ -1,6 +1,6 @@
 ---
 name: b6-pr-review
-description: 'Review de un PR existente en GitHub: calidad, seguridad y anti-patrones SvelteKit; publica el veredicto (marker b6). Usar cuando pidan revisar un PR ("revisar PR", "review PR", numero/URL de PR) o cuando b7/b8/b9/b10 encadenen la fase review (--auto, --light).'
+description: 'Review de un PR existente en GitHub: calidad, seguridad y anti-patrones SvelteKit; publica el veredicto (marker b6). Usar cuando pidan revisar un PR ("revisar PR", "review PR", número/URL de PR) o cuando b7/b8/b9/b10 encadenen la fase review (--auto, --light).'
 ---
 
 ## User Input
@@ -9,21 +9,21 @@ description: 'Review de un PR existente en GitHub: calidad, seguridad y anti-pat
 $ARGUMENTS
 ```
 
-**Flag `--auto`** (para orquestadores como b7/b10 — modo desatendido): no ofrecer acciones interactivas en el Paso 5; publicar el reporte directo como comentario del PR (con el marker de veredicto) y terminar con la linea `B6_VERDICT`.
+**Flag `--auto`** (para orquestadores como b7/b10 — modo desatendido): no ofrecer acciones interactivas en el Paso 5; publicar el reporte directo como comentario del PR (con el marker de veredicto) y terminar con la línea `B6_VERDICT`.
 
-**Flag `--light`** (revision acotada para PRs chicos): reduce la profundidad de lectura sin cambiar el reporte ni el veredicto. **Modo efectivo = flag O size-gate**: el `pr-context.sh` emite la seccion `=== REVIEW_MODE ===` con `light` o `full` segun su size-gate (los umbrales viven en el script); si se pasa `--light`, se fuerza `light` aunque el gate diga `full`. Las reglas por area del modo `light` estan en los callouts `> Modo light:` de las Areas 2–5.
+**Flag `--light`** (revisión acotada para PRs chicos): reduce la profundidad de lectura sin cambiar el reporte ni el veredicto. **Modo efectivo = flag O size-gate**: el `pr-context.sh` emite la sección `=== REVIEW_MODE ===` con `light` o `full` según su size-gate (los umbrales viven en el script); si se pasa `--light`, se fuerza `light` aunque el gate diga `full`. Las reglas por área del modo `light` están en los callouts `> Modo light:` de las Áreas 2–5.
 
-El reporte, el marker `<!-- b6:verdict -->` y la linea `B6_VERDICT` son **identicos en ambos modos** (los parsers de b7/b9/b10 no cambian); en `light` la cabecera del reporte agrega `modo: light`.
+El reporte, el marker `<!-- b6:verdict -->` y la línea `B6_VERDICT` son **idénticos en ambos modos** (los parsers de b7/b9/b10 no cambian); en `light` la cabecera del reporte agrega `modo: light`.
 
 # SvelteKit PR Review
 
 Revisa un pull request existente en GitHub con foco en calidad, seguridad, y patrones correctos de SvelteKit/Svelte 5.
 
-**Regla critica**: Ejecuta herramientas PRIMERO, analiza DESPUES. Cada paso empieza con un tool call.
+**Regla crítica**: Ejecuta herramientas PRIMERO, analiza DESPUÉS. Cada paso empieza con un tool call.
 
 ## Paso 0: Identificar el PR
 
-Determina el numero del PR desde los argumentos del usuario. Si proporcionaron una URL, extrae el numero. Si no proporcionaron numero, busca el PR del branch actual:
+Determina el número del PR desde los argumentos del usuario. Si proporcionaron una URL, extrae el número. Si no proporcionaron número, busca el PR del branch actual:
 
 ```bash
 gh pr view --json number --jq '.number' 2>/dev/null
@@ -37,45 +37,45 @@ Ejecuta el script que recopila todo el contexto del PR:
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
-# Agregar `--light` como segundo arg si el usuario/orquestador paso ese flag (fuerza modo light).
+# Agregar `--light` como segundo arg si el usuario/orquestador pasó ese flag (fuerza modo light).
 bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/pr-context.sh" <PR_NUMBER> [--light]
 ```
 
 Lee el output completo. El script entrega:
 
-- **REVIEW_MODE**: `light` o `full` (size-gate + flag). Determina la profundidad de las Areas 2–5 (ver flag `--light` arriba).
-- **PR_META**: titulo, descripcion, autor, stats
+- **REVIEW_MODE**: `light` o `full` (size-gate + flag). Determina la profundidad de las Áreas 2–5 (ver flag `--light` arriba).
+- **PR_META**: título, descripción, autor, stats
 - **PR_FILES**: archivos cambiados
 - **PR_DIFF_STAT**: diffstat per-archivo (solo en modo `full`)
 - **PR_DIFF**: el diff completo
 - **PR_COMMITS**: historial de commits
-- **PR_CHECKS**: estado de los checks de CI (`gh pr checks`). Alimenta el punto 6 del Area 1.
+- **PR_CHECKS**: estado de los checks de CI (`gh pr checks`). Alimenta el punto 6 del Área 1.
 - **CLASSIFY_FILES**: archivos clasificados por tipo (LOAD_SERVER, REMOTE_FUNCTION, API_ENDPOINT, SVELTE_COMPONENT, etc.)
-- **FIX_REGRESSION_GATE**: `FIX_WITHOUT_TEST=true|false` — true cuando el PR es `fix/*` y el diff no toca ningun archivo `.(test|spec).` (gate de regresion; ver Area 2)
-- **SCREEN_EVIDENCE**: `UI_TOUCHED=true|false` + `BOT_PR=true|false` + `EVIDENCE=screenshots|skipped|none` (con skip la linea trae `EVIDENCE=skipped reason=<r>`; reason ausente = marker viejo) — gate de evidencia visual para PRs de bot que tocan UI (ver Area 2)
-- **CHANGED_SYMBOLS**: simbolos exportados del diff (lineas `NEW:` / `MODIFIED:` / `REMOVED:`, best-effort) + linea `CODEGRAPH: ok|absent` (probe informativo). Alimenta el punto 6 del Area 2 y el paso 2 del Area 5.
+- **FIX_REGRESSION_GATE**: `FIX_WITHOUT_TEST=true|false` — true cuando el PR es `fix/*` y el diff no toca ningún archivo `.(test|spec).` (gate de regresión; ver Área 2)
+- **SCREEN_EVIDENCE**: `UI_TOUCHED=true|false` + `BOT_PR=true|false` + `EVIDENCE=screenshots|skipped|none` (con skip la línea trae `EVIDENCE=skipped reason=<r>`; reason ausente = marker viejo) — gate de evidencia visual para PRs de bot que tocan UI (ver Área 2)
+- **CHANGED_SYMBOLS**: símbolos exportados del diff (líneas `NEW:` / `MODIFIED:` / `REMOVED:`, best-effort) + línea `CODEGRAPH: ok|absent` (probe informativo). Alimenta el punto 6 del Área 2 y el paso 2 del Área 5.
 
 ## Paso 2: Leer CLAUDE.md del proyecto
 
-Lee el CLAUDE.md del proyecto para entender las convenciones especificas:
+Lee el CLAUDE.md del proyecto para entender las convenciones específicas:
 
 ```bash
 cat CLAUDE.md
 ```
 
-Esto te da la arquitectura feature-first, convenciones de codigo, y patrones esperados.
+Esto te da la arquitectura feature-first, convenciones de código, y patrones esperados.
 
-## Paso 3: Revisar en 5 areas
+## Paso 3: Revisar en 5 áreas
 
-Analiza el diff y los archivos cambiados en las cinco areas de revision. Para cada area, indica hallazgos con severidad:
+Analiza el diff y los archivos cambiados en las cinco áreas de revisión. Para cada área, indica hallazgos con severidad:
 
 - **BLOCKER**: Debe corregirse antes de merge. Problemas de seguridad, bugs claros, violaciones de arquitectura graves.
-- **WARNING**: Deberia corregirse. Malas practicas, anti-patrones, deuda tecnica significativa.
-- **SUGGESTION**: Mejora opcional. Estilo, simplificacion, oportunidades de refactor.
-- **OK**: El area esta bien. Confirma brevemente por que.
+- **WARNING**: Debería corregirse. Malas prácticas, anti-patrones, deuda técnica significativa.
+- **SUGGESTION**: Mejora opcional. Estilo, simplificación, oportunidades de refactor.
+- **OK**: El área está bien. Confirma brevemente por qué.
 
-**Formato de finding — OBLIGATORIO (una linea, al principio de linea):** cada
-BLOCKER, WARNING y SUGGESTION se escribe como una linea que arranca con `- **SEVERIDAD**:`
+**Formato de finding — OBLIGATORIO (una línea, al principio de línea):** cada
+BLOCKER, WARNING y SUGGESTION se escribe como una línea que arranca con `- **SEVERIDAD**:`
 
 ```
 - **BLOCKER**: <archivo:linea> <descripcion en una linea>
@@ -83,32 +83,32 @@ BLOCKER, WARNING y SUGGESTION se escribe como una linea que arranca con `- **SEV
 - **SUGGESTION**: <archivo:linea> <descripcion en una linea>
 ```
 
-`verdict.sh` **computa el veredicto contando estas lineas** (`grep -cE '^- \*\*BLOCKER\*\*:'`),
-no interpreta prosa. Por eso: un hallazgo por linea, sin la severidad suelta en
-medio de un parrafo, y la tabla resumen usa celdas (`| Codigo | BLOCKER |`) que NO
-empiezan con `- **` — asi no se doble-cuentan. El veredicto NO es juicio libre del
+`verdict.sh` **computa el veredicto contando estas líneas** (`grep -cE '^- \*\*BLOCKER\*\*:'`),
+no interpreta prosa. Por eso: un hallazgo por línea, sin la severidad suelta en
+medio de un párrafo, y la tabla resumen usa celdas (`| Código | BLOCKER |`) que NO
+empiezan con `- **` — así no se doble-cuentan. El veredicto NO es juicio libre del
 modelo: sale de la regla `blockers>0 -> request-changes; warnings>0 -> approve-with-changes; sino approve`.
 
 ---
 
-### Area 1: Calidad del PR (redaccion y comprensibilidad)
+### Área 1: Calidad del PR (redacción y comprensibilidad)
 
-Evalua el PR como documento, no el codigo:
+Evalúa el PR como documento, no el código:
 
-1. **Titulo**: Es claro, conciso, y describe el cambio? Sigue algun patron (conventional commits, etc)?
-2. **Descripcion/Body**: Explica el "por que" del cambio, no solo el "que"? Tiene contexto suficiente para que un reviewer entienda sin leer todo el diff?
-3. **Referencia a issue**: Menciona el issue relacionado (#N)?
-4. **Scope**: El PR tiene un scope razonable? (no mezcla multiples features o fixes inconexos)
-5. **Commits**: Los mensajes de commit son informativos? Cada commit es atomico?
-6. **Checks de CI** (seccion `PR_CHECKS`): checks en fail son WARNING (BLOCKER si el fallo viene claramente del cambio del PR).
+1. **Título**: ¿Es claro, conciso, y describe el cambio? ¿Sigue algún patrón (conventional commits, etc)?
+2. **Descripción/Body**: ¿Explica el "por qué" del cambio, no solo el "qué"? ¿Tiene contexto suficiente para que un reviewer entienda sin leer todo el diff?
+3. **Referencia a issue**: ¿Menciona el issue relacionado (#N)?
+4. **Scope**: ¿El PR tiene un scope razonable? (no mezcla múltiples features o fixes inconexos)
+5. **Commits**: ¿Los mensajes de commit son informativos? ¿Cada commit es atómico?
+6. **Checks de CI** (sección `PR_CHECKS`): checks en fail son WARNING (BLOCKER si el fallo viene claramente del cambio del PR).
 
-Si el body esta vacio o es un placeholder, es un BLOCKER.
+Si el body está vacío o es un placeholder, es un BLOCKER.
 
 ---
 
-### Area 2: Calidad del codigo
+### Área 2: Calidad del código
 
-Lee los archivos cambiados con atencion. Para archivos `.svelte` y `.ts` relevantes, lee el archivo completo (no solo el diff) para entender el contexto.
+Lee los archivos cambiados con atención. Para archivos `.svelte` y `.ts` relevantes, lee el archivo completo (no solo el diff) para entender el contexto.
 
 > **Modo `light`:** revisar solo los hunks del diff; NO leer los archivos completos.
 
@@ -126,18 +126,18 @@ bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh" "$(gh pr view
 Cada `VIOLATION` es un finding de arquitectura (BLOCKER/WARNING según el punto 2 de abajo).
 El juicio LLM cubre lo que el script no ve (duplicación, indirección, código muerto).
 
-**Gate de regresion (mecanico, del contexto):** si `FIX_REGRESSION_GATE` trae
-`FIX_WITHOUT_TEST=true`, el PR es un `fix/*` que no toca ningun test. Emitir un
-WARNING pidiendo el test de regresion (el que falla sin el fix y pasa con el) o una
-justificacion explicita de por que no aplica:
+**Gate de regresión (mecánico, del contexto):** si `FIX_REGRESSION_GATE` trae
+`FIX_WITHOUT_TEST=true`, el PR es un `fix/*` que no toca ningún test. Emitir un
+WARNING pidiendo el test de regresión (el que falla sin el fix y pasa con el) o una
+justificación explícita de por qué no aplica:
 
 ```
-- **WARNING**: <PR> fix sin test de regresion — agregar un test que falle sin el fix, o justificar por que no aplica
+- **WARNING**: <PR> fix sin test de regresión — agregar un test que falle sin el fix, o justificar por qué no aplica
 ```
 
 Con `FIX_WITHOUT_TEST=false` (o PR no-`fix/*`) no hay finding por este gate.
 
-**Gate de evidencia visual (mecanico, del contexto):** la seccion `SCREEN_EVIDENCE`
+**Gate de evidencia visual (mecánico, del contexto):** la sección `SCREEN_EVIDENCE`
 trae `UI_TOUCHED`, `BOT_PR` y `EVIDENCE`. El gate aplica SOLO con `BOT_PR=true` (label
 `auto-pr-bot`) Y `UI_TOUCHED=true`. A PRs humanos (`BOT_PR=false`) el gate NO aplica;
 con `UI_TOUCHED=false` tampoco hay finding.
@@ -145,12 +145,12 @@ con `UI_TOUCHED=false` tampoco hay finding.
 Con el gate activo y `EVIDENCE=none`, emitir este BLOCKER:
 
 ```
-- **BLOCKER**: <PR> PR de bot toca UI sin evidencia visual ni skip declarado — correr b7 paso 5 o declarar skip valido
+- **BLOCKER**: <PR> PR de bot toca UI sin evidencia visual ni skip declarado — correr b7 paso 5 o declarar skip válido
 ```
 
 Con el gate activo y `EVIDENCE=skipped`, emitir este WARNING (skip declarado no bloquea)
-citando el reason de la linea (`EVIDENCE=skipped reason=<r>`); si la linea no trae reason
-(marker viejo), omitir el parentesis:
+citando el reason de la línea (`EVIDENCE=skipped reason=<r>`); si la línea no trae reason
+(marker viejo), omitir el paréntesis:
 
 ```
 - **WARNING**: <PR> screen-review omitido (<r>) — evaluar si el PR necesita evidencia visual antes del merge
@@ -158,110 +158,110 @@ citando el reason de la linea (`EVIDENCE=skipped reason=<r>`); si la linea no tr
 
 Con `EVIDENCE=screenshots` no hay finding por este gate. El BLOCKER se resuelve dentro
 del loop de b7: re-correr el paso 5 (screen-review + attach.sh) o postear el marker de
-skip valido en el PR — nunca requiere intervencion fuera del loop.
+skip válido en el PR — nunca requiere intervención fuera del loop.
 
-Evalua:
+Evalúa:
 
-1. **Simplicidad (lente de la escalera perezosa)**: El codigo es directo o hay sobre-ingenieria? Lente — ¿pasaron de largo un peldaño que aguantaba? (¿una abstraccion nueva donde la stdlib/SvelteKit/una dep ya instalada bastaba? ¿un service layer para CRUD simple? ¿una dependencia nueva para lo que son unas lineas?). Banderas concretas:
+1. **Simplicidad (lente de la escalera perezosa)**: ¿El código es directo o hay sobre-ingeniería? Lente — ¿pasaron de largo un peldaño que aguantaba? (¿una abstracción nueva donde la stdlib/SvelteKit/una dep ya instalada bastaba? ¿un service layer para CRUD simple? ¿una dependencia nueva para lo que son unas líneas?). Banderas concretas:
    - **Indirección innecesaria** (el antipatrón que más molesta): `query → función → abstracción Drizzle → otra función → query`. La remote function debe hacer la query Drizzle directo; cada salto intermedio sin lógica real es WARNING.
    - **Abstracción de una sola implementación**: interfaz/factory/wrapper con un solo uso → WARNING (borrarlo simplifica).
    - **Helpers que envuelven una llamada**: una función que solo reenvía a otra → inline.
-   - **Marcador `// ponytail:`**: si un atajo está marcado así, es una simplificación **deliberada** — NO la reportes como ignorancia. Validá que el techo nombrado (ej. "client-side <1000 items", "lock global") sea razonable para el caso; solo es finding si el techo ya se superó (ej. ponytail dice "<1000 items" pero la query trae 50k). Un atajo sano marcado con ponytail es **OK**, no WARNING.
+   - **Marcador `// ponytail:`**: si un atajo está marcado así, es una simplificación **deliberada** — NO la reportes como ignorancia. Valida que el techo nombrado (ej. "client-side <1000 items", "lock global") sea razonable para el caso; solo es finding si el techo ya se superó (ej. ponytail dice "<1000 items" pero la query trae 50k). Un atajo sano marcado con ponytail es **OK**, no WARNING.
    - **Prosa de más**: comentarios que explican el QUÉ (el código ya lo dice), docstrings de párrafos, comentarios que referencian el task/PR. SUGGESTION para borrarlos. (Excepción: `// ponytail:` es la prosa válida — marca intención.)
-2. **Arquitectura colocada por feature**: Los archivos estan en la estructura correcta? Spec canonica (regla 99%, tabla de excepciones `$lib`, tolerancia legacy, checklist): `../b2-build-feature/references/slice-spec.md`.
-   - Todo el feature vive en su carpeta de ruta `src/routes/<feature>/` (pagina, remote, componentes, types)
+2. **Arquitectura colocada por feature**: ¿Los archivos están en la estructura correcta? Spec canónica (regla 99%, tabla de excepciones `$lib`, tolerancia legacy, checklist): `../b2-build-feature/references/slice-spec.md`.
+   - Todo el feature vive en su carpeta de ruta `src/routes/<feature>/` (página, remote, componentes, types)
    - `+page.svelte` ES la pantalla; componentes como hermanos PascalCase, sin subcarpeta `ui/` ni `src/lib/features/`
-   - Remote functions en `<feature>.remote.ts` (fuera de `src/lib/server/`), no el generico `data.remote.ts`
+   - Remote functions en `<feature>.remote.ts` (fuera de `src/lib/server/`), no el genérico `data.remote.ts`
    - Server-only code en `.server.ts` colocados; solo lo realmente compartido vive en `$lib` (excepciones taxativas del spec: shadcn, css, db, transversales 3+ features)
-   - **Tolerancia legacy**: editar un feature existente bajo `src/lib/features/` siguiendo su patron interno NO es finding; crear un feature NUEVO ahi es BLOCKER.
+   - **Tolerancia legacy**: editar un feature existente bajo `src/lib/features/` siguiendo su patrón interno NO es finding; crear un feature NUEVO ahí es BLOCKER.
    - Feature nuevo sin su `<feature>.md` colocado (doc del slice) → WARNING
 3. **Convenciones**:
    - shadcn-svelte con namespace imports (`import * as Card from ...`)
    - Lucide con deep imports (`import Plus from '@lucide/svelte/icons/plus'`)
    - snake_case para remote functions, PascalCase para componentes
-   - Drizzle: query builder tipado (`db.query.*` / `db.insert/update`); raw `sql` solo como ultimo recurso
-4. **Tipos**: Los tipos son adecuados? Hay `any` injustificados? Los tipos de schema Drizzle se propagan (no re-declarar interfaces a mano)?
-5. **Complejidad innecesaria**: Hay codigo que podria ser mas simple? Usar la tabla de CLAUDE.md y `../b2-build-feature/references/simplicity-ladder.md` como guia:
+   - Drizzle: query builder tipado (`db.query.*` / `db.insert/update`); raw `sql` solo como último recurso
+4. **Tipos**: ¿Los tipos son adecuados? ¿Hay `any` injustificados? ¿Los tipos de schema Drizzle se propagan (no re-declarar interfaces a mano)?
+5. **Complejidad innecesaria**: ¿Hay código que podría ser más simple? Usar la tabla de CLAUDE.md y `../b2-build-feature/references/simplicity-ladder.md` como guía:
    - `goto()` donde bastaba un `href`
-   - Filtrado server-side para pocos items (deberia ser `$derived`)
+   - Filtrado server-side para pocos items (debería ser `$derived`)
    - `$state` + `$effect` donde bastaba `$derived`
-6. **Callers de simbolos MODIFICADOS o ELIMINADOS** (asi se escapo la regresion D5): si `CHANGED_SYMBOLS` trae lineas `MODIFIED:` o `REMOVED:`, trazar los call sites de cada simbolo FUERA del diff. Con `CODEGRAPH: ok` usar `codegraph_callers`; sino fallback `rg -n '\b<simbolo>\('` (codegraph nunca es obligatorio). Un call site fuera del diff que la firma nueva rompe (argumentos, retorno, contrato) es **BLOCKER** citando `archivo:linea`; para un simbolo `REMOVED:`, cualquier call site que sobrevive es **BLOCKER**. Sin lineas `MODIFIED:` ni `REMOVED:`, saltar este punto. Los hallazgos van dentro de '## 2. Calidad del Codigo' (sin secciones nuevas: cero impacto en parsers).
+6. **Callers de símbolos MODIFICADOS o ELIMINADOS** (así se escapó la regresión D5): si `CHANGED_SYMBOLS` trae líneas `MODIFIED:` o `REMOVED:`, trazar los call sites de cada símbolo FUERA del diff. Con `CODEGRAPH: ok` usar `codegraph_callers`; sino fallback `rg -n '\b<simbolo>\('` (codegraph nunca es obligatorio). Un call site fuera del diff que la firma nueva rompe (argumentos, retorno, contrato) es **BLOCKER** citando `archivo:linea`; para un símbolo `REMOVED:`, cualquier call site que sobrevive es **BLOCKER**. Sin líneas `MODIFIED:` ni `REMOVED:`, saltar este punto. Los hallazgos van dentro de '## 2. Calidad del Código' (sin secciones nuevas: cero impacto en parsers).
 
 ---
 
-### Area 3: Seguridad
+### Área 3: Seguridad
 
-La tabla y la lista inline de esta area son la fuente canonica de las reglas; `references/security-checklist.md` trae ejemplos de codigo, el mapeo operacion → permiso y el apendice `requireAnyPermission`. Revisa CADA archivo segun su clasificacion (CLASSIFY_FILES) con esta tabla:
+La tabla y la lista inline de esta área son la fuente canónica de las reglas; `references/security-checklist.md` trae ejemplos de código, el mapeo operación → permiso y el apéndice `requireAnyPermission`. Revisa CADA archivo según su clasificación (CLASSIFY_FILES) con esta tabla:
 
-> **Modo `light`:** usar solo la tabla y la lista inline de esta area; NO leer `references/security-checklist.md`.
+> **Modo `light`:** usar solo la tabla y la lista inline de esta área; NO leer `references/security-checklist.md`.
 
-| Clasificacion | Verificacion requerida | Si falta |
+| Clasificación | Verificación requerida | Si falta |
 | --- | --- | --- |
-| LOAD_SERVER / LAYOUT_SERVER (`+page.server.ts`, `+layout.server.ts`) | check de `locals.user` antes de devolver datos protegidos (excepcion: paginas explicitamente publicas) | BLOCKER |
-| REMOTE_FUNCTION (`*.remote.ts`) | cada `query`/`form`/`command` llama `requireUser()` o `requirePermission('verbo:sustantivo')` como primera operacion (formato `verbo:sustantivo`, sin roles hardcodeados) | BLOCKER |
+| LOAD_SERVER / LAYOUT_SERVER (`+page.server.ts`, `+layout.server.ts`) | check de `locals.user` antes de devolver datos protegidos (excepción: páginas explícitamente públicas) | BLOCKER |
+| REMOTE_FUNCTION (`*.remote.ts`) | cada `query`/`form`/`command` llama `requireUser()` o `requirePermission('verbo:sustantivo')` como primera operación (formato `verbo:sustantivo`, sin roles hardcodeados) | BLOCKER |
 | API_ENDPOINT (`+server.ts`) | `locals.user` o API key | BLOCKER |
 
-**Para TODO el diff**: sin secrets/API keys/passwords hardcodeados (usar `$env/static/private` o `$env/dynamic/private`); errores con formato estructurado `{ message, code }` (no `throw new Error()` donde deberia ser `error(status, { message, code })`); sin variables mutables a nivel de modulo en `.server.ts` (data leak entre usuarios).
+**Para TODO el diff**: sin secrets/API keys/passwords hardcodeados (usar `$env/static/private` o `$env/dynamic/private`); errores con formato estructurado `{ message, code }` (no `throw new Error()` donde debería ser `error(status, { message, code })`); sin variables mutables a nivel de módulo en `.server.ts` (data leak entre usuarios).
 
 ---
 
-### Area 4: Anti-patrones SvelteKit (React-isms)
+### Área 4: Anti-patrones SvelteKit (React-isms)
 
-La lista inline de abajo es la fuente canonica; `references/sveltekit-antipatterns.md` trae ejemplos de codigo de cada patron (misma numeracion). Busca estos patrones en el diff:
+La lista inline de abajo es la fuente canónica; `references/sveltekit-antipatterns.md` trae ejemplos de código de cada patrón (misma numeración). Busca estos patrones en el diff:
 
-> **Modo `light`:** usar solo la lista inline de esta area; NO leer `references/sveltekit-antipatterns.md`.
+> **Modo `light`:** usar solo la lista inline de esta área; NO leer `references/sveltekit-antipatterns.md`.
 
 **En archivos SVELTE_COMPONENT** (`.svelte`):
 
-1. `goto()` para navegacion simple (deberia ser `href`)
-2. `onMount` + `fetch` (deberia ser remote function o load)
-3. `$effect` para computar valores (deberia ser `$derived`)
-4. Spread para actualizar estado (`{...obj, key: val}` en vez de mutacion directa)
-5. `<slot />` o `<slot name="...">` (Svelte 4, deberia ser snippets)
-6. `on:click` / `on:change` (Svelte 4, deberia ser `onclick` / `onchange`)
+1. `goto()` para navegación simple (debería ser `href`)
+2. `onMount` + `fetch` (debería ser remote function o load)
+3. `$effect` para computar valores (debería ser `$derived`)
+4. Spread para actualizar estado (`{...obj, key: val}` en vez de mutación directa)
+5. `<slot />` o `<slot name="...">` (Svelte 4, debería ser snippets)
+6. `on:click` / `on:change` (Svelte 4, debería ser `onclick` / `onchange`)
 7. Named imports de shadcn (`import { Card }` en vez de `import * as Card`)
 8. `Select.Value` (no existe)
 9. Lucide imports incorrectos (`import { Plus } from 'lucide-svelte'`)
 
-**En archivos REMOTE_FUNCTION** (`.remote.ts`): 10. Archivo dentro de `src/lib/server/` (prohibido) 11. Query sin `refresh()` despues de mutacion en el componente que la usa
+**En archivos REMOTE_FUNCTION** (`.remote.ts`): 10. Archivo dentro de `src/lib/server/` (prohibido) 11. Query sin `refresh()` después de mutación en el componente que la usa
 
 **En archivos TYPESCRIPT** (`.ts`): 12. `try/catch` envolviendo `error()` o `redirect()` de SvelteKit 13. Errores sin estructura (`error(400, 'string')` en vez de `error(400, { message, code })`)
 
-**En archivos LOAD_SERVER**: 14. Filtrado server-side para datasets pequenos (<1000 items)
+**En archivos LOAD_SERVER**: 14. Filtrado server-side para datasets pequeños (<1000 items)
 
-Cada anti-patron encontrado es al menos WARNING (BLOCKER si causa bugs).
+Cada anti-patrón encontrado es al menos WARNING (BLOCKER si causa bugs).
 
 ---
 
-### Area 5: Funcionalidad duplicada
+### Área 5: Funcionalidad duplicada
 
 El PR puede introducir funciones que ya existen en el codebase con otro nombre o forma ligeramente distinta.
 
 > **Modo `light`:** revisar solo funciones NUEVAS exportadas; saltar el barrido completo de zonas de alto riesgo.
 
-**Zonas de alto riesgo** donde la duplicacion es mas frecuente:
+**Zonas de alto riesgo** donde la duplicación es más frecuente:
 
 - Utilidades y helpers (`src/lib/utils/`, `src/lib/helpers/`)
-- Formateo de fechas, numeros, moneda
-- Validacion y sanitizacion de datos
+- Formateo de fechas, números, moneda
+- Validación y sanitización de datos
 - Funciones de logging o tracking
-- Verificacion de permisos y autenticacion (variantes de `requireUser`, `requirePermission`)
-- Construccion de queries Drizzle o transformacion de datos
+- Verificación de permisos y autenticación (variantes de `requireUser`, `requirePermission`)
+- Construcción de queries Drizzle o transformación de datos
 - Formateo de respuestas de API o errores
 
-**Como detectar duplicados en el contexto del PR:**
+**Cómo detectar duplicados en el contexto del PR:**
 
-1. Para cada funcion NUEVA que el PR introduce (lineas `NEW:` de `CHANGED_SYMBOLS`; las modificaciones se cubren en Area 2 punto 6), identifica su proposito semantico
-2. Busca en el codebase existente funciones con proposito similar:
-   - **Primario (si `CODEGRAPH: ok`)**: una query `codegraph_search` por simbolo NEW (nombre + sinonimos del proposito); el grafo trae candidatos en una sola pasada
+1. Para cada función NUEVA que el PR introduce (líneas `NEW:` de `CHANGED_SYMBOLS`; las modificaciones se cubren en Área 2 punto 6), identifica su propósito semántico
+2. Busca en el codebase existente funciones con propósito similar:
+   - **Primario (si `CODEGRAPH: ok`)**: una query `codegraph_search` por símbolo NEW (nombre + sinónimos del propósito); el grafo trae candidatos en una sola pasada
    - **Fallback (`CODEGRAPH: absent`)**: recetas Grep:
-     - Busca por nombre de funcion similar (ej: si el PR agrega `formatDate`, busca `format.*date`, `date.*format`, `toDateString`)
-     - Busca por el patron de operacion (ej: si la funcion nueva hace `new Intl.DateTimeFormat`, busca otros usos de `Intl.DateTimeFormat`)
-3. Si encuentras una funcion existente que hace lo mismo (o casi lo mismo), reporta ambas con sus ubicaciones
+     - Busca por nombre de función similar (ej: si el PR agrega `formatDate`, busca `format.*date`, `date.*format`, `toDateString`)
+     - Busca por el patrón de operación (ej: si la función nueva hace `new Intl.DateTimeFormat`, busca otros usos de `Intl.DateTimeFormat`)
+3. Si encuentras una función existente que hace lo mismo (o casi lo mismo), reporta ambas con sus ubicaciones
 
 **Criterios de severidad:**
 
-- **WARNING**: La funcion nueva duplica funcionalidad existente. El PR deberia reusar la funcion existente o consolidar ambas.
+- **WARNING**: La función nueva duplica funcionalidad existente. El PR debería reusar la función existente o consolidar ambas.
 - **SUGGESTION**: Las funciones son similares pero con diferencias justificables (distintos contextos, server vs client, etc). Sugerir considerar unificar.
 
 **Ejemplo de reporte:**
@@ -272,7 +272,7 @@ WARNING: `formatDateShort()` en src/routes/reportes/reportes-utils.ts duplica
 usando Intl.DateTimeFormat. Reusar la existente.
 ```
 
-Si el skill `finding-duplicate-functions` esta disponible, puede invocarse para un analisis mas profundo de las zonas de alto riesgo del proyecto.
+Si el skill `finding-duplicate-functions` está disponible, puede invocarse para un análisis más profundo de las zonas de alto riesgo del proyecto.
 
 ## Paso 4: Generar el reporte
 
@@ -289,7 +289,7 @@ Presenta el reporte con este formato exacto:
 
 <hallazgos con severidad>
 
-## 2. Calidad del Codigo
+## 2. Calidad del Código
 
 <hallazgos con severidad>
 
@@ -309,13 +309,13 @@ Presenta el reporte con este formato exacto:
 
 ## Resumen
 
-| Area          | Resultado               |
+| Área          | Resultado               |
 | ------------- | ----------------------- |
 | Calidad PR    | <BLOCKER/WARNING/OK>    |
-| Codigo        | <BLOCKER/WARNING/OK>    |
+| Código        | <BLOCKER/WARNING/OK>    |
 | Seguridad     | <BLOCKER/WARNING/OK>    |
 | Anti-patrones | <BLOCKER/WARNING/OK>    |
-| Duplicacion   | <WARNING/SUGGESTION/OK> |
+| Duplicación   | <WARNING/SUGGESTION/OK> |
 
 **Veredicto**: <APROBAR / APROBAR CON CAMBIOS / SOLICITAR CAMBIOS>
 
@@ -325,11 +325,11 @@ Presenta el reporte con este formato exacto:
 <!-- b6:verdict=approve|approve-with-changes|request-changes blockers=N warnings=M -->
 ```
 
-El marker HTML de la ultima linea es el **canal durable del veredicto**: queda en el comentario del PR en GitHub, sobrevive crashes de sesion, y los orquestadores (b9-close, b10-ship, b7) lo re-leen con `verdict.sh read <pr>` (lector unico; cubre comentarios y reviews). Incluirlo SIEMPRE al publicar el reporte en GitHub.
+El marker HTML de la última línea es el **canal durable del veredicto**: queda en el comentario del PR en GitHub, sobrevive crashes de sesión, y los orquestadores (b9-close, b10-ship, b7) lo re-leen con `verdict.sh read <pr>` (lector único; cubre comentarios y reviews). Incluirlo SIEMPRE al publicar el reporte en GitHub.
 
 **No escribir el marker a mano.** Escribir el cuerpo del reporte con findings de una
-linea, guardarlo en `/tmp/pr-review-<repo>-<PR>.md` (repo = nombre del directorio del
-repo, PR = numero; asi corridas concurrentes no se pisan), y dejar que `verdict.sh`
+línea, guardarlo en `/tmp/pr-review-<repo>-<PR>.md` (repo = nombre del directorio del
+repo, PR = número; así corridas concurrentes no se pisan), y dejar que `verdict.sh`
 compute y estampe el marker desde los counts:
 
 ```bash
@@ -341,7 +341,7 @@ bash "$VERDICT" stamp /tmp/pr-review-<repo>-<PR>.md      # imprime B6_VERDICT ..
 bash "$VERDICT" check /tmp/pr-review-<repo>-<PR>.md
 ```
 
-`stamp` emite la linea machine-readable `B6_VERDICT verdict=... blockers=N warnings=M`; terminar el output de terminal con ella (agregando `pr=<numero>`).
+`stamp` emite la línea machine-readable `B6_VERDICT verdict=... blockers=N warnings=M`; terminar el output de terminal con ella (agregando `pr=<numero>`).
 
 ## Paso 5: Publicar / ofrecer acciones
 
@@ -352,17 +352,17 @@ verificado del Paso 4:
 gh pr comment <N> --body-file /tmp/pr-review-<repo>-<PR>.md
 ```
 
-Ningun otro paso escribe `/tmp/pr-review-<repo>-<PR>.md`: este skill es el unico productor, y el nombre lleva repo+PR para que sesiones o repos concurrentes no se pisen el reporte.
+Ningún otro paso escribe `/tmp/pr-review-<repo>-<PR>.md`: este skill es el único productor, y el nombre lleva repo+PR para que sesiones o repos concurrentes no se pisen el reporte.
 
-> IMPORTANTE: usar `gh pr comment`, NO `gh pr review --comment` — un review COMMENTED aparece en `--json reviews` y NO en `--json comments`, y los parsers del pipeline (b9-close PASO 2, b10 `b6_marker`) leen ambos pero el canal canonico es el comentario. Ademas `--approve`/`--request-changes` NO funcionan sobre PRs propios (GitHub bloquea self-review) y los PRs del flujo b se crean con el token del usuario. El veredicto viaja en el marker `<!-- b6:verdict=... -->`, no en el review state de GitHub.
+> IMPORTANTE: usar `gh pr comment`, NO `gh pr review --comment` — un review COMMENTED aparece en `--json reviews` y NO en `--json comments`, y los parsers del pipeline (b9-close PASO 2, b10 `b6_marker`) leen ambos pero el canal canónico es el comentario. Además `--approve`/`--request-changes` NO funcionan sobre PRs propios (GitHub bloquea self-review) y los PRs del flujo b se crean con el token del usuario. El veredicto viaja en el marker `<!-- b6:verdict=... -->`, no en el review state de GitHub.
 
-**Modo interactivo:** despues del reporte, ofrece al usuario:
+**Modo interactivo:** después del reporte, ofrece al usuario:
 
 1. **Publicar en GitHub**: `gh pr comment <N> --body-file /tmp/pr-review-<repo>-<PR>.md` (incluye el marker de veredicto)
 2. **Corregir los issues**: Si hay blockers o warnings, ofrecer crear un branch para corregirlos
-3. **Revisar archivos especificos**: Si el usuario quiere profundizar en algun archivo
+3. **Revisar archivos específicos**: Si el usuario quiere profundizar en algún archivo
 
 ## Notas
 
-- Si el diff es muy largo (>3000 lineas), enfoca la revision en archivos de alto riesgo: remote functions, server loads, endpoints, y componentes principales. Menciona que archivos fueron revisados superficialmente.
-- Si encuentras un patron que no esta en las referencias pero es claramente problematico, reportalo igual con una explicacion.
+- Si el diff es muy largo (>3000 líneas), enfoca la revisión en archivos de alto riesgo: remote functions, server loads, endpoints, y componentes principales. Menciona que archivos fueron revisados superficialmente.
+- Si encuentras un patrón que no está en las referencias pero es claramente problemático, repórtalo igual con una explicación.

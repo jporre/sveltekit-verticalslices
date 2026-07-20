@@ -1,6 +1,6 @@
 ---
 name: b8-swarm
-description: 'Resuelve un CLUSTER de issues relacionadas (misma area, p.ej. serie "Fase X.Y") en UN solo PR draft. Usar cuando pidan varias issues del mismo scope juntas: "en una sola PR", lista de numeros que tocan la misma area. NO mergea (eso es b9-close). Issues no relacionadas van una por una via b10-ship.'
+description: 'Resuelve un CLUSTER de issues relacionadas (misma área, p.ej. serie "Fase X.Y") en UN solo PR draft. Usar cuando pidan varias issues del mismo scope juntas: "en una sola PR", lista de números que tocan la misma área. NO mergea (eso es b9-close). Issues no relacionadas van una por una vía b10-ship.'
 allowed-tools: Bash, Read, Edit, Write, Skill, Agent, Workflow
 model: opus
 effort: medium
@@ -8,26 +8,26 @@ effort: medium
 
 # b8-swarm — cluster de issues relacionadas → UN PR
 
-Toma un grupo de issues **relacionadas** y las resuelve como **un solo cambio coherente**: un worktree, una rama, un commit por issue, un PR draft que las cierra todas, una review. El merge final (1 vez, cerrando todas) lo hace `b9-close` con aprobacion humana.
+Toma un grupo de issues **relacionadas** y las resuelve como **un solo cambio coherente**: un worktree, una rama, un commit por issue, un PR draft que las cierra todas, una review. El merge final (1 vez, cerrando todas) lo hace `b9-close` con aprobación humana.
 
-## Por que un PR y no N
+## Por qué un PR y no N
 
-El modelo viejo de b8 corria un `b7-issue-to-pr` por issue → **N PRs independientes**. Cuando las issues son **relacionadas** (tocan los mismos archivos), eso genera conflictos: el PR #2 se basa en una rama default vieja y choca con el #1 ya mergeado, forzando rebase manual.
+El modelo viejo de b8 corría un `b7-issue-to-pr` por issue → **N PRs independientes**. Cuando las issues son **relacionadas** (tocan los mismos archivos), eso genera conflictos: el PR #2 se basa en una rama default vieja y choca con el #1 ya mergeado, forzando rebase manual.
 
-En **un PR** los cambios componen sobre una rama: sin conflicto inter-PR, una review del cambio completo, un merge atomico. Ese es el punto de este skill.
+En **un PR** los cambios componen sobre una rama: sin conflicto inter-PR, una review del cambio completo, un merge atómico. Ese es el punto de este skill.
 
-> Issues NO relacionadas (features independientes, areas distintas) no van en un PR combinado: van una por una via `b10-ship`.
+> Issues NO relacionadas (features independientes, áreas distintas) no van en un PR combinado: van una por una vía `b10-ship`.
 
-## Contexto de ejecucion: main loop, no fork
+## Contexto de ejecución: main loop, no fork
 
-Este skill **no** declara `context: fork`. Corre en el contexto principal **a proposito**: el tool `Workflow` —eje de la orquestacion— vive en el main loop y **no esta disponible en ejecuciones forkeadas**. La isolacion de contexto la da el propio Workflow: cada `agent()` es un subagente cuyos tool-calls verbosos no contaminan la conversacion; el main solo ve los resultados estructurados.
+Este skill **no** declara `context: fork`. Corre en el contexto principal **a propósito**: el tool `Workflow` —eje de la orquestación— vive en el main loop y **no está disponible en ejecuciones forkeadas**. La aislación de contexto la da el propio Workflow: cada `agent()` es un subagente cuyos tool-calls verbosos no contaminan la conversación; el main solo ve los resultados estructurados.
 
 ## Lo que b8 NO hace
 
-- **No paraleliza el build.** Issues relacionadas comparten worktree y archivos: dos builds simultaneos se pisan. Build **secuencial** (`for...of await`), commit por issue; solo lo read-only es paralelo: triage y screen-reviews.
-- **No abre un PR por issue.** Un cluster = un PR. Si te encontras abriendo varios PRs, no es b8.
+- **No paraleliza el build.** Issues relacionadas comparten worktree y archivos: dos builds simultáneos se pisan. Build **secuencial** (`for...of await`), commit por issue; solo lo read-only es paralelo: triage y screen-reviews.
+- **No abre un PR por issue.** Un cluster = un PR. Si te encuentras abriendo varios PRs, no es b8.
 - **No mergea.** El PR queda draft + b6-review adjunto. Merge + cierre + limpieza = `b9-close`, con ojo humano.
-- **No invoca b7.** Pega los mismos sub-skills (b1/b2/b3/b4/b6) directo; no copies logica de b7.
+- **No invoca b7.** Pega los mismos sub-skills (b1/b2/b3/b4/b6) directo; no copies lógica de b7.
 
 ## Argumentos
 
@@ -37,17 +37,17 @@ Este skill **no** declara `context: fork`. Corre en el contexto principal **a pr
 [--max=N]                 cap de issues (default 5). Aplica al backlog, no a --issues.
 [--label=ready,auto-pr]   query del backlog si no se pasa --issues
 [--dry-run | --wet]       dry-run = arma la rama en el worktree, SIN PR/labels/comentarios
-[--on-error=continue|abort]  que hacer si un issue falla el build (default continue)
+[--on-error=continue|abort]  qué hacer si un issue falla el build (default continue)
 [--no-screens]            saltar review visual aunque haya screens
 ```
 
-**Argumentos recibidos en esta invocacion:**
+**Argumentos recibidos en esta invocación:**
 
 ```text
 $ARGUMENTS
 ```
 
-> Si `$ARGUMENTS` aparece vacio, usar defaults y, sin `--issues`, sacar la cola del backlog.
+> Si `$ARGUMENTS` aparece vacío, usar defaults y, sin `--issues`, sacar la cola del backlog.
 
 Defaults: `--wet`, `--max=5`, `--on-error=continue`, `--label=ready,auto-pr`. Sin `--issues`, la cola sale del backlog (`guardrails.sh backlog`).
 
@@ -58,15 +58,15 @@ Defaults: `--wet`, `--max=5`, `--on-error=continue`, `--label=ready,auto-pr`. Si
 `scripts/run.sh <args>` corre los pasos no-LLM:
 - Preflight (`guardrails.sh preflight`): kill-switch (`b8.STOP`/`b7.STOP`), `gh auth`, working tree del repo principal **limpio**, lock libre, backpressure.
 - Construye la cola: de `--issues` (en orden) o del backlog (`guardrails.sh backlog <label> <max>`, oldest-first, filtra `do-not-automate` y `<!-- no-auto-pr -->`).
-- Escribe el scaffold del reporte y emite lineas parseables: `B8_LOCK`, `B8_RUN_REPORT`, `B8_MODE`, `B8_ON_ERROR`, `B8_THEME`, `B8_QUEUE_BEGIN/END`.
+- Escribe el scaffold del reporte y emite líneas parseables: `B8_LOCK`, `B8_RUN_REPORT`, `B8_MODE`, `B8_ON_ERROR`, `B8_THEME`, `B8_QUEUE_BEGIN/END`.
 
 Si preflight falla, reportar el exit code y salir. No arreglar el estado subyacente.
 
 ### 2. Worktree unico (`b1-add-worktree`, 1 vez)
 
 Decidir la rama **antes** del worktree:
-- Con `--theme=<slug>` → rama `<type>/<theme>` (type lo afinás tras el triage; arrancá con `refactor/` si dudás, es el caso comun de cluster).
-- Sin `--theme` → rama `swarm/<ids-ordenados>` (ej. `swarm/192-193`). El titulo/cuerpo del PR igual llevan un resumen humano derivado del triage.
+- Con `--theme=<slug>` → rama `<type>/<theme>` (type lo afinas tras el triage; arranca con `refactor/` si dudas, es el caso común de cluster).
+- Sin `--theme` → rama `swarm/<ids-ordenados>` (ej. `swarm/192-193`). El título/cuerpo del PR igual llevan un resumen humano derivado del triage.
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
@@ -85,27 +85,27 @@ mkdir -p "$WORKTREE/.b7"
 
 ### 3 + 4. Triage paralelo → build secuencial (tool `Workflow`)
 
-Una sola invocacion del `Workflow` con dos fases. Pasale el cluster + el worktree + la rama como `args`. Ver "Script de referencia" — es la fuente unica del contrato de triage/build. Forma:
+Una sola invocación del `Workflow` con dos fases. Pásale el cluster + el worktree + la rama como `args`. Ver "Script de referencia" — es la fuente única del contrato de triage/build. Forma:
 
-- **Fase `triage` (paralela, read-only):** un `agent()` por issue con `b1-triage-issue`, escribe `.b7/triage-<n>.json` en el worktree; no editan codigo.
+- **Fase `triage` (paralela, read-only):** un `agent()` por issue con `b1-triage-issue`, escribe `.b7/triage-<n>.json` en el worktree; no editan código.
 - Gate: descartar issues con `verdict != ready` (skipped en el reporte; no entran al `Closes`).
-- **Fase `build` (SECUENCIAL):** un `agent()` por issue ready: build con `b2-build-feature`, validacion skip-by-scope, commit atomico **solo de ese issue** con `b3-git-commit` scope `(#N)`; si no llega a verde, revierte sin commitear y devuelve `status:failed`.
+- **Fase `build` (SECUENCIAL):** un `agent()` por issue ready: build con `b2-build-feature`, validación skip-by-scope, commit atómico **solo de ese issue** con `b3-git-commit` scope `(#N)`; si no llega a verde, revierte sin commitear y devuelve `status:failed`.
 
-El build es secuencial porque las issues relacionadas tocan los mismos archivos; el commit-por-issue mantiene cada uno atomico y reversible.
+El build es secuencial porque las issues relacionadas tocan los mismos archivos; el commit-por-issue mantiene cada uno atómico y reversible.
 
 ### 5. Review visual (union de pantallas, 1 pasada)
 
-Si algun triage trae `screens[]` y no se paso `--no-screens` (y no es `--dry-run`):
+Si algún triage trae `screens[]` y no se pasó `--no-screens` (y no es `--dry-run`):
 - Juntar todas las `screens[]` de los triages ready, **deduplicar por `route`**.
 - Levantar el dev server del worktree: `bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server start "$WORKTREE"` (espera solo hasta que responda en `$PORT`).
-- Un `Agent(b-pipeline:b7-screen-review)` (agente del plugin) por pantalla unica, TODOS los Agent calls lanzados en el MISMO turno (paralelo — mismo patron que b7 paso 5.2); `auth-required` → `not-evaluated`, no `fail`. Apagar el dev server solo despues de que todos retornen.
+- Un `Agent(b-pipeline:b7-screen-review)` (agente del plugin) por pantalla única, TODOS los Agent calls lanzados en el MISMO turno (paralelo — mismo patrón que b7 paso 5.2); `auth-required` → `not-evaluated`, no `fail`. Apagar el dev server solo después de que todos retornen.
 - Apagar el dev server al terminar: `bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server stop "$WORKTREE"`.
 
-Cluster backend puro (sin screens) → saltar, anotar en el reporte. Un `fail` visual con sesion valida → devolver al build de ese issue.
+Cluster backend puro (sin screens) → saltar, anotar en el reporte. Un `fail` visual con sesión válida → devolver al build de ese issue.
 
 ### 6. UN PR draft (`b4-pull-request`, 1 vez) — solo en `--wet`
 
-- `scripts/publish-docs.sh` de b7 NO sirve tal cual (es por-issue). Para b8, armar el cuerpo del PR a mano o con un `agent()` de redaccion (haiku): titulo = resumen del cluster; cuerpo con seccion por issue + **una linea `Closes #N` por cada issue ready commiteado**.
+- `scripts/publish-docs.sh` de b7 NO sirve tal cual (es por-issue). Para b8, armar el cuerpo del PR a mano o con un `agent()` de redacción (haiku): título = resumen del cluster; cuerpo con sección por issue + **una línea `Closes #N` por cada issue ready commiteado**.
 - `b4-pull-request --draft --label auto-pr-bot --body-file <cuerpo>`.
 - El PR cierra **todas** las issues `Closes #` al mergear (GitHub las parsea sin importar el merge method).
 - Con el PR creado, ejecutar los `attach.sh` que dejaron los reviews del paso 5 (igual que b7 en `--wet`): `for s in "$WORKTREE"/.b7/review/*-attach.sh; do [ -f "$s" ] && bash "$s" "$PR_NUMBER"; done`. Postean el comentario con los nombres de los PNG que hace detectable `EVIDENCE=screenshots` en b6.
@@ -122,13 +122,13 @@ else
 fi
 ```
 
-`done` SOLO con >=1 PNG en `.b7/review/`. Sin PNG, `<r>` sale de lo que paso en el paso 5 — enum cerrado, nada fuera de esto:
+`done` SOLO con >=1 PNG en `.b7/review/`. Sin PNG, `<r>` sale de lo que pasó en el paso 5 — enum cerrado, nada fuera de esto:
 
 | Caso del paso 5 | `<r>` |
 |---|---|
-| se paso `--no-screens` | `no-screens-flag` |
-| cluster backend puro (union de `screens[]` vacia) | `triage-empty` |
-| dev server no levanto en `$PORT` | `no-port` |
+| se pasó `--no-screens` | `no-screens-flag` |
+| cluster backend puro (unión de `screens[]` vacía) | `triage-empty` |
+| dev server no levantó en `$PORT` | `no-port` |
 | reviews corrieron pero todos con `infra_fail:true` | `infra-fail` |
 
 ### 7. Labels + sticky por issue — solo en `--wet`
@@ -142,9 +142,9 @@ En `--dry-run` se saltan labels y comentarios.
 
 ### 8. UNA b6-pr-review — solo en `--wet`
 
-Precondicion: el marker `b7:screen-review=` del paso 6 ya posteado en el PR — el gate SCREEN_EVIDENCE de b6 lo lee; sin marker ni PNGs adjuntos, blocker deterministico.
+Precondición: el marker `b7:screen-review=` del paso 6 ya posteado en el PR — el gate SCREEN_EVIDENCE de b6 lo lee; sin marker ni PNGs adjuntos, blocker determinístico.
 
-`b6-pr-review` con el numero del PR (review del **diff combinado**, no por issue). Adjuntar como comentario. Findings `high|critical` → volver al build del issue culpable (si el budget alcanza) o marcar `needs-human-review`.
+`b6-pr-review` con el número del PR (review del **diff combinado**, no por issue). Adjuntar como comentario. Findings `high|critical` → volver al build del issue culpable (si el budget alcanza) o marcar `needs-human-review`.
 
 ### 9. Reporte + cierre
 
@@ -188,7 +188,7 @@ const triages = (await parallel(A.issues.map(n => () =>
   agent(
     `Triage del issue #${n} con el skill b1-triage-issue. Escribí ${A.worktree}/.b7/triage-${n}.json ` +
     `siguiendo el schema de b1. Es READ-ONLY: no edites código. ` +
-    `Devolvé {issue:${n}, verdict, type, scope, screens, plan, note}.`,
+    `Devuelve {issue:${n}, verdict, type, scope, screens, plan, note}.`,
     { label:`triage:#${n}`, phase:'triage', schema:TRIAGE }
   )
 ))).filter(Boolean)
@@ -204,15 +204,15 @@ for (const n of A.issues) {                       // SECUENCIAL: comparten workt
   const out = await agent(
     `Antes de tocar nada corre: bash "${A.pluginRoot}/skills/b8-swarm/scripts/guardrails.sh" killswitch — ` +
     `si falla (exit 20), devuelve {issue:${n}, status:'skipped', note:'kill-switch'} sin editar nada. ` +
-    `Implementá el issue #${n} en el worktree COMPARTIDO ${A.worktree} (rama ${A.branch}). ` +
-    `Usá b2-build-feature leyendo ${A.worktree}/.b7/triage-${n}.json. Feature colocado en src/routes + ` +
+    `Implementa el issue #${n} en el worktree COMPARTIDO ${A.worktree} (rama ${A.branch}). ` +
+    `Usa b2-build-feature leyendo ${A.worktree}/.b7/triage-${n}.json. Feature colocado en src/routes + ` +
     `Remote Functions, sin state global, errores error(STATUS,{message,code}). ` +
-    `Para toda pantalla con data_table:true en el triage, invocá el skill bt1-data-table (via Skill tool) si esta disponible; ` +
-    `fallback: shadcn Table + paginacion server-side segun tamano. ` +
-    `Validá (check:machine/lint/test, skip-by-scope). Al verde, commiteá SOLO los cambios de este ` +
-    `issue con b3-git-commit, scope (#${n}). Si NO llegás a verde dentro del budget: revertí tus ` +
-    `cambios sin commitear (git checkout -- . && git clean -fd) y devolvé status:failed — no dejes ` +
-    `basura en la rama. Devolvé {issue:${n}, status, commit, files, note}.`,
+    `Para toda pantalla con data_table:true en el triage, invoca el skill bt1-data-table (via Skill tool) si está disponible; ` +
+    `fallback: shadcn Table + paginación server-side según tamaño. ` +
+    `Valida (check:machine/lint/test, skip-by-scope). Al verde, commitea SOLO los cambios de este ` +
+    `issue con b3-git-commit, scope (#${n}). Si NO llegas a verde dentro del budget: revierte tus ` +
+    `cambios sin commitear (git checkout -- . && git clean -fd) y devuelve status:failed — no dejes ` +
+    `basura en la rama. Devuelve {issue:${n}, status, commit, files, note}.`,
     { label:`build:#${n}`, phase:'build', schema:BUILD }
   )
   builds.push(out ?? { issue:n, status:'failed', note:'agente nulo' })
@@ -223,7 +223,7 @@ for (const n of A.issues) {                       // SECUENCIAL: comparten workt
 return { triages, builds }
 ```
 
-Invocacion: `Workflow({ script:<lo de arriba>, args:{ issues:[192,193], worktree:WORKTREE, branch:BRANCH, pluginRoot:PLUGIN_ROOT, dryRun:false, onError:'continue' } })`.
+Invocación: `Workflow({ script:<lo de arriba>, args:{ issues:[192,193], worktree:WORKTREE, branch:BRANCH, pluginRoot:PLUGIN_ROOT, dryRun:false, onError:'continue' } })`.
 
 El valor devuelto (`{triages, builds}`) alimenta los pasos 5–9 en el main context.
 
@@ -237,12 +237,12 @@ El valor devuelto (`{triages, builds}`) alimenta los pasos 5–9 en el main cont
 
 ## Definition of Done de una ola
 
-Al cerrar (exito o abort), b8 debe haber:
+Al cerrar (éxito o abort), b8 debe haber:
 
 1. Liberado el lock (`b8.lock` borrado).
 2. Escrito `b8-runs/<stamp>.md` con: cola, theme/branch, worktree, outcome por issue, PR URL (o "dry-run").
 3. En `--wet`: dejado **1 PR draft** con `Closes #` por cada issue ready, labels de esos issues en `in-review`, marker `b7:screen-review=` posteado (+ attach.sh ejecutados si hubo PNGs), b6-review adjunto.
-4. En `--dry-run`: dejado el worktree con la rama combinada lista para inspeccion (`git log <rama-default>..HEAD`, `git diff <rama-default>`), sin PR, labels ni comentarios en GitHub.
+4. En `--dry-run`: dejado el worktree con la rama combinada lista para inspección (`git log <rama-default>..HEAD`, `git diff <rama-default>`), sin PR, labels ni comentarios en GitHub.
 5. Si abortó: motivo claro (kill-switch, backpressure, tree sucio, build fallido con `--on-error=abort`).
 
 **Frases prohibidas al cerrar:**

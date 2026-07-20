@@ -1,10 +1,10 @@
-# Anti-patrones SvelteKit (errores clasicos de devs React)
+# Anti-patrones SvelteKit (errores clásicos de devs React)
 
-Ejemplos de codigo de cada anti-patron. La lista canonica y su numeracion viven inline en SKILL.md (Area 4); este archivo usa la misma numeracion.
+Ejemplos de código de cada anti-patrón. La lista canónica y su numeración viven inline en SKILL.md (Área 4); este archivo usa la misma numeración.
 
-## 1. Navegacion con JS en vez de HTML
+## 1. Navegación con JS en vez de HTML
 
-**Anti-patron**: Usar `goto()` o callbacks para navegacion simple.
+**Anti-patrón**: Usar `goto()` o callbacks para navegación simple.
 
 ```svelte
 <!-- MAL -->
@@ -15,11 +15,11 @@ Ejemplos de codigo de cada anti-patron. La lista canonica y su numeracion viven 
 <a href="/ruta">Ir</a>
 ```
 
-`goto()` solo se justifica despues de una accion programatica (submit, delete, etc).
+`goto()` solo se justifica después de una acción programática (submit, delete, etc).
 
 ## 2. Fetch manual en vez de remote functions o load
 
-**Anti-patron**: Crear endpoints API y luego fetchear desde el componente con useEffect/onMount.
+**Anti-patrón**: Crear endpoints API y luego fetchear desde el componente con useEffect/onMount.
 
 ```svelte
 <!-- MAL: fetch manual estilo React -->
@@ -41,7 +41,7 @@ const items = $derived(await get_items())
 
 ## 3. $effect para computar valores (en vez de $derived)
 
-**Anti-patron**: Usar `$effect` para sincronizar estado derivado.
+**Anti-patrón**: Usar `$effect` para sincronizar estado derivado.
 
 ```svelte
 <!-- MAL -->
@@ -64,10 +64,10 @@ let filtered = $derived(items.filter(i => i.active))
 
 ## 4. Immutabilidad innecesaria (spreads para actualizar estado)
 
-**Anti-patron**: Copiar objetos/arrays con spread para "disparar" reactividad.
+**Anti-patrón**: Copiar objetos/arrays con spread para "disparar" reactividad.
 
 ```svelte
-<!-- MAL: patron React de inmutabilidad -->
+<!-- MAL: patrón React de inmutabilidad -->
 <script>
 let user = $state({ name: '', email: '' })
 function update() {
@@ -75,7 +75,7 @@ function update() {
 }
 </script>
 
-<!-- BIEN: mutacion directa (Svelte 5 lo trackea) -->
+<!-- BIEN: mutación directa (Svelte 5 lo trackea) -->
 <script>
 let user = $state({ name: '', email: '' })
 function update() {
@@ -86,7 +86,7 @@ function update() {
 
 ## 5. Slot syntax (Svelte 4) en vez de snippets (Svelte 5)
 
-**Anti-patron**: Usar `<slot />` que es sintaxis de Svelte 4.
+**Anti-patrón**: Usar `<slot />` que es sintaxis de Svelte 4.
 
 ```svelte
 <!-- BIEN: Svelte 5 -->
@@ -113,7 +113,7 @@ let {children, header} = $props()
 
 ## 7. Named imports de shadcn-svelte (en vez de namespace)
 
-**Anti-patron**: Importar componentes shadcn individualmente.
+**Anti-patrón**: Importar componentes shadcn individualmente.
 
 ```svelte
 <!-- MAL -->
@@ -130,7 +130,7 @@ import * as Card from '$lib/components/ui/card'
 
 ## 8. Select.Value (no existe)
 
-**Anti-patron**: Usar `<Select.Value>` que no existe en shadcn-svelte.
+**Anti-patrón**: Usar `<Select.Value>` que no existe en shadcn-svelte.
 
 ```svelte
 <!-- MAL -->
@@ -157,18 +157,18 @@ import Plus from '@lucide/svelte/icons/plus'
 
 ## 10. Remote function en src/lib/server (prohibido)
 
-Los archivos `.remote.ts` NO pueden estar dentro de `src/lib/server/` (el cliente los importa). Viven colocados en la carpeta de ruta del feature como `src/routes/<feature>/<feature>.remote.ts`, nunca como `data.remote.ts` generico.
+Los archivos `.remote.ts` NO pueden estar dentro de `src/lib/server/` (el cliente los importa). Viven colocados en la carpeta de ruta del feature como `src/routes/<feature>/<feature>.remote.ts`, nunca como `data.remote.ts` genérico.
 
-## 11. Query sin refresh despues de mutacion
+## 11. Query sin refresh después de mutación
 
 ```svelte
-<!-- MAL: esperar auto-invalidacion -->
+<!-- MAL: esperar auto-invalidación -->
 <script>
 await markDone({ id })
 // la lista no se actualiza sola
 </script>
 
-<!-- BIEN: refresh explicito -->
+<!-- BIEN: refresh explícito -->
 <script>
 await markDone({ id })
 pendientesQ.refresh()
@@ -177,7 +177,7 @@ pendientesQ.refresh()
 
 ## 12. try/catch envolviendo error() o redirect()
 
-**Anti-patron**: Capturar las excepciones de control de flujo de SvelteKit.
+**Anti-patrón**: Capturar las excepciones de control de flujo de SvelteKit.
 
 ```typescript
 // MAL — SvelteKit no puede manejar el error/redirect
@@ -191,7 +191,7 @@ try {
 if (!user) error(401, {message: '...', code: 'AUTH_REQUIRED'})
 ```
 
-Si necesitas try/catch por otra razon, usa `isHttpError()` o `isRedirect()` para re-lanzar los de SvelteKit.
+Si necesitas try/catch por otra razón, usa `isHttpError()` o `isRedirect()` para re-lanzar los de SvelteKit.
 
 ## 13. Errores sin estructura (message + code)
 
@@ -204,7 +204,7 @@ error(400, {message: 'Error'}) // falta code
 error(400, {message: 'Titulo muy corto', code: 'INVALID_TITLE_LENGTH'})
 ```
 
-## 14. Filtrado servidor-side para datasets pequenos
+## 14. Filtrado servidor-side para datasets pequeños
 
 Si el dataset tiene <1000 items, filtrar en cliente con `$derived`:
 
@@ -223,4 +223,4 @@ let filtered = $derived(allItems.filter(i => i.name.includes(search)))
 </script>
 ```
 
-Nota: el estado global mutable en servidor (variables a nivel de modulo en `.server.ts`) se cubre en el Area 3 (seguridad) y en `security-checklist.md`, seccion 6.
+Nota: el estado global mutable en servidor (variables a nivel de módulo en `.server.ts`) se cubre en el Área 3 (seguridad) y en `security-checklist.md`, sección 6.

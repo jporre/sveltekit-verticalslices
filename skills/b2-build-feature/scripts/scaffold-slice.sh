@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scaffold-slice.sh — genera el esqueleto minimo de un vertical slice colocado
+# scaffold-slice.sh — genera el esqueleto mínimo de un vertical slice colocado
 # en src/routes/, siguiendo references/slice-spec.md (regla 99%). El modelo NO
 # improvisa estructura: arranca de este esqueleto y lo rellena.
 #
@@ -7,12 +7,12 @@
 #   <feature>        nombre del feature (kebab o snake). Ej: productos, orden-compra
 #   --route-group <g> coloca el slice bajo src/routes/(<g>)/<feature>/
 #
-# Genera (minimos COMPILABLES, sin ui/, sin data.remote.ts generico, sin service):
+# Genera (mínimos COMPILABLES, sin ui/, sin data.remote.ts genérico, sin service):
 #   src/routes/<feature>/+page.svelte
 #   src/routes/<feature>/<feature>.remote.ts
 #   src/routes/<feature>/<feature>.md
 #
-# Emite en la ultima linea: SCAFFOLD_OK dir=<path> files=<csv>
+# Emite en la última línea: SCAFFOLD_OK dir=<path> files=<csv>
 set -euo pipefail
 
 FEATURE=""
@@ -31,17 +31,17 @@ if [ -z "$FEATURE" ]; then
   exit 2
 fi
 
-# Normalizacion de nombres.
-# feat_kebab: nombre de carpeta/archivo (kebab).  feat_snake: identificadores JS.  feat_pascal: titulos.
+# Normalización de nombres.
+# feat_kebab: nombre de carpeta/archivo (kebab).  feat_snake: identificadores JS.  feat_pascal: títulos.
 feat_kebab="$(echo "$FEATURE" | tr '[:upper:] _' '[:lower:]--' | tr -s '-')"
 feat_snake="$(echo "$feat_kebab" | tr '-' '_')"
 feat_pascal="$(echo "$feat_kebab" | awk -F- '{for(i=1;i<=NF;i++){printf "%s%s", toupper(substr($i,1,1)), substr($i,2)}}')"
 
-# Raiz del repo (para permitir invocar desde cualquier cwd).
+# Raíz del repo (para permitir invocar desde cualquier cwd).
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 if [ -n "$ROUTE_GROUP" ]; then
-  # Grupo de ruta: envuelto en parentesis, sin afectar la URL.
+  # Grupo de ruta: envuelto en paréntesis, sin afectar la URL.
   rg="${ROUTE_GROUP#(}"; rg="${rg%)}"
   REL="src/routes/(${rg})/${feat_kebab}"
 else
@@ -59,7 +59,7 @@ mkdir -p "$DIR"
 REMOTE_FILE="${feat_kebab}.remote.ts"
 MD_FILE="${feat_kebab}.md"
 
-# --- <feature>.remote.ts : el archivo CORE. Query minima compilable. ---
+# --- <feature>.remote.ts : el archivo CORE. Query mínima compilable. ---
 # Nombrado por el feature (nunca data.remote.ts). Fuera de src/lib/server/.
 cat > "${DIR}/${REMOTE_FILE}" <<REMOTE
 import {query} from '\$app/server'
@@ -71,7 +71,7 @@ export const get_${feat_snake} = query(async () => {
 })
 REMOTE
 
-# --- +page.svelte : la pantalla. UI aqui; importa el remote colocado. ---
+# --- +page.svelte : la pantalla. UI aquí; importa el remote colocado. ---
 cat > "${DIR}/+page.svelte" <<PAGE
 <script lang="ts">
 import {get_${feat_snake}} from './${feat_kebab}.remote'
@@ -94,17 +94,17 @@ PAGE
 cat > "${DIR}/${MD_FILE}" <<DOC
 # ${feat_pascal}
 
-## Proposito
+## Propósito
 
-<!-- 2-3 lineas en lenguaje de usuario: que resuelve este feature. -->
+<!-- 2-3 líneas en lenguaje de usuario: qué resuelve este feature. -->
 
 ## Pantallas y rutas
 
-- \`/${feat_kebab}\` — <!-- que se ve aqui -->
+- \`/${feat_kebab}\` — <!-- qué se ve aquí -->
 
 ## Remote functions
 
-- \`get_${feat_snake}\` — <!-- una linea de contrato -->
+- \`get_${feat_snake}\` — <!-- una línea de contrato -->
 
 ## Datos
 
@@ -112,7 +112,7 @@ cat > "${DIR}/${MD_FILE}" <<DOC
 
 ## Decisiones
 
-<!-- por que se hizo asi; atajos ponytail: relevantes -->
+<!-- por qué se hizo así; atajos ponytail: relevantes -->
 
 ## Problemas conocidos
 

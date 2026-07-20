@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# mint-dev-session.sh — sesion dev scriptada para pasar el muro OAuth en screen-review.
+# mint-dev-session.sh — sesión dev scriptada para pasar el muro OAuth en screen-review.
 #
 # La app es OAuth-only; el screen-review no puede loguearse solo. En vez del ritual
-# manual ("abri Chrome, logueate, re-corre"), este script inserta una fila de sesion
-# valida directo en la DB del worktree y devuelve la cookie para inyectarla en el browser.
+# manual ("abre Chrome, loguéate, re-corre"), este script inserta una fila de sesión
+# válida directo en la DB del worktree y devuelve la cookie para inyectarla en el browser.
 #
 # Subcomandos:
-#   mint <worktree>     Inserta una sesion (24h) y imprime SOLO `B7_SESSION_COOKIE=auth-session=<token>`.
-#   verify <url>        curl -si -b "$B7_SESSION_COOKIE" <url>; clasifica 200 / permiso / invalida.
+#   mint <worktree>     Inserta una sesión (24h) y imprime SOLO `B7_SESSION_COOKIE=auth-session=<token>`.
+#   verify <url>        curl -si -b "$B7_SESSION_COOKIE" <url>; clasifica 200 / permiso / inválida.
 #   cleanup <worktree>  Borra la fila insertada (por hash guardado en .b7/dev-session.json).
 #
-# Seleccion de usuario (mint):
+# Selección de usuario (mint):
 #   B7_SESSION_USER_ID    id directo del usuario (path confiable, sin conocer el schema).
 #   B7_SESSION_EMAIL      email; se resuelve a id (usuario activo=2, con perfil que tenga rutas).
 #   Sin ninguno de los dos -> exit 3 (fallback limpio: el caller cae al flujo manual, NO es error).
@@ -25,8 +25,8 @@
 #   B7_USER_COL_EMAIL     default: email
 #   B7_USER_COL_ACTIVO    default: activo   (se filtra = 2)
 #
-# Invariante de seguridad: el token en claro aparece UNA sola vez, en la linea
-# `B7_SESSION_COOKIE=...` de stdout. Todo lo demas va a stderr y nunca incluye el token.
+# Invariante de seguridad: el token en claro aparece UNA sola vez, en la línea
+# `B7_SESSION_COOKIE=...` de stdout. Todo lo demás va a stderr y nunca incluye el token.
 # En la DB y en .b7/dev-session.json solo vive el hash (sessionId), nunca el token.
 set -euo pipefail
 
@@ -65,12 +65,12 @@ cmd_mint() {
 
   local db
   db="$(load_database_url "$wt")" || { log "DATABASE_URL no encontrado en $wt/.env* — fallback"; exit 3; }
-  [ -n "$db" ] || { log "DATABASE_URL vacio — fallback"; exit 3; }
+  [ -n "$db" ] || { log "DATABASE_URL vacío — fallback"; exit 3; }
 
   command -v openssl >/dev/null 2>&1 || die "openssl no disponible"
   command -v node    >/dev/null 2>&1 || die "node no disponible"
 
-  # token base64url; sessionId = sha256(token) en hex (patron Lucia v3).
+  # token base64url; sessionId = sha256(token) en hex (patrón Lucia v3).
   local token session_id expires
   token="$(openssl rand -base64 18 | tr '+/' '-_' | tr -d '=')"
   session_id="$(printf '%s' "$token" | openssl dgst -sha256 | awk '{print $NF}')"
@@ -83,8 +83,8 @@ cmd_mint() {
 
   mkdir -p "$wt/.b7"
 
-  # El token NO se pasa a node: node solo necesita el hash (session_id). Asi el token
-  # nunca aparece en `ps`/argv/env de un subproceso. Resolucion de usuario + INSERT en node.
+  # El token NO se pasa a node: node solo necesita el hash (session_id). Así el token
+  # nunca aparece en `ps`/argv/env de un subproceso. Resolución de usuario + INSERT en node.
   local resolved_user
   resolved_user="$(
     cd "$wt" && \
@@ -102,7 +102,7 @@ cmd_mint() {
     node --input-type=module <<'NODE'
 const env = process.env;
 const url = env.DATABASE_URL;
-if (!url) { console.error('mint(node): DATABASE_URL vacio'); process.exit(11); }
+if (!url) { console.error('mint(node): DATABASE_URL vacío'); process.exit(11); }
 
 async function getDriver(url) {
   try {
@@ -150,14 +150,14 @@ try {
     `INSERT INTO ${T} (${CID}, ${CUSER}, ${CEXP}) VALUES ($1, $2, $3)`,
     [env.B7_MINT_SESSION_ID, userId, env.B7_MINT_EXPIRES]
   );
-  // Unico stdout de node: el userId resuelto (no secreto). El shell lo captura.
+  // Único stdout de node: el userId resuelto (no secreto). El shell lo captura.
   process.stdout.write(String(userId));
-  console.error(`mint(node): sesion insertada (${db.kind}) user=${userId} exp=${env.B7_MINT_EXPIRES}`);
+  console.error(`mint(node): sesión insertada (${db.kind}) user=${userId} exp=${env.B7_MINT_EXPIRES}`);
 } finally {
   await db.end().catch(() => {});
 }
 NODE
-  )" || die "el INSERT de la sesion fallo (ver stderr de node arriba)"
+  )" || die "el INSERT de la sesión falló (ver stderr de node arriba)"
 
   # Guarda SOLO el hash + metadata para cleanup. Nunca el token.
   cat > "$wt/.b7/dev-session.json" <<JSON
@@ -172,8 +172,8 @@ NODE
 JSON
   chmod 600 "$wt/.b7/dev-session.json" 2>/dev/null || true
 
-  log "sesion lista para user=${resolved_user} (expira ${expires}); hash en .b7/dev-session.json"
-  # UNICA linea con el token en claro (stdout):
+  log "sesión lista para user=${resolved_user} (expira ${expires}); hash en .b7/dev-session.json"
+  # ÚNICA línea con el token en claro (stdout):
   printf 'B7_SESSION_COOKIE=auth-session=%s\n' "$token"
 }
 
@@ -192,17 +192,17 @@ cmd_verify() {
 
   case "$status" in
     200)
-      log "verify: 200 OK — sesion valida y con permiso ($url)"
+      log "verify: 200 OK — sesión válida y con permiso ($url)"
       echo "ok"; exit 0 ;;
     30[1237])
       if printf '%s' "$location" | grep -qiE '/(login|auth|signin)'; then
-        log "verify: $status -> $location — sesion INVALIDA (bounce a login)"
+        log "verify: $status -> $location — sesión INVÁLIDA (bounce a login)"
         echo "invalida"; exit 3
       fi
-      log "verify: $status -> $location — sesion valida pero sin permiso en la ruta"
+      log "verify: $status -> $location — sesión válida pero sin permiso en la ruta"
       echo "permiso"; exit 4 ;;
     401|403)
-      log "verify: $status — sesion valida pero sin permiso en la ruta"
+      log "verify: $status — sesión válida pero sin permiso en la ruta"
       echo "permiso"; exit 4 ;;
     *)
       log "verify: status inesperado '$status' en $url"
@@ -250,10 +250,10 @@ try {
   await db.end().catch(()=>{});
 }
 NODE
-  ) || { log "cleanup: el DELETE fallo — dejo .b7/dev-session.json para retry manual"; exit 1; }
+  ) || { log "cleanup: el DELETE falló — dejo .b7/dev-session.json para retry manual"; exit 1; }
 
   rm -f "$meta"
-  log "cleanup: sesion borrada y .b7/dev-session.json removido"
+  log "cleanup: sesión borrada y .b7/dev-session.json removido"
 }
 
 case "$SUB" in

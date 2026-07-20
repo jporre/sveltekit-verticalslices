@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# ABOUTME: gate mecanico por peldaño de b-setup-or-fix — captura baseline de check+build y
-# ABOUTME: compara cada peldaño contra el, para no atribuirse errores preexistentes.
+# ABOUTME: gate mecánico por peldaño de b-setup-or-fix — captura baseline de check+build y
+# ABOUTME: compara cada peldaño contra él, para no atribuirse errores preexistentes.
 # Uso: rung-verify.sh baseline   (correr una vez en FASE 0)
 #      rung-verify.sh E<n>       (tras cada peldaño; emite RUNG_VERIFY ok|fail rung=E<n>)
 set -uo pipefail
@@ -22,7 +22,7 @@ run_check() { # cuenta errores del script check; 999 = script inexistente
     n=$(printf '%s' "$out" | grep -iEo 'found [0-9]+ error' | grep -Eo '[0-9]+' | head -1 || true)
     if [ -n "$n" ]; then echo "$n"
     elif [ "$rc" -eq 0 ]; then echo 0
-    else echo 100   # ponytail: check fallo sin resumen parseable (crash, tsc, deps) — cuenta como roto, nunca como limpio
+    else echo 100   # ponytail: check falló sin resumen parseable (crash, tsc, deps) — cuenta como roto, nunca como limpio
     fi
   else
     echo 999
@@ -49,7 +49,7 @@ case "${1:-}" in
     [ -f "$STATE" ] || { echo "RUNG_VERIFY fail rung=$1 reason=sin-baseline (correr 'rung-verify.sh baseline' primero)"; exit 4; }
     . "$STATE"
     CHECK=$(run_check); BUILD=$(run_build)
-    # script que no existia en el baseline y ahora si (E1 lo agrego): exigir limpio, no comparar contra 999
+    # script que no existía en el baseline y ahora sí (E1 lo agregó): exigir limpio, no comparar contra 999
     [ "$CHECK_ERRORS" = 999 ] && [ "$CHECK" != 999 ] && CHECK_ERRORS=0
     [ "$BUILD_EXIT" = 999 ] && [ "$BUILD" != 999 ] && BUILD_EXIT=0
     OK=yes

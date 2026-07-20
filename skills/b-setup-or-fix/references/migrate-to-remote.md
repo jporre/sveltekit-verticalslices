@@ -1,16 +1,16 @@
-# Recetas de migracion a remote functions (E3)
+# Recetas de migración a remote functions (E3)
 
-> Templates canonicos completos (CRUD entero): `../../b2-build-feature/references/feature-templates.md`. Forms con shadcn y campos no-nativos: `../../b2-build-feature/references/forms-recipe.md`. Este archivo solo trae el mapeo legacy → remote, receta por receta. Si el skill `using-remote-functions` esta disponible, sus docs (QUERY/FORM/COMMAND/SINGLE-FLIGHT) profundizan cada tipo.
+> Templates canónicos completos (CRUD entero): `../../b2-build-feature/references/feature-templates.md`. Forms con shadcn y campos no-nativos: `../../b2-build-feature/references/forms-recipe.md`. Este archivo solo trae el mapeo legacy → remote, receta por receta. Si el skill `using-remote-functions` está disponible, sus docs (QUERY/FORM/COMMAND/SINGLE-FLIGHT) profundizan cada tipo.
 
-Prerequisitos (E1 ya los dejo): `svelte.config.js` con `kit.experimental.remoteFunctions: true` y `compilerOptions.experimental.async: true`; SvelteKit >= 2.27.
+Prerrequisitos (E1 ya los dejó): `svelte.config.js` con `kit.experimental.remoteFunctions: true` y `compilerOptions.experimental.async: true`; SvelteKit >= 2.27.
 
-Reglas fijas de toda funcion migrada:
+Reglas fijas de toda función migrada:
 
 - Vive en `src/routes/<feature>/<feature>.remote.ts` — nunca `data.remote.ts`, nunca bajo `src/lib/server/`.
-- `requireUser()` / `requirePermission('verbo:sustantivo')` como **primera operacion**.
-- Todo argumento validado con schema zod como primer parametro (`query(z.string(), async (id) => ...)`). Sin schema solo cuando no recibe argumentos.
+- `requireUser()` / `requirePermission('verbo:sustantivo')` como **primera operación**.
+- Todo argumento validado con schema zod como primer parámetro (`query(z.string(), async (id) => ...)`). Sin schema solo cuando no recibe argumentos.
 - Nombres `snake_case`: `get_items`, `upsert_item`, `delete_item`.
-- La transformacion de datos (sort, map, merge) vive en la remote function; la pagina solo renderiza.
+- La transformación de datos (sort, map, merge) vive en la remote function; la página solo renderiza.
 - Preferir `form` sobre `command`: form degrada sin JavaScript. `command` solo para mutaciones no ligadas a un formulario (like, toggle, delete inline).
 
 ---
@@ -47,8 +47,8 @@ export const get_items = query(async () => {
 ```
 
 - Loading/error UI: envolver en `<svelte:boundary>` con snippet `pending` — no estados `loading` manuales.
-- Al borrar el `load`, revisar si `+page.server.ts` queda vacio → borrar el archivo (o dejar solo el guard de ruta si la pagina lo necesita).
-- `load` de `+layout.server.ts` consumido por varias paginas → una `query` compartida del feature dueño; queries se deduplican por request, llamarla en cada pagina que la necesita es gratis.
+- Al borrar el `load`, revisar si `+page.server.ts` queda vacío → borrar el archivo (o dejar solo el guard de ruta si la página lo necesita).
+- `load` de `+layout.server.ts` consumido por varias páginas → una `query` compartida del feature dueño; queries se deduplican por request, llamarla en cada página que la necesita es gratis.
 
 ## R2 — form actions → `form()`
 
@@ -85,7 +85,7 @@ export const upsert_item = form(
 - HARD RULE heredada de b2: el submit se deshabilita SOLO en vuelo (`disabled={!!f.pending}`), NUNCA `disabled={!isFormValid}`.
 - Edit pre-popula con `fields.set({...})` o `fields.x.as('text', valor)`; forms repetidos en lista usan `upsert_item.for(item.id)`.
 - Campos sensibles con prefijo underscore (`fields._password`) para no repoblarse tras error.
-- Post-submit con logica custom: `{...upsert_item.enhance(async (f) => { if (await f.submit()) { f.element.reset(); toast(...); } })}` — con `enhance` el reset es manual.
+- Post-submit con lógica custom: `{...upsert_item.enhance(async (f) => { if (await f.submit()) { f.element.reset(); toast(...); } })}` — con `enhance` el reset es manual.
 
 ## R3 — `onMount` + `fetch` → `query()`
 
@@ -105,7 +105,7 @@ export const upsert_item = form(
 </script>
 ```
 
-Borrar el `+server.ts` que servia ese fetch (ver R4). Cero estados `loading`/`error` manuales: boundary.
+Borrar el `+server.ts` que servía ese fetch (ver R4). Cero estados `loading`/`error` manuales: boundary.
 
 ## R4 — `+server.ts` interno → `query` / `command`
 
@@ -125,22 +125,22 @@ export const delete_item = command(z.string(), async (id) => {
 });
 ```
 
-## R5 — Single-flight: refresh explicito tras cada mutacion (AP11)
+## R5 — Single-flight: refresh explícito tras cada mutación (AP11)
 
-`form` sin instruccion refresca TODO (desperdicio); `command` no refresca NADA (datos stale). Toda mutacion migrada declara su estrategia:
+`form` sin instrucción refresca TODO (desperdicio); `command` no refresca NADA (datos stale). Toda mutación migrada declara su estrategia:
 
-| Situacion | Estrategia |
+| Situación | Estrategia |
 |---|---|
-| El server sabe que cambio | dentro del handler: `await get_items().refresh()` |
+| El server sabe que cambió | dentro del handler: `await get_items().refresh()` |
 | El server ya tiene el dato nuevo | `get_item(id).set(result)` |
 | Solo el cliente conoce la instancia exacta (args con filtros) | `await submit().updates(get_items({ filter }))` o `await mi_command(x).updates(...)` |
-| Feedback instantaneo | `.updates(get_likes(id).withOverride((n) => n + 1))` — se revierte si falla |
+| Feedback instantáneo | `.updates(get_likes(id).withOverride((n) => n + 1))` — se revierte si falla |
 
-Nota de version: en SvelteKit reciente los refreshes pedidos por el cliente via `.updates()` deben ser **aceptados** en el handler con `requested(get_items, limite).refreshAll()` (el limite es defensa DoS); en versiones previas el server los aplicaba implicito. Revisar la version del repo antes de elegir la variante.
+Nota de versión: en SvelteKit reciente los refreshes pedidos por el cliente vía `.updates()` deben ser **aceptados** en el handler con `requested(get_items, limite).refreshAll()` (el límite es defensa DoS); en versiones previas el server los aplicaba implícito. Revisar la versión del repo antes de elegir la variante.
 
-## R6 — Data estatica → `prerender()`
+## R6 — Data estática → `prerender()`
 
-Datos que cambian a lo sumo por deploy (catalogos, paginas de contenido): `prerender()` en vez de `query()` — se resuelve en build y viaja por CDN. Con argumentos, declarar `inputs` para que el crawler los genere. Ojo con la asimetria: las `query` NO funcionan en paginas totalmente prerendereadas (`export const prerender = true`, tipico de adapter-static) — `prerender()` si, y es justamente el reemplazo correcto ahi.
+Datos que cambian a lo sumo por deploy (catálogos, páginas de contenido): `prerender()` en vez de `query()` — se resuelve en build y viaja por CDN. Con argumentos, declarar `inputs` para que el crawler los genere. Ojo con la asimetría: las `query` NO funcionan en páginas totalmente prerendereadas (`export const prerender = true`, típico de adapter-static) — `prerender()` sí, y es justamente el reemplazo correcto ahí.
 
 ## R7 — N+1 en listas → `query.batch()`
 
@@ -161,8 +161,8 @@ Usar cuando el componente de cada item de una lista pide sus propios datos.
 ## Checklist por feature migrado
 
 - [ ] `<feature>.remote.ts` nombrado por feature, en la carpeta de la ruta
-- [ ] guard primera linea de CADA funcion; schema zod en toda funcion con argumentos
-- [ ] cero `load()`/`actions`/`fetch` interno restantes en el feature (los `+server.ts` que quedan tienen razon declarada)
-- [ ] toda mutacion con estrategia de refresh explicita (R5)
-- [ ] pagina sin logica: solo `$derived(await ...)` + render; boundary para pending
+- [ ] guard primera línea de CADA función; schema zod en toda función con argumentos
+- [ ] cero `load()`/`actions`/`fetch` interno restantes en el feature (los `+server.ts` que quedan tienen razón declarada)
+- [ ] toda mutación con estrategia de refresh explícita (R5)
+- [ ] página sin lógica: solo `$derived(await ...)` + render; boundary para pending
 - [ ] check + browser test del feature ANTES de migrar el siguiente

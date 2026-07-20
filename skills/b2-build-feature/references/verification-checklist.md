@@ -1,11 +1,11 @@
 # Verification Checklist — browser walkthrough
 
-Los gates mecanicos (branch guard, `check:machine`, `format`, grep anti-React
+Los gates mecánicos (branch guard, `check:machine`, `format`, grep anti-React
 scoped al diff, `test:unit` condicional, browser-gate) viven en
-`scripts/verify.sh` — exit codes 3-6 estables y ultima linea machine-readable
+`scripts/verify.sh` — exit codes 3-6 estables y última línea machine-readable
 `VERIFY_RESULT ... browser=required|not-needed svelte_files=<csv>`. El autofixer
 (sobre `svelte_files`) y este walkthrough siguen siendo pasos del modelo
-gatillados por esa linea (Phase 3 del SKILL.md).
+gatillados por esa línea (Phase 3 del SKILL.md).
 
 Este documento es el how-to del browser test con `agent-browser`. Corre SOLO
 cuando verify.sh reporta `browser=required`.
@@ -14,10 +14,10 @@ cuando verify.sh reporta `browser=required`.
 
 ### Start dev server (serve THIS checkout, no la rama default)
 
-Serví siempre desde el checkout actual — si estás en un worktree, usá su `./dev.sh`
+Sirve siempre desde el checkout actual — si estás en un worktree, usa su `./dev.sh`
 (puerto propio del worktree), no `pnpm dev` (hardcodeado al puerto del repo principal).
 Un dev server viejo en el puerto puede estar sirviendo la rama default: no confíes en que "algo
-responde", verificá que el listener sea ESTE checkout con `verify-port`:
+responde", verifica que el listener sea ESTE checkout con `verify-port`:
 
 ```bash
 # Desde el worktree:
@@ -126,7 +126,7 @@ If any step found issues:
 ## Finalize
 
 El cierre del trabajo (doc `<feature>.md`, CHANGELOG, commit via b3, reporte) vive en
-Phase 4 del SKILL.md — unica fuente.
+Phase 4 del SKILL.md — única fuente.
 
 ## Final Sign-Off
 

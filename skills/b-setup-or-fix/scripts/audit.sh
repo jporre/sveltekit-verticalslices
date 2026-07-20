@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# ABOUTME: diagnostico mecanico de b-setup-or-fix — cuenta hits por peldaño E1-E6 sobre el
+# ABOUTME: diagnóstico mecánico de b-setup-or-fix — cuenta hits por peldaño E1-E6 sobre el
 # ABOUTME: codebase entero y emite AUDIT_RESULT parseable. Solo lectura, cero cambios.
 # Uso: audit.sh [ruta-src]   (default: src del cwd)
 # Exit: 0 ok | 3 no es proyecto SvelteKit
 set -uo pipefail
 
 SRC="${1:-src}"
-MAX_HITS=40   # ponytail: tope de lineas por check para no inundar el contexto; el conteo es completo igual
+MAX_HITS=40   # ponytail: tope de líneas por check para no inundar el contexto; el conteo es completo igual
 Q="[\"']"     # clase ERE "comilla simple o doble" — evita comillas literales en patrones
 
 [ -f package.json ] && grep -q '"@sveltejs/kit"' package.json || { echo "AUDIT_ABORT no es un proyecto SvelteKit (falta @sveltejs/kit en package.json)"; exit 3; }
 
 # grep -r con --include funciona en BSD (macOS) y GNU
 g() { grep -rEn --include="$1" "$2" "$SRC" 2>/dev/null; }
-# ponytail: cada check asigna a $h y recien ahi llama show — bash 3.2 (macOS) rompe
+# ponytail: cada check asigna a $h y recién ahí llama show — bash 3.2 (macOS) rompe
 # comillas anidadas en $() dentro de argumentos, en asignaciones no
 show() {
   local label="$1" hits="$2" n
@@ -56,11 +56,11 @@ h="$(grep -rEin --include='*.ts' "(api_?key|token|password|secret)$Q?[[:space:]]
 show "posibles secrets hardcodeados (SEC-D)" "$h"
 rung E1
 
-echo "=== E2 === estructura / colocacion"
+echo "=== E2 === estructura / colocación"
 h="$(find "$SRC/lib/features" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)"
 show "features bajo src/lib/features (CAL-5)" "$h"
 h="$(find "$SRC" \( -name 'data.remote.ts' -o -name 'data.remote.js' \) 2>/dev/null)"
-show "data.remote.ts generico" "$h"
+show "data.remote.ts genérico" "$h"
 h="$(find "$SRC/lib/server" -name '*.remote.*' 2>/dev/null)"
 show "*.remote.ts bajo src/lib/server (AP10)" "$h"
 h="$(find "$SRC/routes" -type d -name 'ui' 2>/dev/null)"
@@ -99,25 +99,25 @@ show "\$: reactive statements (migrar a \$derived)" "$h"
 h="$(g '*.svelte' '\$effect\(')"
 show "\$effect (revisar: si computa valores es AP3)" "$h"
 h="$(g '*.svelte' "import \{[^}]+\} from $Q\\\$lib/components/ui/")"
-show "named imports shadcn (AP7; Button/Input/Label/Textarea/Badge/Separator son validos)" "$h"
+show "named imports shadcn (AP7; Button/Input/Label/Textarea/Badge/Separator son válidos)" "$h"
 h="$(g '*' "from ${Q}lucide-svelte${Q}")"
 show "lucide-svelte plano (AP9, usar @lucide/svelte/icons/x)" "$h"
 h="$(g '*.svelte' 'Select\.Value')"
 show "Select.Value (AP8, no existe)" "$h"
 h="$(g '*.svelte' 'goto\(')"
-show "goto() (AP1; solo sospechoso si envuelve navegacion simple)" "$h"
+show "goto() (AP1; solo sospechoso si envuelve navegación simple)" "$h"
 rung E4
 
-echo "=== E5 === desingenieria / duplicados (insumo para juicio LLM)"
+echo "=== E5 === desingeniería / duplicados (insumo para juicio LLM)"
 h="$(g '*.ts' 'class [A-Za-z]+(Service|Repository|Factory|Manager)')"
 show "clases Service/Repository/Factory/Manager (sospecha pass-through CAL-1..3)" "$h"
 h="$(g '*.ts' '^export (async )?(function|const) ' | grep "$SRC/lib" || true)"
-show "exports en src/lib (catalogo para pasada de duplicados DUP-1)" "$h"
+show "exports en src/lib (catálogo para pasada de duplicados DUP-1)" "$h"
 rung E5
 
 echo "=== E6 === comentarios y docs"
 COMMENT_LINES=$(grep -rE --include='*.ts' --include='*.svelte' '^[[:space:]]*//' "$SRC" 2>/dev/null | grep -cv 'ponytail:' || true)
-echo "-- lineas de comentario (sin ponytail): $COMMENT_LINES"
+echo "-- líneas de comentario (sin ponytail): $COMMENT_LINES"
 [ "$COMMENT_LINES" -gt 50 ] && echo "$COMMENT_LINES" >> /tmp/b-setup-or-fix-audit-counts.$$ || echo 0 >> /tmp/b-setup-or-fix-audit-counts.$$
 h=""
 while IFS= read -r d; do

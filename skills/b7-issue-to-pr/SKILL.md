@@ -1,6 +1,6 @@
 ---
 name: b7-issue-to-pr
-description: 'Pipeline autonomo issue -> PR DRAFT centrado en pantallas; se detiene en el PR draft, NO mergea. Entrada directa SOLO cuando el usuario quiere parar en el PR: "issue N hasta PR", "abre PR del issue N", "sin merge". NO es la entrada default de "resuelve/trabaja/arregla el issue N" — eso rutea a b10-ship (que invoca este skill como fase de build); un cluster de issues relacionadas en un solo PR es b8-swarm.'
+description: 'Pipeline autónomo issue -> PR DRAFT centrado en pantallas; se detiene en el PR draft, NO mergea. Entrada directa SOLO cuando el usuario quiere parar en el PR: "issue N hasta PR", "abre PR del issue N", "sin merge". NO es la entrada default de "resuelve/trabaja/arregla el issue N" — eso rutea a b10-ship (que invoca este skill como fase de build); un cluster de issues relacionadas en un solo PR es b8-swarm.'
 allowed-tools: Bash, Read, Edit, Write, Skill, Agent
 context: fork
 model: opus
@@ -15,15 +15,15 @@ Glue skill que encadena skills existentes. **No duplicar lógica de los skills e
 
 ## Los 5 pasos obligatorios — NO saltarse
 
-Invocar este skill con un numero de issue ejecuta los 5 pasos en orden, incluso si el usuario añade instrucciones inline en el mismo prompt (van a `user_directives` como contexto de la implementacion — no son atajos). Si un paso falla por entorno (auth, permisos, locks), abortar y reportar — no continuar saltandolo.
+Invocar este skill con un número de issue ejecuta los 5 pasos en orden, incluso si el usuario añade instrucciones inline en el mismo prompt (van a `user_directives` como contexto de la implementación — no son atajos). Si un paso falla por entorno (auth, permisos, locks), abortar y reportar — no continuar saltándolo.
 
 1. **Worktree** — `b1-add-worktree --headless`; branch `feat/<issue>-<slug>` o `fix/<issue>-<slug>`. Prohibido editar el repo principal en la rama default; si no se puede crear el worktree, abortar antes de tocar archivos.
 2. **Comentario sticky en el issue al iniciar** — `publish-docs.sh milestone started` + `issue-comment` (marker `<!-- b7:status -->`).
-3. **Commit(s) via b3-git-commit** — conventional commits por agrupacion tematica; sin mensajes inventados.
+3. **Commit(s) via b3-git-commit** — conventional commits por agrupación temática; sin mensajes inventados.
 4. **PR draft + labels sincronizadas** — `b4-pull-request --draft` con cuerpo de `publish-docs.sh pr-body` (incluye `Closes #<issue>`); labels `ready/auto-pr → in-progress → in-review`; sticky actualizado con link al PR.
-5. **b6-pr-review sobre el PR recien abierto** — veredicto publicado en el PR; findings de severidad alta bloquean (re-iterar o escalar a humano).
+5. **b6-pr-review sobre el PR recién abierto** — veredicto publicado en el PR; findings de severidad alta bloquean (re-iterar o escalar a humano).
 
-Verificacion observable de cada paso: ver DEFINITION OF DONE. Si alguno no se completa con exito, el run se reporta `aborted` con razon clara — no como completado.
+Verificación observable de cada paso: ver DEFINITION OF DONE. Si alguno no se completa con éxito, el run se reporta `aborted` con razón clara — no como completado.
 
 ## DEFINITION OF DONE — checklist verificable
 
@@ -60,19 +60,19 @@ fi
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" screens-check "$WORKTREE"
 ```
 
-Si el check 7 sale 6 (codigo sin commitear), volver a invocar `b3-git-commit` en el worktree y pushear — el run NO esta terminado con trabajo fuera del commit. Si sale 7 (artefactos persistentes que `--fix` no pudo excluir), listarlos en el run-report como warning y continuar — mismo criterio que b9 PASO 1.5: los artefactos no invalidan el run.
+Si el check 7 sale 6 (código sin commitear), volver a invocar `b3-git-commit` en el worktree y pushear — el run NO está terminado con trabajo fuera del commit. Si sale 7 (artefactos persistentes que `--fix` no pudo excluir), listarlos en el run-report como warning y continuar — mismo criterio que b9 PASO 1.5: los artefactos no invalidan el run.
 
-Si el check 8 imprime `FIX_SIN_TEST`, el run no aborta pero su status final es `needs-human-review` (no `ok`): un fix que no toca tests necesita que un humano confirme que la ausencia de regresion es aceptable. Si hubo waiver explicito, la degradacion es la misma (ver "Waiver explicito" en el paso 1).
+Si el check 8 imprime `FIX_SIN_TEST`, el run no aborta pero su status final es `needs-human-review` (no `ok`): un fix que no toca tests necesita que un humano confirme que la ausencia de regresión es aceptable. Si hubo waiver explícito, la degradación es la misma (ver "Waiver explícito" en el paso 1).
 
-Si el check 9 sale 8, el run NO esta terminado: falta el JSON de review de alguna pantalla sin skip valido, o hay un `verdict: fail` sin resolver — volver al paso 5 (o al loop del paso 4 si el fail es de criterio visual) antes de cerrar. Exit 3 = rama base irresoluble en el cross-check (problema de entorno, no del run): tambien bloquea — parar con diagnostico, no adivinar. `not-evaluated` NO es fail (pass-through con nota). Con `triage.screens[]` vacio o ausente, `screens-check` sale 0 directo sin exigir artefactos.
+Si el check 9 sale 8, el run NO está terminado: falta el JSON de review de alguna pantalla sin skip válido, o hay un `verdict: fail` sin resolver — volver al paso 5 (o al loop del paso 4 si el fail es de criterio visual) antes de cerrar. Exit 3 = rama base irresoluble en el cross-check (problema de entorno, no del run): también bloquea — parar con diagnóstico, no adivinar. `not-evaluated` NO es fail (pass-through con nota). Con `triage.screens[]` vacío o ausente, `screens-check` sale 0 directo sin exigir artefactos.
 
-**Ultima linea OBLIGATORIA del run** (la parsean orquestadores como b10-ship; fallback de ellos: `gh pr list --search "Closes #N"` + labels del issue):
+**Última línea OBLIGATORIA del run** (la parsean orquestadores como b10-ship; fallback de ellos: `gh pr list --search "Closes #N"` + labels del issue):
 
 ```
 B7_DONE issue=<N> pr=<url|none> status=ok|needs-human-review|bailed|aborted screens=<ok|skipped-<r>|fail|none> [lane=<S|M|L>]
 ```
 
-El token `screens=` es **obligatorio**, formato k=v sin espacios (el parser tolerante de b10 ignora tokens que no necesita). Valores: `ok` = cada pantalla del triage tiene su JSON de review sin ningun `verdict: fail`; `skipped-<r>` = existe `.b7/review/SKIPPED.json` y `<r>` es su `reason` (ej. `screens=skipped-no-port`); `fail` = algun review quedo en `verdict: fail`; `none` = triage sin screens (`screens[]` vacio o ausente).
+El token `screens=` es **obligatorio**, formato k=v sin espacios (el parser tolerante de b10 ignora tokens que no necesita). Valores: `ok` = cada pantalla del triage tiene su JSON de review sin ningún `verdict: fail`; `skipped-<r>` = existe `.b7/review/SKIPPED.json` y `<r>` es su `reason` (ej. `screens=skipped-no-port`); `fail` = algún review quedó en `verdict: fail`; `none` = triage sin screens (`screens[]` vacío o ausente).
 
 El token `lane=<S|M|L>` es **opcional** (carril asignado en el paso 1b). Los orquestadores lo ignoran si no lo necesitan; el parser tolerante de b10 ya lo cubre.
 
@@ -80,7 +80,7 @@ Si **cualquiera** de estos comandos no devuelve lo esperado, NO usar las frases 
 
 ### Frases prohibidas al cerrar el run
 
-Estas frases significan "abandoné a mitad de camino" y son síntoma del bug que este skill busca evitar. Si estás por escribirlas, el run no está terminado — ejecutá el paso pendiente:
+Estas frases significan "abandoné a mitad de camino" y son síntoma del bug que este skill busca evitar. Si estás por escribirlas, el run no está terminado — ejecuta el paso pendiente:
 
 - "Ready for b3-git-commit + b4-pull-request"
 - "Listo para commit / Listo para PR"
@@ -100,7 +100,7 @@ En `--wet` el cierre válido es: branch + commits + PR URL + review adjunto + la
 
 **Argumentos recibidos en esta invocación:** `$ARGUMENTS`
 
-> Este skill corre en `context: fork`: el subagente sólo ve el cuerpo de este `SKILL.md`. El placeholder `$ARGUMENTS` de arriba es la ÚNICA forma de que el número de issue (y flags) lleguen al fork — el harness lo sustituye por lo tipeado. El primer token de `$ARGUMENTS` es el número de issue; el resto son flags. Si `$ARGUMENTS` aparece vacío o sin sustituir, abortar con error claro pidiendo el número.
+> Este skill corre en `context: fork`: el subagente solo ve el cuerpo de este `SKILL.md`. El placeholder `$ARGUMENTS` de arriba es la ÚNICA forma de que el número de issue (y flags) lleguen al fork — el harness lo sustituye por lo tipeado. El primer token de `$ARGUMENTS` es el número de issue; el resto son flags. Si `$ARGUMENTS` aparece vacío o sin sustituir, abortar con error claro pidiendo el número.
 
 Defaults: `--wet`, `--max-iterations=6`, `--budget-files=25`, sin `--no-pr`, screens habilitadas, `--lang` autodetectado del issue.
 
@@ -108,7 +108,7 @@ Si no se entrega número de issue, abortar con error claro.
 
 ### Directivas inline del usuario
 
-Texto adicional en el mismo prompt (ej. `/b7-issue-to-pr #121 agregale el campo rut a la tabla`) se trata como `--directives` y se anexa a `.b7/triage.json` bajo `user_directives`; los sub-agentes de implementacion lo leen junto con el cuerpo del issue. No altera la obligatoriedad de los 5 pasos — refina el scope, no lo atajea.
+Texto adicional en el mismo prompt (ej. `/b7-issue-to-pr #121 agregale el campo rut a la tabla`) se trata como `--directives` y se anexa a `.b7/triage.json` bajo `user_directives`; los sub-agentes de implementación lo leen junto con el cuerpo del issue. No altera la obligatoriedad de los 5 pasos — refina el scope, no lo atajea.
 
 ### `--dry-run` vs `--wet`
 
@@ -120,7 +120,7 @@ Texto adicional en el mismo prompt (ej. `/b7-issue-to-pr #121 agregale el campo 
 Cada feature se evalúa, diseña, programa, revisa y aprueba como **pantallas y/o flujos de pantallas tal como las usaría alguien en la app**. Esto es **obligatorio**:
 
 - El triage debe identificar `screens[]` con `route`, `user_journey`, `acceptance_criteria_visual` y `success_metrics`.
-- La implementación coloca cada pantalla en su carpeta de ruta `src/routes/<feature>/`: la UI va directo en `+page.svelte`, los datos en `<feature>.remote.ts`, y los sub-componentes como hermanos PascalCase (sin subcarpeta `ui/`). Spec canonica del layout (regla 99%, excepciones `$lib`, tolerancia legacy `src/lib/features/`, doc `<feature>.md`): `$PLUGIN_ROOT/skills/b2-build-feature/references/slice-spec.md`.
+- La implementación coloca cada pantalla en su carpeta de ruta `src/routes/<feature>/`: la UI va directo en `+page.svelte`, los datos en `<feature>.remote.ts`, y los sub-componentes como hermanos PascalCase (sin subcarpeta `ui/`). Spec canónica del layout (regla 99%, excepciones `$lib`, tolerancia legacy `src/lib/features/`, doc `<feature>.md`): `$PLUGIN_ROOT/skills/b2-build-feature/references/slice-spec.md`.
 - La revisión usa el agente del plugin `b7-screen-review` por cada pantalla declarada (un Agent call por pantalla).
 - El reporte y los artefactos documentales hablan en lenguaje de pantallas y flujos, no de funciones internas.
 
@@ -128,7 +128,7 @@ Si el triage no produce `screens[]` (porque la tarea es backend puro o de infra)
 
 ## Optimización de tokens — patrones obligatorios
 
-Estos patrones reducen tokens sin perder calidad. Los demas patrones (log-filter, error-hash, skip-by-scope, sub-agentes, contexto cacheado, reporte por script) estan definidos en el paso donde se usan.
+Estos patrones reducen tokens sin perder calidad. Los demás patrones (log-filter, error-hash, skip-by-scope, sub-agentes, contexto cacheado, reporte por script) están definidos en el paso donde se usan.
 
 | # | Patrón | Cómo se aplica |
 |---|--------|----------------|
@@ -151,7 +151,7 @@ Ejecuta preflight. Sale non-zero si:
 
 Si preflight falla, reportar y salir. No intentar arreglar el estado subyacente.
 
-Tras preflight verde, **tomar el lock** — preflight solo CHEQUEA, no adquiere. En headless lo adquiere `run.sh` (y persiste `lock_file` en el state del scratch); si el state ya trae `lock_file`, NO re-adquirir. En la via Skill (sin `run.sh`), adquirirlo explicito:
+Tras preflight verde, **tomar el lock** — preflight solo CHEQUEA, no adquiere. En headless lo adquiere `run.sh` (y persiste `lock_file` en el state del scratch); si el state ya trae `lock_file`, NO re-adquirir. En la vía Skill (sin `run.sh`), adquirirlo explícito:
 
 ```bash
 # Default: lock global b7.lock. Con B7_PARALLEL=1 (wave-build): shard b7-issue-<N>.lock.
@@ -197,7 +197,7 @@ Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que e
 
 Tras escribir `.b7/triage.json`, **validar mecánicamente** contra el schema antes de seguir: `bash scripts/guardrails.sh validate-triage .b7/triage.json`. Si sale exit 4 (verdict/complexity fuera del enum, falta un required, o clave desconocida por `additionalProperties:false`), el triage es inválido — corregirlo y re-validar; no continuar con un artefacto que los sub-skills no van a poder consumir.
 
-**Gate de evidencia para bugs (deterministico, via jq).** `validate-triage` no evalua el `if/then` del schema (`type=fix` exige `evidence`), asi que b7 lo aplica aca — un bug sin artefacto observado no debe consumir un run de implementacion:
+**Gate de evidencia para bugs (determinístico, vía jq).** `validate-triage` no evalúa el `if/then` del schema (`type=fix` exige `evidence`), así que b7 lo aplica acá — un bug sin artefacto observado no debe consumir un run de implementación:
 
 ```bash
 if [ "$(jq -r '.type' .b7/triage.json)" = "fix" ] \
@@ -216,7 +216,7 @@ scripts/publish-docs.sh plan-done <id> --worktree "$WORKTREE"
 
 Cada `plan-done` re-renderiza `state.plan_block` y queda reflejado en el sticky comment del issue en el próximo `publish-docs.sh issue-comment` (o `all`). Si al cerrar quedan items pendientes, `plan-check` sale 5 y el run no es válido.
 
-**Gate de regresion para bugs (deterministico, via jq).** Si `type == fix`, inyectar un item `regression-test` al `plan[]` antes de implementar — asi el gate DoD #6 (`plan-check`) obliga a que exista un test de regresion sin logica nueva. Solo agregarlo si no esta ya presente:
+**Gate de regresión para bugs (determinístico, vía jq).** Si `type == fix`, inyectar un item `regression-test` al `plan[]` antes de implementar — así el gate DoD #6 (`plan-check`) obliga a que exista un test de regresión sin lógica nueva. Solo agregarlo si no está ya presente:
 
 ```bash
 if [ "$(jq -r '.type' .b7/triage.json)" = "fix" ] \
@@ -227,38 +227,38 @@ if [ "$(jq -r '.type' .b7/triage.json)" = "fix" ] \
 fi
 ```
 
-**Waiver explicito.** Si el fix genuinamente no admite test (p.ej. cambio de infra sin harness), cerrar el item con razon — nunca `done` en silencio:
+**Waiver explícito.** Si el fix genuinamente no admite test (p.ej. cambio de infra sin harness), cerrar el item con razón — nunca `done` en silencio:
 
 ```bash
 scripts/publish-docs.sh plan-done regression-test --worktree "$WORKTREE"   # note: waived: <razon>
 ```
 
-El waiver deja `plan-check` verde (item done) pero el status final del run es `needs-human-review`, no `ok` — un humano confirma que la ausencia de test es aceptable; la razon va en el sticky comment y el run-report.
+El waiver deja `plan-check` verde (item done) pero el status final del run es `needs-human-review`, no `ok` — un humano confirma que la ausencia de test es aceptable; la razón va en el sticky comment y el run-report.
 
 Si `verdict != "ready"`: comentar en el issue (en su idioma — `language` del JSON) que el bot bailó, liberar lock, salir 0.
 
 Si `security_review_required: true`: forzar `--no-pr` y marcar para revisión humana en el reporte.
 
-Si `estimated_complexity == "complex"` y NO se paso `--force-complex`: comentar y bailar (excede el alcance del bot). Con `--force-complex` (lo pasa b10-ship tras confirmacion humana explicita): continuar, pero registrar en el sticky y el run-report que el run corre fuera del alcance default — los budgets siguen aplicando.
+Si `estimated_complexity == "complex"` y NO se pasó `--force-complex`: comentar y bailar (excede el alcance del bot). Con `--force-complex` (lo pasa b10-ship tras confirmación humana explícita): continuar, pero registrar en el sticky y el run-report que el run corre fuera del alcance default — los budgets siguen aplicando.
 
 #### 1b. Clasificar el carril del run (lane S/M/L)
 
-Tras el gate de complejidad (y solo si el run continua), asignar el **carril** que gobierna cuánto paga el run — un fix de 1 línea no debe pagar el pipeline completo (esqueletos LLM, opus, 6 iteraciones, b6 full):
+Tras el gate de complejidad (y solo si el run continúa), asignar el **carril** que gobierna cuánto paga el run — un fix de 1 línea no debe pagar el pipeline completo (esqueletos LLM, opus, 6 iteraciones, b6 full):
 
 ```bash
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" \
   classify-run "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/state.json"   # emite RUN_LANE=S|M|L
 ```
 
-Reglas: `lane=L` si `estimated_complexity == complex`; `lane=S` si `== simple` **y** `files_likely` tiene ≤5 entradas; `lane=M` en cualquier otro caso. El script persiste `lane` en `state.json`. **Los carriles M y L son byte-idénticos al comportamiento histórico** — no cambian nada. Si el carril es **S**, leer `references/lane-s.md` en este punto: ahi viven co-locadas TODAS sus optimizaciones (render mecanico de screens, agente sonnet, 3 iteraciones, skip condicional del review visual, `b6 --light`); los pasos 3, 4, 5 y 8c solo dejan un pointer.
+Reglas: `lane=L` si `estimated_complexity == complex`; `lane=S` si `== simple` **y** `files_likely` tiene ≤5 entradas; `lane=M` en cualquier otro caso. El script persiste `lane` en `state.json`. **Los carriles M y L son byte-idénticos al comportamiento histórico** — no cambian nada. Si el carril es **S**, leer `references/lane-s.md` en este punto: ahí viven co-locadas TODAS sus optimizaciones (render mecánico de screens, agente sonnet, 3 iteraciones, skip condicional del review visual, `b6 --light`); los pasos 3, 4, 5 y 8c solo dejan un pointer.
 
 Reflejar el carril en el sticky del issue (`publish-docs.sh state-set lane=<S|M|L>` ya lo trae de `state.json`; el sticky lo muestra en el próximo `issue-comment`).
 
-> El `classify-run` corre acá porque necesita `state.json` y `triage.json` ya sembrados en el worktree. Si por orden de pasos aún no existe el worktree cuando llegás a esta clasificación, corré `classify-run` inmediatamente después del paso 2 (worktree) y antes del paso 3.
+> El `classify-run` corre acá porque necesita `state.json` y `triage.json` ya sembrados en el worktree. Si por orden de pasos aún no existe el worktree cuando llegas a esta clasificación, corre `classify-run` inmediatamente después del paso 2 (worktree) y antes del paso 3.
 
 ### 2. Worktree headless — PASO OBLIGATORIO #1
 
-**Prohibido `git worktree add` directo.** Hay un PreToolUse hook que bloquea esa llamada — si la intentás, vas a recibir un error. Usar SIEMPRE `setup-worktree.sh`.
+**Prohibido `git worktree add` directo.** Hay un PreToolUse hook que bloquea esa llamada — si la intentas, vas a recibir un error. Usar SIEMPRE `setup-worktree.sh`.
 
 Patrón obligatorio (copiar tal cual, no parafrasear):
 
@@ -288,13 +288,13 @@ bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-worktree 
 
 Sin `WORKTREE_READY` no hay `$WORKTREE` exportado → ninguna escritura posterior puede apuntar a un destino válido. `verify-worktree` además rechaza worktrees que estén fuera de `<parent>/worktrees/`, sin `dev.sh`, sin symlinks `.env*` o sin `node_modules`.
 
-Crear `.b7/` dentro del worktree (excluido via el exclude por-worktree que siembra `setup-worktree.sh`). Mover los artefactos `.b7/issue.json`, `.b7/triage.json`, `.b7/context.md` al worktree. **Sembrar el heartbeat de inmediato** (la reconciliacion de b10 lo usa para distinguir runs vivos de zombies — sin el, un run muerto en fases tempranas es invisible):
+Crear `.b7/` dentro del worktree (excluido vía el exclude por-worktree que siembra `setup-worktree.sh`). Mover los artefactos `.b7/issue.json`, `.b7/triage.json`, `.b7/context.md` al worktree. **Sembrar el heartbeat de inmediato** (la reconciliación de b10 lo usa para distinguir runs vivos de zombies — sin él, un run muerto en fases tempranas es invisible):
 
 ```bash
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" heartbeat "$WORKTREE"
 ```
 
-El subcomando escribe `.b7/heartbeat` (formato UTC exacto que parsea b10) y ademas toca `b7.lock` — la staleness del lock es por mtime, un run vivo lo mantiene fresco. **Puntos de latido** (lista canonica): al sembrar aca, al inicio de cada iteracion del paso 4, al inicio del paso 5.0, al completar cada pantalla en 5.2, y antes de invocar b6 en 8c.
+El subcomando escribe `.b7/heartbeat` (formato UTC exacto que parsea b10) y además toca `b7.lock` — la staleness del lock es por mtime, un run vivo lo mantiene fresco. **Puntos de latido** (lista canónica): al sembrar acá, al inicio de cada iteración del paso 4, al inicio del paso 5.0, al completar cada pantalla en 5.2, y antes de invocar b6 en 8c.
 
 **Verificación previa a cualquier escritura:** después de `verify-worktree OK`, toda invocación de Edit/Write/Bash debe operar sobre `$WORKTREE`. Si en algún momento `pwd` reporta el repo principal, detenerse — la siguiente escritura sería un parche en la rama default.
 
@@ -308,7 +308,7 @@ scripts/publish-docs.sh state-set mode=wet branch="$BRANCH" worktree_dir="$WORKT
 scripts/publish-docs.sh issue-comment            --worktree "$WORKTREE"
 ```
 
-> NOTA: `milestone <name> [N]` (started, triage-done, worktree-ready, iter-green N, screens-reviewed, committed, pr-opened) y `state-set key=value [...]` escriben `.b7/state.json` por vos — NO editar el JSON a mano. `state-set` rechaza claves que no existan en el scaffold (atrapa typos que renderizarian vacio). Subcomandos completos: `changelog | issue-comment | pr-body | all | aborted | bailed | state-set | milestone | plan-render | plan-done | plan-check`.
+> NOTA: `milestone <name> [N]` (started, triage-done, worktree-ready, iter-green N, screens-reviewed, committed, pr-opened) y `state-set key=value [...]` escriben `.b7/state.json` por ti — NO editar el JSON a mano. `state-set` rechaza claves que no existan en el scaffold (atrapa typos que renderizarían vacío). Subcomandos completos: `changelog | issue-comment | pr-body | all | aborted | bailed | state-set | milestone | plan-render | plan-done | plan-check`.
 
 Esto postea (o edita in-place, ver paso 7) el comentario sticky en el issue indicando: branch creado, modo (`--wet`/`--dry-run`), directivas inline si las hay, ETA estimado por complexity.
 
@@ -329,21 +329,21 @@ Antes de implementar, para cada `screen` del triage producir un esqueleto en `.b
 
 Esto es entrada para b2 y para la revisión visual posterior. **Texto plano, no markdown rico** — no consume tokens reformateando.
 
-**Carril S:** render mecanico de los esqueletos sin LLM — bloque exacto en `references/lane-s.md`. En carriles M y L el diseño es la pasada en línea descrita arriba.
+**Carril S:** render mecánico de los esqueletos sin LLM — bloque exacto en `references/lane-s.md`. En carriles M y L el diseño es la pasada en línea descrita arriba.
 
 ### 4. Implementación (loop bounded)
 
 **Carril S:** invocar el agente `agents/b7-impl-s.md` (`model: sonnet`) en vez de `b2-build-feature`, con hard stop de iterations en 3 — detalle en `references/lane-s.md`.
 
-**Carriles M y L:** invocar `b2-build-feature` **vía sub-agente** (`Agent(subagent_type=general-purpose)`) y 6 iteraciones (sin cambios). En cualquier carril, pasar al agente de implementacion:
+**Carriles M y L:** invocar `b2-build-feature` **vía sub-agente** (`Agent(subagent_type=general-purpose)`) y 6 iteraciones (sin cambios). En cualquier carril, pasar al agente de implementación:
 
 - Ruta a `.b7/triage.json`
 - Ruta a `.b7/screens/`
 - Ruta a `.b7/context.md`
 - Indicación: respetar layout colocado (feature en `src/routes/<feature>/`), usar Remote Functions Pattern, no introducir state global, errores con `error(STATUS, {message,code})`.
 - Si alguna pantalla del triage tiene form de crear/editar: pointer a `$PLUGIN_ROOT/skills/b2-build-feature/references/forms-recipe.md` (campos nativos vs shadcn no-nativos con hidden-input, `issues()`/aria-invalid siempre visibles, regla `disabled={submitting}` NUNCA `disabled={!isFormValid}`).
-- Si alguna pantalla del triage trae `data_table: true`: instruir al sub-agente a invocar el skill `bt1-data-table` (via Skill tool) para esa tabla si esta disponible; fallback documentado si no lo esta: shadcn Table + paginacion server-side segun tamano del dataset.
-- **Impact set (Phase 1.5 de b2):** si el plan modifica simbolos existentes (helper de `$lib`, `*.remote.ts` con consumidores, `schema.ts`), correr la Phase 1.5 (impact set via `codegraph_impact` si el probe dio `CODEGRAPH_STATUS=ok`, fallback `rg -l '<simbolo>' src`) y persistirlo ANTES de implementar: `scripts/publish-docs.sh state-set impact_files=<csv-de-archivos> --worktree "$WORKTREE"` (`impact_files=[]` si greenfield). Si el impact set trae archivos fuera del plan, declarar el scope-growth en el sticky (`publish-docs.sh issue-comment`) antes de codear — no tocar archivos no planificados en silencio.
+- Si alguna pantalla del triage trae `data_table: true`: instruir al sub-agente a invocar el skill `bt1-data-table` (vía Skill tool) para esa tabla si está disponible; fallback documentado si no lo está: shadcn Table + paginación server-side según tamaño del dataset.
+- **Impact set (Phase 1.5 de b2):** si el plan modifica símbolos existentes (helper de `$lib`, `*.remote.ts` con consumidores, `schema.ts`), correr la Phase 1.5 (impact set vía `codegraph_impact` si el probe dio `CODEGRAPH_STATUS=ok`, fallback `rg -l '<simbolo>' src`) y persistirlo ANTES de implementar: `scripts/publish-docs.sh state-set impact_files=<csv-de-archivos> --worktree "$WORKTREE"` (`impact_files=[]` si greenfield). Si el impact set trae archivos fuera del plan, declarar el scope-growth en el sticky (`publish-docs.sh issue-comment`) antes de codear — no tocar archivos no planificados en silencio.
 
 Después de cada pasada del sub-agente, ejecutar el bloque de validación. **Skip-by-scope** primero:
 
@@ -356,7 +356,7 @@ echo "$changed" | grep -qE '\.(test|spec)\.' && RUN_TEST=1 || RUN_TEST=0
 echo "$changed" | grep -qE '\.(ts|svelte|js|css)$' && RUN_LINT=1 || RUN_LINT=0
 ```
 
-Al inicio de CADA iteracion, tocar el heartbeat: `guardrails.sh heartbeat "$WORKTREE"` (lista canonica de latidos en el paso 2).
+Al inicio de CADA iteración, tocar el heartbeat: `guardrails.sh heartbeat "$WORKTREE"` (lista canónica de latidos en el paso 2).
 
 Solo re-correr los comandos que estaban rojos en `.b7/iter-status.json` (o todos en iter 1):
 
@@ -395,17 +395,17 @@ Hard stops:
 
 ### 5. Revisión visual de pantallas (sub-agente por pantalla)
 
-**Rampa de entrada — evaluar en orden.** Todo skip legitimo escribe `$WORKTREE/.b7/review/SKIPPED.json` con schema `{"reason": "<r>"}` y `<r>` del enum CERRADO `no-screens-flag | lane-s-no-ui | no-port | dry-run` (ningun otro valor), y luego salta a 5.9. Snippet canonico de escritura:
+**Rampa de entrada — evaluar en orden.** Todo skip legítimo escribe `$WORKTREE/.b7/review/SKIPPED.json` con schema `{"reason": "<r>"}` y `<r>` del enum CERRADO `no-screens-flag | lane-s-no-ui | no-port | dry-run` (ningún otro valor), y luego salta a 5.9. Snippet canónico de escritura:
 
 ```bash
 mkdir -p "$WORKTREE/.b7/review"
 printf '{"reason": "%s"}\n' "<r>" > "$WORKTREE/.b7/review/SKIPPED.json"
 ```
 
-1. `triage.screens[]` vacio o ausente → NO escribir `SKIPPED.json` (backend puro no paga friccion; `screens-check` sale 0 directo). Saltar el paso 5 completo.
-2. Se paso `--no-screens` → escribir `SKIPPED.json` con `reason=no-screens-flag` y saltar a 5.9.
+1. `triage.screens[]` vacío o ausente → NO escribir `SKIPPED.json` (backend puro no paga fricción; `screens-check` sale 0 directo). Saltar el paso 5 completo.
+2. Se pasó `--no-screens` → escribir `SKIPPED.json` con `reason=no-screens-flag` y saltar a 5.9.
 3. Modo `--dry-run` → escribir `SKIPPED.json` con `reason=dry-run` y saltar a 5.9.
-4. **Carril S:** el skip lo decide UNICAMENTE el script de `references/lane-s.md` — correr ese script; si imprime su mensaje de skip (diff sin `*.svelte`, `*.remote.ts` ni `src/routes/`), escribir `SKIPPED.json` con `reason=lane-s-no-ui` y saltar a 5.9. Sin ese output, la revision corre — NO es juicio del modelo. En carriles M y L nunca se salta por este criterio.
+4. **Carril S:** el skip lo decide ÚNICAMENTE el script de `references/lane-s.md` — correr ese script; si imprime su mensaje de skip (diff sin `*.svelte`, `*.remote.ts` ni `src/routes/`), escribir `SKIPPED.json` con `reason=lane-s-no-ui` y saltar a 5.9. Sin ese output, la revisión corre — NO es juicio del modelo. En carriles M y L nunca se salta por este criterio.
 
 Sin skip de la rampa, continuar con 5.0.
 
@@ -438,12 +438,12 @@ fi
 
 Reglas por exit code:
 
-- **Exit 40** (nadie escucha): UN reintento como en el bloque de arriba — `dev-server start` + `verify-port`, nunca mas de uno. Si persiste, escribir `SKIPPED.json` con `reason=no-port`, dejar nota explicita en el run-report y saltar a 5.9 (no abortar el run completo).
-- **Exit 41** (el puerto lo sirve otro checkout): NO reintentar y NO matar el listener — puede ser el dev server legitimo de otra sesion b7/b8/b10 paralela; resolverlo queda manual, como hoy. Escribir `SKIPPED.json` con `reason=no-port`, nota en el run-report y saltar a 5.9.
+- **Exit 40** (nadie escucha): UN reintento como en el bloque de arriba — `dev-server start` + `verify-port`, nunca más de uno. Si persiste, escribir `SKIPPED.json` con `reason=no-port`, dejar nota explícita en el run-report y saltar a 5.9 (no abortar el run completo).
+- **Exit 41** (el puerto lo sirve otro checkout): NO reintentar y NO matar el listener — puede ser el dev server legítimo de otra sesión b7/b8/b10 paralela; resolverlo queda manual, como hoy. Escribir `SKIPPED.json` con `reason=no-port`, nota en el run-report y saltar a 5.9.
 
 **No revisar pantallas contra un server que no sea el del worktree** — ese fue el incidente que este gate previene (screen-review contra la rama default).
 
-#### 5.1 Auth: sesion scriptada (preferido) con fallback sin cookie
+#### 5.1 Auth: sesión scriptada (preferido) con fallback sin cookie
 
 La app exige login (OAuth Google/Microsoft) y **no** se hace login interactivo automatizado. Dos caminos, en orden:
 
@@ -469,9 +469,9 @@ fi
 
 `mint` sale 3 (fallback limpio) si faltan `B7_SESSION_USER_ID`/`B7_SESSION_EMAIL` o `DATABASE_URL` — **no** es error; simplemente no hay cookie y se sigue con el flujo B.
 
-**B. Fallback: correr sin cookie.** Si no hubo cookie, el agente abre la ruta igual (browser propio via `agent-browser`; no reusa la sesion del Chrome real). Dejar UNA linea en el run-report y en el sticky comment del issue:
+**B. Fallback: correr sin cookie.** Si no hubo cookie, el agente abre la ruta igual (browser propio vía `agent-browser`; no reusa la sesión del Chrome real). Dejar UNA línea en el run-report y en el sticky comment del issue:
 
-> Pantallas protegidas quedaron `not-evaluated`: configura `B7_SESSION_USER_ID`/`B7_SESSION_EMAIL` + `DATABASE_URL` y re-corre para evaluarlas con sesion scriptada.
+> Pantallas protegidas quedaron `not-evaluated`: configura `B7_SESSION_USER_ID`/`B7_SESSION_EMAIL` + `DATABASE_URL` y re-corre para evaluarlas con sesión scriptada.
 
 Si una pantalla vuelve `auth-required` (redirección a login, sin cookie), **no** es `fail` del feature: marcar la pantalla como `not-evaluated (auth-required)` en el run-report y seguir. Solo cuenta como `fail` un criterio visual incumplido con sesión válida.
 
@@ -492,10 +492,10 @@ Agent(
 Pasar `auth_cookie=<AUTH_COOKIE>` solo si 5.1-A dio una cookie válida (verify=200); si `AUTH_COOKIE` quedó vacío, omitir el param y las pantallas protegidas vuelven `auth-required` → `not-evaluated`.
 
 `b7-screen-review` produce por pantalla:
-- `<Name>.json`: `{verdict: pass|fail|warn, findings: [...], screenshots: [...]}` — campo aditivo `"infra_fail": true` cuando el review no corrio por falla de infra pura (ver agente)
+- `<Name>.json`: `{verdict: pass|fail|warn, findings: [...], screenshots: [...]}` — campo aditivo `"infra_fail": true` cuando el review no corrió por falla de infra pura (ver agente)
 - Una o más PNGs (golden path + edge cases)
 
-Si alguna pantalla retorna `fail` (criterio visual incumplido con sesión válida), devolver findings al loop de implementación (paso 4) y rebudgetear iteración. Si retorna `warn` o `not-evaluated`, agregar al PR como nota pero seguir. `warn` con `"infra_fail": true` NO rebudgetea el paso 4: tratar la pantalla como `not-evaluated` con nota explicita en el run-report Y en el sticky comment del issue — mismo trato que el fallo de verify-port en 5.0 (el problema es de infra, no del codigo).
+Si alguna pantalla retorna `fail` (criterio visual incumplido con sesión válida), devolver findings al loop de implementación (paso 4) y rebudgetear iteración. Si retorna `warn` o `not-evaluated`, agregar al PR como nota pero seguir. `warn` con `"infra_fail": true` NO rebudgetea el paso 4: tratar la pantalla como `not-evaluated` con nota explícita en el run-report Y en el sticky comment del issue — mismo trato que el fallo de verify-port en 5.0 (el problema es de infra, no del código).
 
 #### 5.9 Apagar el dev server y borrar la sesión scriptada
 
@@ -510,7 +510,7 @@ bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server stop 
 
 ### 6. Commit — PASO OBLIGATORIO #3
 
-Precondicion anclada a comando: el paso 6 corre **solo si** `bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" screens-check "$WORKTREE"` sale 0 (exit 8 = run invalido: falta JSON de review sin skip valido, o algun `verdict: fail` — volver al paso 5, o al loop del paso 4 si el fail es de criterio visual; exit 3 = rama base irresoluble, parar con diagnostico). "screens pass/warn" NO se declara de memoria: lo verifica el comando.
+Precondición anclada a comando: el paso 6 corre **solo si** `bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" screens-check "$WORKTREE"` sale 0 (exit 8 = run inválido: falta JSON de review sin skip válido, o algún `verdict: fail` — volver al paso 5, o al loop del paso 4 si el fail es de criterio visual; exit 3 = rama base irresoluble, parar con diagnóstico). "screens pass/warn" NO se declara de memoria: lo verifica el comando.
 
 Si step 4 verde (pasada final `verify.sh` exit 0) AND budgets OK AND `screens-check` exit 0:
 
@@ -577,7 +577,7 @@ scripts/publish-docs.sh issue-comment --worktree "$WORKTREE"
 
 Estado final esperado del issue: label `in-review`, comentario apuntando al PR, sin labels obsoletas (`ready`, `auto-pr`). Los pasos 8 y 8b son inseparables: si el `gh issue edit` falla, reportarlo en el run report como warning — no continuar como si todo estuviera bien. Cuando el PR mergea, el `Closes #<issue>` cierra el issue automáticamente.
 
-**Frontera de salida:** b7 termina en PR draft + review adjunto y NO mergea; el merge, cierre del PR y limpieza del worktree son de `b9-close`, con aprobacion humana.
+**Frontera de salida:** b7 termina en PR draft + review adjunto y NO mergea; el merge, cierre del PR y limpieza del worktree son de `b9-close`, con aprobación humana.
 
 ### 8c. Auto-review del PR — PASO OBLIGATORIO #5
 
@@ -603,9 +603,9 @@ print("IMPACT_DRIFT: " + (" ".join(outside) if outside else "none"))
 PY
 ```
 
-Si `IMPACT_DRIFT` lista archivos, emitir la señal visible: linea de warning en consola, nota en el run-report y mencion en el sticky del issue. NO abortar el run por esto — el gate duro sigue siendo el budget (files/lines); esto expone drift silencioso al reviewer.
+Si `IMPACT_DRIFT` lista archivos, emitir la señal visible: línea de warning en consola, nota en el run-report y mención en el sticky del issue. NO abortar el run por esto — el gate duro sigue siendo el budget (files/lines); esto expone drift silencioso al reviewer.
 
-Apenas el PR está abierto (incluso draft), invocar `b6-pr-review "<PR> --auto"`. **Carril S:** agregar `--light` (ver `references/lane-s.md`). Carriles M y L: sin `--light` (review completo, sin cambios). **b6 en modo `--auto` publica el reporte por si mismo** (`gh pr comment` con el marker `<!-- b6:verdict=... -->`) — NO volver a postearlo desde aca (doble posteo). Verificar que quedo publicado:
+Apenas el PR está abierto (incluso draft), invocar `b6-pr-review "<PR> --auto"`. **Carril S:** agregar `--light` (ver `references/lane-s.md`). Carriles M y L: sin `--light` (review completo, sin cambios). **b6 en modo `--auto` publica el reporte por sí mismo** (`gh pr comment` con el marker `<!-- b6:verdict=... -->`) — NO volver a postearlo desde acá (doble posteo). Verificar que quedó publicado:
 
 ```bash
 bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR> \
@@ -623,7 +623,7 @@ Renderizado por script (`scripts/render-report.sh`) desde `.b7/state.json` y `te
 
 ### 10. Después de un dry-run
 
-Solo en `--dry-run`: leer y seguir `references/dry-run.md` (que se mantiene, que se salto, que decirle al usuario para promover a PR).
+Solo en `--dry-run`: leer y seguir `references/dry-run.md` (qué se mantiene, qué se saltó, qué decirle al usuario para promover a PR).
 
 ## Sub-agentes y routing de modelo
 
@@ -637,7 +637,7 @@ Solo en `--dry-run`: leer y seguir `references/dry-run.md` (que se mantiene, que
 ## Manejo de errores
 
 - Toda ruta de abort debe (a) `publish-docs.sh aborted` (que actualiza el comentario del issue + entry en CHANGELOG con `[Aborted]`), (b) escribir el run report, (c) liberar el lock con `guardrails.sh release-lock "$(jq -r '.lock_file // empty' .b7/state.json)"`.
-- **El lock NO se libera solo.** `run.sh` lo deja retenido a proposito para la fase LLM (y persiste su path en `state.json.lock_file`); toda ruta terminal (exito, abort, bail) debe invocar `guardrails.sh release-lock "$(jq -r '.lock_file // empty' .b7/state.json)"` — libera SOLO el shard de este run. Si `lock_file` esta vacio o `state.json` no existe todavia, `release-lock` sin arg (legacy `b7.lock`). Fallback: un lock sin tocar por 2h (`B7_LOCK_STALE_SECS`) se recupera en el proximo preflight — el heartbeat de cada iteracion lo mantiene fresco en runs vivos.
+- **El lock NO se libera solo.** `run.sh` lo deja retenido a propósito para la fase LLM (y persiste su path en `state.json.lock_file`); toda ruta terminal (éxito, abort, bail) debe invocar `guardrails.sh release-lock "$(jq -r '.lock_file // empty' .b7/state.json)"` — libera SOLO el shard de este run. Si `lock_file` está vacío o `state.json` no existe todavía, `release-lock` sin arg (legacy `b7.lock`). Fallback: un lock sin tocar por 2h (`B7_LOCK_STALE_SECS`) se recupera en el próximo preflight — el heartbeat de cada iteración lo mantiene fresco en runs vivos.
 - Si `publish-docs.sh` falla (p.ej. `gh` cae), no bloquear el resto del cierre — log a stderr y continuar.
 
 ## Invocación headless
@@ -658,9 +658,9 @@ Cuando el usuario invoca de forma interactiva con texto pegado (`/b7-issue-to-pr
 - No escribir lógica propia de triage. Usar `b1-triage-issue`.
 - No escribir mensajes de commit propios. Usar `b3-git-commit`.
 - No bypassear budgets re-corriendo con números más altos. Hitar un budget = el issue es más grande de lo que el bot debería atacar; escalar a humano.
-- No modificar `package.json`, lockfiles, `.env*`, `*.pem`, `*.key`, `secrets/`, configs de build/CI ni `scripts/*.sh`. El hook `pre-commit-budget.sh` (instalado automaticamente por `setup-worktree.sh`, scope por-worktree) los rechaza en el commit. Bypass solo humano con `B7_BUDGET_OVERRIDE=1`.
+- No modificar `package.json`, lockfiles, `.env*`, `*.pem`, `*.key`, `secrets/`, configs de build/CI ni `scripts/*.sh`. El hook `pre-commit-budget.sh` (instalado automáticamente por `setup-worktree.sh`, scope por-worktree) los rechaza en el commit. Bypass solo humano con `B7_BUDGET_OVERRIDE=1`.
 - No leer `git diff` ni logs completos. Usar `.b7/diff-stat.txt`, `Read` con `offset/limit`, y `scripts/log-filter.sh`.
-- No saltarse `b7-screen-review` cuando hay `screens[]` en triage — la revisión visual es parte de la calidad mínima del PR. **Únicas excepciones:** las rampas de skip del paso 5 (`no-screens-flag | lane-s-no-ui | no-port | dry-run`), y cada una escribe `.b7/review/SKIPPED.json` — ningun skip queda sin artefacto parseable.
+- No saltarse `b7-screen-review` cuando hay `screens[]` en triage — la revisión visual es parte de la calidad mínima del PR. **Únicas excepciones:** las rampas de skip del paso 5 (`no-screens-flag | lane-s-no-ui | no-port | dry-run`), y cada una escribe `.b7/review/SKIPPED.json` — ningún skip queda sin artefacto parseable.
 
 ## Referencias
 

@@ -3,40 +3,40 @@
 # Uso: . "$PLUGIN_ROOT/scripts/lib.sh"   |   bash lib.sh selftest
 #
 # Cada contrato entre orquestadores vive UNA vez aca: el drift copy-paste ya
-# fue danino (deps fantasma por gramaticas distintas de '## Blocked by').
+# fue dañino (deps fantasma por gramáticas distintas de '## Blocked by').
 #
 # Funciones:
 #   bp_find_pr <issue> [open|merged]   PR cuyo body cierra el issue, con frontera
-#                                      de digitos ([^0-9]|$): #261 NO matchea #2610.
-#                                      Imprime el numero o vacio.
+#                                      de dígitos ([^0-9]|$): #261 NO matchea #2610.
+#                                      Imprime el número o vacío.
 #   bp_b6_verdict <pr>                 delega en b6-pr-review/scripts/verdict.sh read
-#                                      (lector unico del marker; exit 3 sin marker).
-#   bp_label_event <issue|pr> <label>  ultimo evento labeled de ese label, en UNA
+#                                      (lector único del marker; exit 3 sin marker).
+#   bp_label_event <issue|pr> <label>  último evento labeled de ese label, en UNA
 #                                      llamada --paginate -> "actor<TAB>created_at"
-#                                      (vacio si no hubo). La comparacion de
+#                                      (vacío si no hubo). La comparación de
 #                                      timestamps queda en el caller.
-#   bp_blocked_by                      stdin=body -> numeros de la seccion
-#                                      '## Blocked by', uno por linea, orden
-#                                      numerico sin duplicados. Gramatica python
+#   bp_blocked_by                      stdin=body -> números de la sección
+#                                      '## Blocked by', uno por línea, orden
+#                                      numérico sin duplicados. Gramática python
 #                                      con lookahead NO inclusivo: un heading
-#                                      inmediato despues de la seccion NO aporta
+#                                      inmediato después de la sección NO aporta
 #                                      deps fantasma (bug del sed viejo de run.sh).
 #   bp_default_branch                  rama default del repo (main/master/lo que
 #                                      sea): origin/HEAD -> gh -> main|master
 #                                      local. NUNCA hardcodear 'master' en un
 #                                      script: usar esto. Exit 1 si no resuelve.
-#   bp_branch_name <type> <n> <slug>   nombre de feature branch segun git config
+#   bp_branch_name <type> <n> <slug>   nombre de feature branch según git config
 #                                      b-pipeline.branchPattern (o env
 #                                      B_PIPELINE_BRANCH_PATTERN); placeholders
 #                                      {type} {issue} {slug}; default
 #                                      '{type}/{issue}-{slug}' = comportamiento
-#                                      historico feat/<n>-<slug>.
+#                                      histórico feat/<n>-<slug>.
 
 # set estricto solo al ejecutar directo (selftest); al sourcear NO se impone
 # set -e/-u al caller (los snippets de SKILL.md corren sin modo estricto).
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then set -euo pipefail; fi
 
-# Raiz del plugin derivada de la ubicacion de este archivo (<root>/scripts/lib.sh).
+# Raíz del plugin derivada de la ubicación de este archivo (<root>/scripts/lib.sh).
 _BP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 bp_find_pr() {
@@ -51,8 +51,8 @@ bp_b6_verdict() {
 
 bp_label_event() {
   local n="$1" label="$2"
-  # OJO: gh --paginate aplica el jq POR PAGINA — no usar `last` sobre el array;
-  # se emite un valor por evento y el tail -1 se queda con el ultimo.
+  # OJO: gh --paginate aplica el jq POR PÁGINA — no usar `last` sobre el array;
+  # se emite un valor por evento y el tail -1 se queda con el último.
   gh api "repos/{owner}/{repo}/issues/${n}/events" --paginate \
     --jq ".[] | select(.event==\"labeled\" and .label.name==\"${label}\") | \"\(.actor.login)\t\(.created_at)\"" \
     | tail -1
@@ -90,27 +90,27 @@ bp_branch_name() {
   printf '%s\n' "$pat"
 }
 
-# Fixtures de regresion offline (solo bp_blocked_by es pura; el resto pega a gh).
+# Fixtures de regresión offline (solo bp_blocked_by es pura; el resto pega a gh).
 bp_selftest() {
   local fails=0 out
-  # Regresion: heading inmediato tras '## Blocked by' -> cero deps fantasma
-  # (el sed inclusivo viejo capturaba el #N de la linea del heading siguiente).
+  # Regresión: heading inmediato tras '## Blocked by' -> cero deps fantasma
+  # (el sed inclusivo viejo capturaba el #N de la línea del heading siguiente).
   out="$(printf '## Blocked by\n## Referencias #99\n' | bp_blocked_by)"
-  [ -z "$out" ] || { echo "lib.sh selftest: deps fantasma '$out' (esperaba vacio)" >&2; fails=1; }
+  [ -z "$out" ] || { echo "lib.sh selftest: deps fantasma '$out' (esperaba vacío)" >&2; fails=1; }
   out="$(printf 'intro #7\n\n## Blocked by\n- #15\n- #4\n- #4\n\n## Otro\n- #99\n' | bp_blocked_by | tr '\n' ',')"
   [ "$out" = "4,15," ] || { echo "lib.sh selftest: esperaba '4,15,' -> '$out'" >&2; fails=1; }
   out="$(printf 'body sin seccion #3\n' | bp_blocked_by)"
-  [ -z "$out" ] || { echo "lib.sh selftest: sin seccion debe dar vacio -> '$out'" >&2; fails=1; }
+  [ -z "$out" ] || { echo "lib.sh selftest: sin sección debe dar vacío -> '$out'" >&2; fails=1; }
   [ -f "$_BP_ROOT/skills/b6-pr-review/scripts/verdict.sh" ] \
     || { echo "lib.sh selftest: no encuentro verdict.sh desde $_BP_ROOT" >&2; fails=1; }
-  # bp_branch_name: default historico + pattern custom via env (puro, sin git config)
+  # bp_branch_name: default histórico + pattern custom vía env (puro, sin git config)
   out="$(bp_branch_name feat 42 login-form)"
   [ "$out" = "feat/42-login-form" ] || { echo "lib.sh selftest: branch_name default -> '$out'" >&2; fails=1; }
   out="$(B_PIPELINE_BRANCH_PATTERN='feature/{issue}-{slug}' bp_branch_name fix 7 x)"
   [ "$out" = "feature/7-x" ] || { echo "lib.sh selftest: branch_name pattern -> '$out'" >&2; fails=1; }
   # bp_default_branch: en un repo git debe resolver no-vacio
   out="$(bp_default_branch || true)"
-  [ -n "$out" ] || { echo "lib.sh selftest: default_branch vacio en repo git" >&2; fails=1; }
+  [ -n "$out" ] || { echo "lib.sh selftest: default_branch vacío en repo git" >&2; fails=1; }
   [ "$fails" -eq 0 ] || return 1
   echo "BP_LIB=ok"
 }

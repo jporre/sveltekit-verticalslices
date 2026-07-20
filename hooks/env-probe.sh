@@ -4,11 +4,11 @@
 # Por cada clave imprime solo un fingerprint:
 #     NAME set=yes|no len=NN sha256_8=xxxxxxxx
 #
-# len   = largo del valor (0 si la clave no esta seteada)
+# len   = largo del valor (0 si la clave no está seteada)
 # sha256_8 = primeros 8 hex del sha256 del valor ("--------" si no seteada)
 #
-# El incidente real (sesion 80744a45) fue un dump de secretos en plaintext; el bug
-# de la credencial GCP truncada se diagnostico por LONGITUD — el fingerprint basta
+# El incidente real (sesión 80744a45) fue un dump de secretos en plaintext; el bug
+# de la credencial GCP truncada se diagnosticó por LONGITUD — el fingerprint basta
 # para comparar/diagnosticar sin exponer el secreto.
 #
 # Uso:
@@ -17,8 +17,8 @@
 #   env-probe.sh --compare a.env b.env         # diffea por fingerprint (no por valor)
 #
 # Notas:
-# - Soporta lineas `NAME=val`, `export NAME=val`, valores con comillas simples/dobles.
-# - Ignora comentarios (#...) y lineas en blanco.
+# - Soporta líneas `NAME=val`, `export NAME=val`, valores con comillas simples/dobles.
+# - Ignora comentarios (#...) y líneas en blanco.
 
 set -euo pipefail
 
@@ -34,11 +34,11 @@ _sha256() {
 # Fingerprint de un valor (recibido por stdin para no exponerlo en argv/ps).
 _fp8() { _sha256 | cut -c1-8; }
 
-# Parsea un archivo .env a lineas "NAME<TAB>VALUE". No imprime valores; solo se usa
+# Parsea un archivo .env a líneas "NAME<TAB>VALUE". No imprime valores; solo se usa
 # internamente. Quita `export `, comillas envolventes y comentarios/blancos.
 _parse_env() {
   local file="$1"
-  # Leer linea por linea preservando el valor tal cual (sin word-splitting).
+  # Leer línea por línea preservando el valor tal cual (sin word-splitting).
   while IFS= read -r line || [ -n "$line" ]; do
     # trim leading whitespace
     line="${line#"${line%%[![:space:]]*}"}"
@@ -77,7 +77,7 @@ _value_of() {
   printf '%s' "$out"
 }
 
-# Imprime la linea de fingerprint para (key, presente?, valor).
+# Imprime la línea de fingerprint para (key, presente?, valor).
 _print_fp() {
   local key="$1" present="$2" val="${3-}"
   if [ "$present" = "yes" ]; then
@@ -97,7 +97,7 @@ cmd_probe() {
     exit 2
   fi
   if [ "$#" -eq 0 ]; then
-    # Todas las claves del archivo, en orden de aparicion.
+    # Todas las claves del archivo, en orden de aparición.
     while IFS=$'\t' read -r n v; do
       _print_fp "$n" "yes" "$v"
     done < <(_parse_env "$file")
@@ -119,7 +119,7 @@ cmd_compare() {
   for f in "$a" "$b"; do
     [ -f "$f" ] || { echo "env-probe: no existe el archivo: $f" >&2; exit 2; }
   done
-  # Union de claves (orden estable: primero las de A, luego las nuevas de B).
+  # Unión de claves (orden estable: primero las de A, luego las nuevas de B).
   local keys=()
   while IFS=$'\t' read -r n v; do keys+=("$n"); done < <(_parse_env "$a")
   while IFS=$'\t' read -r n v; do

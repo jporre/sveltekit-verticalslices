@@ -6,7 +6,7 @@
 #   preflight                              -> kill-switch + lock libre + gh auth + tree limpio
 #   acquire-lock                           -> crear lock (cubre la ola completa); echo path
 #   release-lock                           -> borrar lock (lo llama Claude al cerrar la ola)
-#   backlog <label> <max>                  -> echo lista de issue numbers (uno por linea)
+#   backlog <label> <max>                  -> echo lista de issue numbers (uno por línea)
 #   backpressure                           -> exit 0 si hay cuota, exit 17 si lleno
 #   killswitch                             -> exit 0 si no hay STOP, exit 20 si lo hay
 #
@@ -23,8 +23,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Plugin root derivado desde la ubicacion del script (.../skills/b8-swarm/scripts).
-# Portable: mismo patron que b10 run.sh. Necesario para invocar el env-check de b7.
+# Plugin root derivado desde la ubicación del script (.../skills/b8-swarm/scripts).
+# Portable: mismo patrón que b10 run.sh. Necesario para invocar el env-check de b7.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 B7_GUARD="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh"
 
@@ -47,7 +47,7 @@ cmd_killswitch() {
     return 20
   fi
   if [ -f "$sd/b7.STOP" ]; then
-    echo "b8: b7 kill-switch active at $sd/b7.STOP (b7 wont start)" >&2
+    echo "b8: b7 kill-switch active at $sd/b7.STOP (b7 won't start)" >&2
     return 20
   fi
   return 0
@@ -58,7 +58,7 @@ cmd_acquire_lock() {
   local lock="$sd/b8.lock"
   # El lock cubre la ola completa (worktree + build + PR), no un proceso vivo:
   # archivo presente = ola en curso. Lo borra release-lock al cierre (paso 9).
-  # Si una ola murio sin cerrar: release-lock manual.
+  # Si una ola murió sin cerrar: release-lock manual.
   if [ -f "$lock" ]; then
     echo "b8: another swarm is running (lock: $lock, desde $(cat "$lock" 2>/dev/null || echo '?'))" >&2
     return 21

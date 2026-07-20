@@ -6,8 +6,8 @@ set -euo pipefail
 #
 # Fuentes:
 #   1. Sub-issues nativos de GitHub (API verificada en este repo).
-#   2. Fallback: numeros #N referenciados en el body del epic.
-# Dependencias finas: seccion "## Blocked by" del body de cada issue (convencion to-issues).
+#   2. Fallback: números #N referenciados en el body del epic.
+# Dependencias finas: sección "## Blocked by" del body de cada issue (convención to-issues).
 #
 # Output: {"epic":N,"closing_slice":N|null,"issues":[{"issue","title","state","labels","deps","wave"}]}
 #   wave 0 = sin deps dentro del grafo; wave K = todas las deps en waves < K.
@@ -17,7 +17,7 @@ set -euo pipefail
 [ -n "${1:-}" ] || { echo "Usage: $0 <epic>" >&2; exit 2; }
 EPIC="$1"
 REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
-# Gramatica unica de '## Blocked by' (bp_blocked_by) — compartida con run.sh reconcile.
+# Gramática única de '## Blocked by' (bp_blocked_by) — compartida con run.sh reconcile.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/../../..}/scripts/lib.sh"
 
@@ -29,32 +29,32 @@ NUMBERS="$(printf '%s' "$SUBS_JSON" | jq -r '.[].number' 2>/dev/null | sort -un 
 NATIVE=1
 if [ -z "$NUMBERS" ]; then
   NATIVE=0
-  echo "WARN: #$EPIC sin sub-issues nativos — fallback a numeros referenciados en el body" >&2
+  echo "WARN: #$EPIC sin sub-issues nativos — fallback a números referenciados en el body" >&2
   NUMBERS="$(gh issue view "$EPIC" --json body --jq .body | grep -oE '#[0-9]+' | tr -d '#' | sort -un | grep -v "^${EPIC}$" || true)"
 fi
-[ -n "$NUMBERS" ] || { echo "ERROR: no encontre sub-issues para #$EPIC" >&2; exit 3; }
+[ -n "$NUMBERS" ] || { echo "ERROR: no encontré sub-issues para #$EPIC" >&2; exit 3; }
 
 TMP="$(mktemp)"; DEPS_TMP="$(mktemp)"
 trap 'rm -f "$TMP" "$DEPS_TMP"' EXIT
-# Primer registro: el epic mismo (puede ser tambien el item de cierre, ej #271).
+# Primer registro: el epic mismo (puede ser también el item de cierre, ej #271).
 gh issue view "$EPIC" --json number,title,state,labels,body >> "$TMP"
 echo >> "$TMP"
 if [ "$NATIVE" = 1 ]; then
-  # NDJSON directo del call ya hecho, sin un view por sub-issue. CRITICO:
+  # NDJSON directo del call ya hecho, sin un view por sub-issue. CRÍTICO:
   # state|ascii_upcase — el REST devuelve "open"/"closed" y epic-state.sh:82
   # filtra == "OPEN". labels se reducen a [{name}] para igualar la forma que
-  # emitia `gh issue view` (el parser python solo lee l["name"]).
+  # emitía `gh issue view` (el parser python solo lee l["name"]).
   printf '%s' "$SUBS_JSON" | jq -c \
     '.[] | {number, title, state:(.state|ascii_upcase), labels:[.labels[]|{name}], body}' >> "$TMP"
 else
-  # Fallback por body: sin objetos nativos, seguir con un view por numero.
+  # Fallback por body: sin objetos nativos, seguir con un view por número.
   for n in $NUMBERS; do
     gh issue view "$n" --json number,title,state,labels,body >> "$TMP"
     echo >> "$TMP"
   done
 fi
 
-# deps por registro via bp_blocked_by ANTES del python: la gramatica vive solo
+# deps por registro vía bp_blocked_by ANTES del python: la gramática vive solo
 # en lib.sh y el parser de abajo consume el campo "deps" ya resuelto.
 while IFS= read -r rec; do
   [ -n "$rec" ] || continue
@@ -110,7 +110,7 @@ for n, node in nodes.items():
     if rest > 0 and len(deps_in) >= 0.8 * rest:
         closing = n
 
-# Caso comun: el propio epic es ademas el item de cierre (su body declara
+# Caso común: el propio epic es además el item de cierre (su body declara
 # "Blocked by" sobre los sub-issues, ej #271 swap/limpieza).
 if closing is None:
     epic_deps = set(epic_rec["deps"])

@@ -12,8 +12,8 @@
 
 set -euo pipefail
 
-# El hook se ejecuta via `bash <ruta-en-el-plugin>` (wrapper generado por
-# setup-worktree.sh), asi que BASH_SOURCE apunta al plugin y lib.sh resuelve.
+# El hook se ejecuta vía `bash <ruta-en-el-plugin>` (wrapper generado por
+# setup-worktree.sh), así que BASH_SOURCE apunta al plugin y lib.sh resuelve.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/../../..}/scripts/lib.sh"
 
@@ -46,7 +46,7 @@ if [ -n "$bad" ]; then
 fi
 
 # File-count cap across the whole branch (vs the base branch), not just this commit.
-# Rama base resuelta via bp_default_branch (origin/HEAD -> gh -> main|master local);
+# Rama base resuelta vía bp_default_branch (origin/HEAD -> gh -> main|master local);
 # si no resuelve, se salta el cap (mismo comportamiento que sin merge-base).
 base=""
 DEFAULT_BRANCH="$(bp_default_branch 2>/dev/null || true)"

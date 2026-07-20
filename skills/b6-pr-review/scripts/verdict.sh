@@ -1,30 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# verdict.sh — fuente unica del veredicto de b6-pr-review (bash 3.2-safe).
+# verdict.sh — fuente única del veredicto de b6-pr-review (bash 3.2-safe).
 #
 # El veredicto se COMPUTA de los counts del reporte (no del juicio del modelo)
 # y hay UN solo lector del marker para b7/b9/b10 (antes: 4 variantes drifteadas).
 #
-# Regla de veredicto (deterministica):
+# Regla de veredicto (determinística):
 #   blockers > 0            -> request-changes
 #   blockers == 0, warn > 0 -> approve-with-changes
 #   blockers == 0, warn == 0-> approve
 #
-# Formato de finding contable (una linea, al principio de linea):
+# Formato de finding contable (una línea, al principio de línea):
 #   - **BLOCKER**: <texto>
 #   - **WARNING**: <texto>
 #   - **SUGGESTION**: <texto>
-# Se cuentan SOLO estas lineas (no tokens crudos) para no doble-contar la tabla
-# resumen (`| Codigo | BLOCKER |`) ni los headers de area.
+# Se cuentan SOLO estas líneas (no tokens crudos) para no doble-contar la tabla
+# resumen (`| Código | BLOCKER |`) ni los headers de área.
 #
-# Marker durable (ultima linea del reporte publicado en el PR):
+# Marker durable (última línea del reporte publicado en el PR):
 #   <!-- b6:verdict=approve|approve-with-changes|request-changes blockers=N warnings=M -->
 #
 # Subcomandos:
 #   check <report.md>   cuenta blockers/warnings, computa verdict esperado,
 #                       verifica marker vs counts y vs regla. exit 4 en mismatch.
-#   read <pr>           un solo `gh pr view --json comments,reviews`; ultimo marker;
+#   read <pr>           un solo `gh pr view --json comments,reviews`; último marker;
 #                       imprime `B6_VERDICT verdict=.. blockers=N warnings=M pr=P`.
 #                       exit 3 si no hay marker.
 #   stamp <report.md>   estampa/reescribe el marker computado al final del reporte.
@@ -36,7 +36,7 @@ usage() {
   exit 2
 }
 
-# Cuenta lineas de finding contable de una severidad dada en un archivo.
+# Cuenta líneas de finding contable de una severidad dada en un archivo.
 count_findings() {
   # $1=file  $2=SEVERITY  -> imprime el conteo
   grep -cE "^- \*\*$2\*\*:" "$1" 2>/dev/null || true
@@ -54,9 +54,9 @@ verdict_for() {
   fi
 }
 
-# Extrae el ultimo marker de stdin. Imprime "verdict blockers warnings" o vacio.
+# Extrae el último marker de stdin. Imprime "verdict blockers warnings" o vacío.
 parse_marker() {
-  # lee stdin, emite: <verdict> <blockers> <warnings> (una linea) del ultimo marker.
+  # lee stdin, emite: <verdict> <blockers> <warnings> (una línea) del último marker.
   # `|| true` en el grep: sin match no debe romper el pipeline bajo `pipefail`.
   { grep -oE 'b6:verdict=[a-z-]+ blockers=[0-9]+ warnings=[0-9]+' 2>/dev/null || true; } \
     | tail -1 \
@@ -127,7 +127,7 @@ cmd_stamp() {
   # Borrar cualquier marker previo y anexar el computado al final.
   local tmp; tmp="$(mktemp)"
   grep -vE '<!-- b6:verdict=' "$file" > "$tmp" 2>/dev/null || true
-  # sacar lineas en blanco finales, luego anexar
+  # sacar líneas en blanco finales, luego anexar
   printf '%s\n\n%s\n' "$(cat "$tmp")" "$newmarker" > "$file"
   rm -f "$tmp"
   echo "B6_VERDICT verdict=$verdict blockers=$blockers warnings=$warnings"

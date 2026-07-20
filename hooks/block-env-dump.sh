@@ -4,9 +4,9 @@
 # Estructura calcada de block-git-worktree-add.sh: lee JSON por stdin, extrae el
 # tool_input, y en caso de match imprime un hint a stderr + exit 2 (bloquea la tool).
 #
-# Motivo (incidente real, sesion 80744a45): un `cat .env` imprimio secretos en
+# Motivo (incidente real, sesión 80744a45): un `cat .env` imprimió secretos en
 # plaintext y el usuario tuvo que interrumpir. setup-worktree.sh symlinkea todos los
-# .env* a cada worktree, asi que el riesgo esta en cada worktree. Para diagnosticar
+# .env* a cada worktree, así que el riesgo está en cada worktree. Para diagnosticar
 # credenciales SIN exponerlas, usar hooks/env-probe.sh (fingerprints, no valores).
 #
 # Cubre DOS matchers (ver hooks.json):
@@ -20,8 +20,8 @@
 #   - `source .env` / `. .env`            (carga sin imprimir)
 #   - `env VAR=x cmd`                      (env como runner, no como dump)
 #
-# Safety stance: over-bloquea a proposito. El modo de falla seguro es negar de mas;
-# para un secreto expuesto no hay vuelta atras.
+# Safety stance: over-bloquea a propósito. El modo de falla seguro es negar de más;
+# para un secreto expuesto no hay vuelta atrás.
 
 set -euo pipefail
 
@@ -52,7 +52,7 @@ print(ti.get(key,'') or '')
 cmd="$(_field '.tool_input.command')"
 file_path="$(_field '.tool_input.file_path')"
 
-# --- helper: un path apunta a un .env sensible? (excluye .example/.sample) ---
+# --- helper: ¿un path apunta a un .env sensible? (excluye .example/.sample) ---
 _is_sensitive_env_path() {
   local p="$1"
   # bare .env (fin de string o seguido de algo que no sea . _ - alfanumerico)

@@ -4,18 +4,18 @@ La regla del proyecto: **el código más simple que funciona, gana.** Capas de m
 
 > El antipatrón a evitar: un `query` que llama a una función que llama a una abstracción Drizzle de otra función que recién hace la query. Cuatro saltos para una query. Si una pantalla necesita sus datos, `<feature>.remote.ts` hace la query Drizzle directo. Punto.
 
-## La escalera — frená en el primer peldaño que aguante
+## La escalera — frena en el primer peldaño que aguante
 
-Antes de escribir código, subí esta escalera y parate apenas algo resuelve el caso:
+Antes de escribir código, sube esta escalera y párate apenas algo resuelve el caso:
 
 1. **¿Hace falta que exista?** Necesidad especulativa = no lo hagas, y dilo en una línea. (YAGNI)
-2. **¿Lo hace la stdlib / SvelteKit?** Usalo.
+2. **¿Lo hace la stdlib / SvelteKit?** Úsalo.
 3. **¿Lo cubre una feature nativa de la plataforma?** `<input type="date">` antes que una lib de picker. CSS antes que JS. Constraint de DB (o índice) antes que lógica de app. `href` antes que `goto()`.
-4. **¿Lo resuelve una dependencia YA instalada?** Usala. Nunca agregues una nueva para lo que se hace en unas líneas. (shadcn-svelte, drizzle, zod, svelte-sonner ya están.)
+4. **¿Lo resuelve una dependencia YA instalada?** Úsala. Nunca agregues una nueva para lo que se hace en unas líneas. (shadcn-svelte, drizzle, zod, svelte-sonner ya están.)
 5. **¿Cabe en una línea?** Una línea.
 6. **Recién ahí:** el mínimo código que funciona.
 
-La escalera es un reflejo, no un proyecto de investigación. Dos peldaños sirven → tomá el más alto y seguí. La primera solución perezosa que funciona es la correcta.
+La escalera es un reflejo, no un proyecto de investigación. Dos peldaños sirven → toma el más alto y sigue. La primera solución perezosa que funciona es la correcta.
 
 ## Reglas
 
@@ -24,7 +24,7 @@ La escalera es un reflejo, no un proyecto de investigación. Dos peldaños sirve
 - **Borrar antes que agregar.** Aburrido antes que ingenioso — lo ingenioso es lo que alguien descifra a las 3am.
 - **La menor cantidad de archivos.** El diff más corto que funciona gana. (Calza con el cap de b2: 3-5 archivos colocados; más = sobre-ingeniería.)
 - **Dos opciones de stdlib del mismo tamaño:** la que es correcta en los edge cases. Perezoso = escribir menos código, no elegir el algoritmo más endeble.
-- **Pedido complejo:** entregá la versión perezosa y cuestionala en la misma respuesta: "Hice X; Y lo cubre. ¿Necesitás X completo? Decímelo." Nunca te trabes en una respuesta que podés defaultear.
+- **Pedido complejo:** entrega la versión perezosa y cuestiónala en la misma respuesta: "Hice X; Y lo cubre. ¿Necesitas X completo? Dímelo." Nunca te trabes en una respuesta que puedes defaultear.
 
 ## El marcador `// ponytail:`
 
@@ -45,6 +45,6 @@ Sin techo riesgoso, basta `// ponytail: esto existe` para que el reviewer sepa q
 
 ## Output al terminar
 
-Código primero. Después, máximo tres líneas cortas: qué se omitió y cuándo agregarlo. Sin ensayos, sin tour de features, sin notas de diseño. **Si la explicación es más larga que el código, borrá la explicación** — cada párrafo defendiendo una simplificación es complejidad de vuelta, disfrazada de prosa.
+Código primero. Después, máximo tres líneas cortas: qué se omitió y cuándo agregarlo. Sin ensayos, sin tour de features, sin notas de diseño. **Si la explicación es más larga que el código, borra la explicación** — cada párrafo defendiendo una simplificación es complejidad de vuelta, disfrazada de prosa.
 
-(Excepción: si el usuario pidió explícitamente un reporte, walkthrough o notas por fase, eso no es deuda — entregalo completo. La regla es solo contra prosa NO pedida.)
+(Excepción: si el usuario pidió explícitamente un reporte, walkthrough o notas por fase, eso no es deuda — entrégalo completo. La regla es solo contra prosa NO pedida.)

@@ -9,7 +9,7 @@
     "verdict": {
       "type": "string",
       "enum": ["ready", "needs-info", "duplicate", "blocked", "closed"],
-      "description": "Vocabulario canonico de b1-triage-issue. ready = b7 sigue. needs-info/duplicate/blocked/closed = b7 baila."
+      "description": "Vocabulario canónico de b1-triage-issue. ready = b7 sigue. needs-info/duplicate/blocked/closed = b7 baila."
     },
     "type": {
       "type": "string",
@@ -28,27 +28,27 @@
     "files_likely": {
       "type": "array",
       "items": {"type": "string"},
-      "description": "Paths verificados via herramienta (codegraph/rg/fd) que existen en el repo; globs solo para archivos que aun no existen y hay que crear (marcar el intento). NO inventar paths: un path existente debe venir de output de herramienta, no de memoria. Ayuda a b2 a no explorar ciegamente."
+      "description": "Paths verificados via herramienta (codegraph/rg/fd) que existen en el repo; globs solo para archivos que aún no existen y hay que crear (marcar el intento). NO inventar paths: un path existente debe venir de output de herramienta, no de memoria. Ayuda a b2 a no explorar ciegamente."
     },
     "evidence": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Artefacto observado que confirma el sintoma/causa de un bug. Obligatorio cuando type=fix (ver if/then al final del schema). Poblado en Step 4e de b1-triage-issue. b7 baila (trata como needs-info) si type=fix y falta evidence.observed.",
+      "description": "Artefacto observado que confirma el síntoma/causa de un bug. Obligatorio cuando type=fix (ver if/then al final del schema). Poblado en Step 4e de b1-triage-issue. b7 baila (trata como needs-info) si type=fix y falta evidence.observed.",
       "required": ["observed"],
       "properties": {
         "observed": {
           "type": "string",
-          "description": "Cita textual del artefacto observado: mensaje de error exacto, salida de comando, linea de log, o snippet de codigo que reproduce/explica el bug. No parafrasear: pegar lo observado."
+          "description": "Cita textual del artefacto observado: mensaje de error exacto, salida de comando, línea de log, o snippet de código que reproduce/explica el bug. No parafrasear: pegar lo observado."
         },
         "source": {
           "type": "string",
-          "description": "Origen del artefacto: comando corrido, path:linea, URL de CI, o comentario #N del issue. Permite reproducir la observacion."
+          "description": "Origen del artefacto: comando corrido, path:linea, URL de CI, o comentario #N del issue. Permite reproducir la observación."
         }
       }
     },
     "grounding_source": {
       "type": "string",
-      "description": "Herramienta que aterrizo files_likely y evidence: 'codegraph' si .codegraph existe y se uso, 'rg' fallback, o 'issue' si solo del cuerpo. Deja rastro de como se verificaron los paths."
+      "description": "Herramienta que aterrizó files_likely y evidence: 'codegraph' si .codegraph existe y se usó, 'rg' fallback, o 'issue' si solo del cuerpo. Deja rastro de cómo se verificaron los paths."
     },
     "screens": {
       "type": "array",
@@ -83,12 +83,12 @@
             "type": "array",
             "items": {"type": "string", "enum": ["golden", "empty", "loading", "error", "success", "permission-denied", "invalid-submit"]},
             "default": ["golden"],
-            "description": "Estados que screen-review debe ejercitar. Vocabulario alineado con b7-screen-review Step 3. Pantalla con form de crear/editar DEBE incluir 'invalid-submit' (submit con requeridos vacios debe mostrar errores visibles). Fallback: ['golden']."
+            "description": "Estados que screen-review debe ejercitar. Vocabulario alineado con b7-screen-review Step 3. Pantalla con form de crear/editar DEBE incluir 'invalid-submit' (submit con requeridos vacíos debe mostrar errores visibles). Fallback: ['golden']."
           },
           "data_table": {
             "type": "boolean",
             "default": false,
-            "description": "true cuando la pantalla lista datos tabulares — el acceptance_criteria_visual menciona columnas, orden, filtros o paginacion. Rutea el build al skill bt1-data-table (fallback: shadcn Table + paginacion server-side segun tamano). Omitir o false si la pantalla no muestra una tabla de datos."
+            "description": "true cuando la pantalla lista datos tabulares — el acceptance_criteria_visual menciona columnas, orden, filtros o paginación. Rutea el build al skill bt1-data-table (fallback: shadcn Table + paginación server-side según tamaño). Omitir o false si la pantalla no muestra una tabla de datos."
           }
         }
       }
@@ -96,12 +96,12 @@
     "security_review_required": {
       "type": "boolean",
       "default": false,
-      "description": "Si toca auth, permisos, validación de input crítico, secrets, queries SQL crudas. Forza --no-pr."
+      "description": "Si toca auth, permisos, validación de input crítico, secrets, queries SQL crudas. Fuerza --no-pr."
     },
     "estimated_complexity": {
       "type": "string",
       "enum": ["simple", "medium", "complex"],
-      "description": "Vocabulario canonico de b1. simple: <5 archivos, <300 líneas. medium: <15 archivos, <800 líneas. complex: por encima -- bot baila salvo --force-complex."
+      "description": "Vocabulario canónico de b1. simple: <5 archivos, <300 líneas. medium: <15 archivos, <800 líneas. complex: por encima -- bot baila salvo --force-complex."
     },
     "user_directives": {
       "type": "string",
@@ -158,6 +158,6 @@
   },
   "then": {
     "required": ["evidence"],
-    "description": "type=fix exige evidencia observable. El subset de validate-triage (guardrails.sh) no evalua if/then; el gate deterministico vive en b7 SKILL.md paso 1 (jq): fix sin evidence.observed se trata como needs-info y baila."
+    "description": "type=fix exige evidencia observable. El subset de validate-triage (guardrails.sh) no evalúa if/then; el gate determinístico vive en b7 SKILL.md paso 1 (jq): fix sin evidence.observed se trata como needs-info y baila."
   }
 }

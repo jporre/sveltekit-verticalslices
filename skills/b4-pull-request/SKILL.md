@@ -13,9 +13,9 @@ model: haiku
 $ARGUMENTS
 ```
 
-> Skill `context: fork`: el subagente solo ve este `SKILL.md`. El placeholder `$ARGUMENTS` es la UNICA via por la que los argumentos tipeados (branch, flags como `--draft`, `--body-file`, `--issue=N`, `--label`) llegan al fork — el harness los sustituye. Si aparece vacio, derivar del estado de git actual.
+> Skill `context: fork`: el subagente solo ve este `SKILL.md`. El placeholder `$ARGUMENTS` es la UNICA vía por la que los argumentos tipeados (branch, flags como `--draft`, `--body-file`, `--issue=N`, `--label`) llegan al fork — el harness los sustituye. Si aparece vacío, derivar del estado de git actual.
 >
-> Corre headless: nunca preguntar al usuario. Derivar cada decision del estado git/GitHub, proceder con el default seguro y anotar cada decision en el resumen final.
+> Corre headless: nunca preguntar al usuario. Derivar cada decisión del estado git/GitHub, proceder con el default seguro y anotar cada decisión en el resumen final.
 
 Flags soportados:
 
@@ -86,7 +86,7 @@ When filling out the template:
 
 ### Create PR with gh CLI
 
-Si vino `--body-file`, usar ese archivo directo; si no, escribir el body a un archivo temporal unico (`mktemp`) y borrarlo despues de crear el PR.
+Si vino `--body-file`, usar ese archivo directo; si no, escribir el body a un archivo temporal único (`mktemp`) y borrarlo después de crear el PR.
 
 ```bash
 gh pr create --title "PR_TITLE" --body-file "${BODY_FILE}" --base "${BASE}" --draft --label auto-pr-bot

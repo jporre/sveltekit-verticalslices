@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# verify.sh — checklist de verificacion de b2 como script machine-falla.
+# verify.sh — checklist de verificación de b2 como script machine-falla.
 # Corre en el repo del feature (app SvelteKit), sobre el diff vs merge-base.
 #
 # Uso: bash verify.sh [base-ref]
@@ -17,10 +17,10 @@
 #   6. browser-gate: required si el diff toca src/routes/**, *.svelte o *.remote.ts
 #   2 = error de uso / entorno
 #
-# Ultima linea machine-readable (gates no corridos quedan en "-"):
+# Última línea machine-readable (gates no corridos quedan en "-"):
 #   VERIFY_RESULT branch=ok|fail check=ok|fail react=ok|fail test=ok|skipped|fail browser=required|not-needed svelte_files=<csv>
 # Autofixer (sobre svelte_files) y walkthrough en browser (si browser=required)
-# siguen siendo pasos del modelo gatillados por esta linea.
+# siguen siendo pasos del modelo gatillados por esta línea.
 set -euo pipefail
 
 BRANCH_S="-"; CHECK_S="-"; REACT_S="-"; TEST_S="-"; BROWSER_S="-"; SVELTE_CSV=""
@@ -41,7 +41,7 @@ DEFAULT_BRANCH="$(bp_default_branch 2>/dev/null || true)"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 if { [ -n "$DEFAULT_BRANCH" ] && [ "$BRANCH" = "$DEFAULT_BRANCH" ]; } \
   || [ "$BRANCH" = "master" ] || [ "$BRANCH" = "main" ]; then
-  echo "FAIL: rama actual es '$BRANCH' — crear branch primero, p.ej. git checkout -b feat/<issue>-<slug> (patron configurable via git config b-pipeline.branchPattern; ver bp_branch_name en scripts/lib.sh)" >&2
+  echo "FAIL: rama actual es '$BRANCH' — crear branch primero, p.ej. git checkout -b feat/<issue>-<slug> (patrón configurable via git config b-pipeline.branchPattern; ver bp_branch_name en scripts/lib.sh)" >&2
   BRANCH_S=fail; result; exit 3
 fi
 BRANCH_S=ok
@@ -49,7 +49,7 @@ BRANCH_S=ok
 # --- Scope: archivos cambiados vs merge-base + untracked (mismo criterio que check-slice.sh) ---
 BASE="${1:-$DEFAULT_BRANCH}"
 [ -n "$BASE" ] || { echo "ERROR: no se pudo determinar base-ref (probar: verify.sh <base>)" >&2; exit 2; }
-MB="$(git merge-base "$BASE" HEAD 2>/dev/null)" || { echo "ERROR: base-ref invalido: $BASE" >&2; exit 2; }
+MB="$(git merge-base "$BASE" HEAD 2>/dev/null)" || { echo "ERROR: base-ref inválido: $BASE" >&2; exit 2; }
 CHANGED="$(git diff --name-only "$MB"; git ls-files --others --exclude-standard)"
 
 # svelte_files: csv de .svelte cambiados (input del autofixer), presente aun en fails.
@@ -63,7 +63,7 @@ fi
 CHECK_S=ok
 
 # --- Paso 3: format (auto-fix, sin gate ni output que revisar) ---
-pnpm format >/dev/null 2>&1 || echo "WARN: pnpm format fallo (no-gate)" >&2
+pnpm format >/dev/null 2>&1 || echo "WARN: pnpm format falló (no-gate)" >&2
 
 # --- Gate 4: grep anti-React scoped al diff ---
 REACT_HITS=""
@@ -98,7 +98,7 @@ else
 fi
 
 # --- Gate 6: browser-gate por scope del diff ---
-# Un *.remote.ts cambia lo que la pantalla muestra: tambien exige browser.
+# Un *.remote.ts cambia lo que la pantalla muestra: también exige browser.
 if printf '%s\n' "$CHANGED" | grep -qE '^src/routes/|\.svelte$|\.remote\.ts$'; then
   BROWSER_S=required
 else

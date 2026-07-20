@@ -32,7 +32,7 @@ import { db } from '$lib/server/db'
 import { ta<Entity> } from '$lib/server/db/schema'
 import { eq } from 'drizzle-orm'
 
-// Bootstrap self-contained: si $lib/server ya expone requireUser(), importalo en vez de redefinirlo aqui (slice-spec: transversal)
+// Bootstrap self-contained: si $lib/server ya expone requireUser(), impórtalo en vez de redefinirlo aquí (slice-spec: transversal)
 function requireUser() {
   const { locals } = getRequestEvent()
   if (!locals.user) error(401, { message: 'No autenticado', code: 'AUTH_REQUIRED' })

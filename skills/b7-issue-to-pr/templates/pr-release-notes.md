@@ -3,7 +3,7 @@
 > ${SUMMARY_COMMERCIAL}
 <!--
   SUMMARY_COMMERCIAL: una frase tipo release notes, qué obtiene el usuario.
-  Ej: "Ahora podés filtrar la bandeja de tareas por estado y asignado en un solo clic."
+  Ej: "Ahora puedes filtrar la bandeja de tareas por estado y asignado en un solo clic."
   Ej: "Las notificaciones de campañas SMS muestran el detalle del proveedor cuando fallan."
 -->
 

@@ -1,7 +1,7 @@
 <!-- b7:status -->
 <!--
   Comentario sticky de b7-issue-to-pr.
-  publish-docs.sh lo edita en cada milestone via gh api PATCH.
+  publish-docs.sh lo edita en cada milestone vía gh api PATCH.
   No editar a mano: cualquier cambio se sobrescribe en el próximo milestone.
 -->
 
@@ -61,7 +61,7 @@ ${NEXT_STEPS_BLOCK}
 <!--
   Según STATUS:
   - in-progress → "El bot continúa trabajando. Volverá a comentar al avanzar."
-  - dry-run-done → "Dry-run completo. Inspeccioná el worktree y promové con /b3-git-commit + /b4-pull-request."
+  - dry-run-done → "Dry-run completo. Inspecciona el worktree y promueve con /b3-git-commit + /b4-pull-request."
   - pr-opened → "PR draft abierto. Revisar y marcar ready-for-review cuando esté ok."
   - aborted → "Bot detenido: ${ABORT_REASON}. Tomar manualmente desde acá."
   - bailed → "Bot baileó: ${BAIL_REASON}. No requiere acción del bot."

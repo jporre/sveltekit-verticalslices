@@ -125,7 +125,7 @@ cmd_issue_comment() {
   marker="<!-- b7:status -->"
   repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 
-  # Buscar comentario existente con el marker (id numerico REST, no node id GraphQL).
+  # Buscar comentario existente con el marker (id numérico REST, no node id GraphQL).
   local existing_id
   existing_id="$(gh api "repos/$repo/issues/$issue_number/comments" --paginate \
     --jq ".[] | select(.body | startswith(\"$marker\")) | .id" 2>/dev/null | head -n 1 || true)"
@@ -217,7 +217,7 @@ PY
 }
 
 # Setea claves en state.json. Whitelist = claves ya existentes en el state del
-# run (rechaza claves desconocidas para atrapar typos que renderizarian vacio).
+# run (rechaza claves desconocidas para atrapar typos que renderizarían vacío).
 # Auto-actualiza updated_at. Uso: state-set key=value [key=value ...]
 cmd_state_set() {
   [ $# -eq 0 ] && { echo "publish-docs/state-set: usage: state-set key=value [key=value ...]" >&2; return 2; }
@@ -268,7 +268,7 @@ elif name == "triage-done":
 elif name == "worktree-ready":
     d["milestone_worktree"] = DONE; running("Worktree listo")
 elif name == "iter-green":
-    d["milestone_impl"] = DONE; running("Implementacion verde")
+    d["milestone_impl"] = DONE; running("Implementación verde")
     if n:
         if not n.isdigit():
             print(f"publish-docs/milestone: iter-green needs numeric N, got '{n}'", file=sys.stderr); sys.exit(2)

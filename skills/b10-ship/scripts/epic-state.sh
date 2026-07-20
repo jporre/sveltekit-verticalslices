@@ -5,7 +5,7 @@ set -euo pipefail
 #
 # Snapshot COMPLETO y PARALELO de un epic para que b10-ship planifique en una pasada.
 # Combina dos fuentes:
-#   1. Topologia (epic-graph.sh): waves, deps, closing_slice. Determinista.
+#   1. Topología (epic-graph.sh): waves, deps, closing_slice. Determinista.
 #   2. Estado live por sub-issue (run.sh reconcile <n>): phase, pr, b6, worktree, zombie.
 #      Read-only y por-issue independiente -> se corre EN PARALELO (bounded), cortando
 #      el wall-clock de N*RTT (reconcile secuencial, varias llamadas gh c/u) a ~RTT.
@@ -19,7 +19,7 @@ set -euo pipefail
 #     "issues": [ { issue,title,state,labels,deps,wave,
 #                   "live": { phase, pr, pr_state, b6, worktree, zombie, blocked_open, needs_info } } ]
 #   }
-#   Ademas una linea final parseable:
+#   Además una línea final parseable:
 #     B10_EPIC_STATE epic=N waves=K open=<n> closeable=<n> buildable=<csv> blocked=<csv>
 #
 # Exit: hereda de epic-graph (3 sin subs, 4 ciclo); 2 args.
@@ -40,7 +40,7 @@ RUN="$SCRIPT_DIR/run.sh"
 [ -f "$GRAPH" ] || { echo "ERROR: falta epic-graph.sh junto a este script" >&2; exit 2; }
 [ -f "$RUN" ]   || { echo "ERROR: falta run.sh junto a este script" >&2; exit 2; }
 
-# 1. Topologia (determinista). Si falla, propagar su exit (3/4).
+# 1. Topología (determinista). Si falla, propagar su exit (3/4).
 GRAPH_JSON="$(bash "$GRAPH" "$EPIC")" || exit $?
 
 # 2. Reconcile live en paralelo, fusionado en el grafo via python.
@@ -93,7 +93,7 @@ for it in graph["issues"]:
         it["live"] = {"phase": "done", "pr": None, "b6": None, "worktree": None,
                       "zombie": False, "blocked_open": None, "needs_info": None}
 
-# Clasificacion para el resumen (lo que el skill usa para despachar fases).
+# Clasificación para el resumen (lo que el skill usa para despachar fases).
 # La fase ya viene resuelta por run.sh reconcile (incluye el chequeo de blockers de b6).
 closeable, buildable, blocked = [], [], []
 for it in graph["issues"]:

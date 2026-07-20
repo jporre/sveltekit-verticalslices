@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pr-context.sh — Recolecta todo el contexto de un PR para revision
+# pr-context.sh — Recolecta todo el contexto de un PR para revisión
 # Uso: bash pr-context.sh <PR_NUMBER> [--light]
 #   --light: fuerza modo light (modo efectivo = flag O size-gate)
 set -euo pipefail
@@ -57,7 +57,7 @@ gh pr checks "$PR" 2>/dev/null || echo "(sin checks)"
 
 echo ""
 echo "=== CLASSIFY_FILES ==="
-# Clasifica archivos cambiados por tipo para guiar la revision
+# Clasifica archivos cambiados por tipo para guiar la revisión
 echo "$FILES" | while read -r f; do
   [ -z "$f" ] && continue
   case "$f" in
@@ -79,9 +79,9 @@ done
 
 echo ""
 echo "=== FIX_REGRESSION_GATE ==="
-# Gate de regresion: un PR fix/* debe tocar un test. Si headRef es fix/* y ningun
+# Gate de regresión: un PR fix/* debe tocar un test. Si headRef es fix/* y ningún
 # archivo cambiado matchea \.(test|spec)\. -> FIX_WITHOUT_TEST=true. B6 Area 2 emite
-# WARNING pidiendo el test o una justificacion explicita.
+# WARNING pidiendo el test o una justificación explícita.
 HEAD_REF=$(echo "$META" | jq -r '.headRefName // ""')
 if printf '%s\n' "$HEAD_REF" | grep -qE '^fix/' && ! printf '%s\n' "$FILES" | grep -qE '\.(test|spec)\.'; then
   echo "FIX_WITHOUT_TEST=true"
@@ -122,13 +122,13 @@ fi
 
 echo ""
 echo "=== CHANGED_SYMBOLS ==="
-# Simbolos exportados tocados por el diff (best-effort, JS/TS). Reusa $DIFF.
-# NEW = agregado sin version eliminada; MODIFIED = firma tocada (linea +/-) o
+# Símbolos exportados tocados por el diff (best-effort, JS/TS). Reusa $DIFF.
+# NEW = agregado sin versión eliminada; MODIFIED = firma tocada (línea +/-) o
 # cuerpo tocado (contexto del hunk header — cubre modificaciones body-only);
-# REMOVED = eliminado sin version agregada (el caso mas destructivo para callers).
+# REMOVED = eliminado sin versión agregada (el caso más destructivo para callers).
 EXPORT_RE='export[[:space:]]+(async[[:space:]]+)?(function|const)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*'
 HUNK_RE='(function|const)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*'
-sym_names() { # $1: regex; stdin: lineas; stdout: nombres de simbolo unicos ordenados
+sym_names() { # $1: regex; stdin: líneas; stdout: nombres de símbolo únicos ordenados
   grep -Eo "$1" | sed -E 's/.*(function|const)[[:space:]]+//' | sort -u
 }
 ADDED=$(echo "$DIFF" | grep -E '^\+' | sym_names "$EXPORT_RE" || true)

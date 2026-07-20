@@ -4,7 +4,7 @@ set -euo pipefail
 # epic-diff.sh <epic>
 # Insumo para la fase epic-review de b10-ship: reconstruye lo mergeado del epic.
 # Emite markdown a stdout con:
-#   (a) tabla PR -> issue -> titulo + acceptance criteria (checkboxes del body)
+#   (a) tabla PR -> issue -> título + acceptance criteria (checkboxes del body)
 #   (b) ruta(s) del plan doc referenciado en los bodies ("docs/plans/*.md")
 #   (c) diff agregado de los squash merges (primer merge^..rama default, paths tocados)
 # Correr desde el repo principal con la rama default actualizada (git pull antes).
@@ -20,12 +20,12 @@ MAX_DIFF_LINES_PER_FILE="${B10_EPIC_DIFF_MAX_LINES:-400}"
 # UNA sola llamada al endpoint sub_issues: ya trae los objetos completos
 # (number/title/state/body). Antes se descartaban salvo .number y despues se
 # pegaban 3-4 `gh issue view` por sub-issue (1+4N procesos gh). Ahora: 2 llamadas
-# (este call + el `gh pr list` de mas abajo), el resto son lookups jq en memoria.
+# (este call + el `gh pr list` de más abajo), el resto son lookups jq en memoria.
 SUBS_JSON="$(gh api "repos/${REPO}/issues/${EPIC}/sub_issues" --paginate 2>/dev/null || true)"
 SUBS="$(printf '%s' "$SUBS_JSON" | jq -r '.[].number' 2>/dev/null | sort -un || true)"
 [ -n "$SUBS" ] || { echo "ERROR: #$EPIC sin sub-issues" >&2; exit 3; }
 
-echo "# Epic #$EPIC — insumo de revision de feature completo"
+echo "# Epic #$EPIC — insumo de revisión de feature completo"
 echo
 echo "## Sub-issues y PRs mergeados"
 echo
@@ -35,7 +35,7 @@ PRS_JSON="$(gh pr list --state merged --limit 200 --json number,title,body,merge
 
 for n in $SUBS; do
   # state|ascii_upcase: el REST devuelve "open"/"closed"; `gh issue view` daba
-  # "OPEN"/"CLOSED". Se conserva la forma mayuscula para no cambiar el output.
+  # "OPEN"/"CLOSED". Se conserva la forma mayúscula para no cambiar el output.
   STATE="$(printf '%s' "$SUBS_JSON" | jq -r --argjson n "$n" '.[]|select(.number==$n)|.state|ascii_upcase')"
   TITLE="$(printf '%s' "$SUBS_JSON" | jq -r --argjson n "$n" '.[]|select(.number==$n)|.title')"
   PR_ROW="$(echo "$PRS_JSON" | jq -r --arg n "$n" \
@@ -53,7 +53,7 @@ for n in $SUBS; do
   else
     echo "### #$n — $TITLE  [${STATE}] → SIN PR MERGEADO"
   fi
-  # acceptance criteria: checkboxes del body (lookup jq sobre el JSON ya traido)
+  # acceptance criteria: checkboxes del body (lookup jq sobre el JSON ya traído)
   printf '%s' "$SUBS_JSON" | jq -r --argjson n "$n" '.[]|select(.number==$n)|.body' | grep -E '^\s*- \[[ x]\]' | sed 's/^/  /' || echo "  (sin checkboxes)"
   echo
 done
@@ -65,7 +65,7 @@ printf '%s' "$SUBS_JSON" | jq -r '.[].body' \
 echo
 
 if [ -z "$FIRST_SHA" ]; then
-  echo "## Diff agregado: N/A (ningun PR mergeado todavia)"
+  echo "## Diff agregado: N/A (ningún PR mergeado todavía)"
   exit 0
 fi
 
@@ -86,7 +86,7 @@ echo "$PATH_LIST" | while read -r p; do
   echo '```diff'
   git diff "${FIRST_SHA}^..${DEFAULT_BRANCH}" -- "$p" 2>/dev/null | head -"$MAX_DIFF_LINES_PER_FILE"
   LINES="$(git diff "${FIRST_SHA}^..${DEFAULT_BRANCH}" -- "$p" 2>/dev/null | wc -l | tr -d ' ')"
-  [ "$LINES" -gt "$MAX_DIFF_LINES_PER_FILE" ] && echo "... (truncado: $LINES lineas totales, cap $MAX_DIFF_LINES_PER_FILE)"
+  [ "$LINES" -gt "$MAX_DIFF_LINES_PER_FILE" ] && echo "... (truncado: $LINES líneas totales, cap $MAX_DIFF_LINES_PER_FILE)"
   echo '```'
   echo
 done

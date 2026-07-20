@@ -2,32 +2,32 @@
 # codegraph-probe.sh — probe INFORMATIVO del estado de la db de CodeGraph.
 #
 # Uso: codegraph-probe.sh [root]
-#   root  raiz del repo (default: git toplevel del cwd, o pwd).
+#   root  raíz del repo (default: git toplevel del cwd, o pwd).
 #
-# Contrato (issue #10 — codegraph es recomendacion con fallback rg, NUNCA gate):
+# Contrato (issue #10 — codegraph es recomendación con fallback rg, NUNCA gate):
 # el probe SIEMPRE sale 0. El status NUNCA es un exit code — vive SOLO en la
-# ultima linea, parseable:
+# última línea, parseable:
 #
 #     CODEGRAPH_STATUS=ok|stale|missing|broken db_age_days=<n>
 #
 #   ok      — .codegraph presente, query smoke OK, db fresca vs HEAD.
-#   stale   — query smoke OK pero la db quedo detras de HEAD (sync no la alcanzo).
-#   missing — sin .codegraph o sin db (ej. worktree recien creado: db gitignored).
+#   stale   — query smoke OK pero la db quedó detrás de HEAD (sync no la alcanzó).
+#   missing — sin .codegraph o sin db (ej. worktree recién creado: db gitignored).
 #   broken  — .codegraph presente pero la query smoke falla (backend nativo/WASM roto).
 #
-# db_age_days = dias enteros desde el mtime de la db (-1 si no hay db).
+# db_age_days = días enteros desde el mtime de la db (-1 si no hay db).
 #
-# Los callers ELIGEN herramienta segun el status; status != ok NUNCA es error:
+# Los callers ELIGEN herramienta según el status; status != ok NUNCA es error:
 # si != ok usan rg/grep y NO invocan las tools codegraph_*.
 #
 # Env knobs:
 #   CODEGRAPH_PROBE_TTL         (default 3600)  cache 1h en state-dir
 #   CODEGRAPH_PROBE_SMOKE_SECS  (default 15)    timeout de la query smoke
 #   CODEGRAPH_PROBE_SYNC_SECS   (default 60)    timeout del intento de sync
-#   CODEGRAPH_PROBE_NO_SYNC     (1 = no intentar sync; db atras de HEAD => stale)
+#   CODEGRAPH_PROBE_NO_SYNC     (1 = no intentar sync; db atrás de HEAD => stale)
 #                                                lo usa setup-worktree.sh (db gitignored)
 
-# NOTA: sin `set -e` a proposito — este script DEBE salir 0 pase lo que pase.
+# NOTA: sin `set -e` a propósito — este script DEBE salir 0 pase lo que pase.
 set -u
 
 ROOT="${1:-}"
@@ -49,8 +49,8 @@ run_timeout() {
     my $pid = fork();
     exit 127 unless defined $pid;
     # Hijo en su propio grupo de procesos: al vencer el timeout matamos TODO el
-    # grupo (incluidos nietos), si no un nieto huerfano retiene el fd del `$(...)`
-    # y la substitucion de comando se cuelga hasta que ese proceso muera.
+    # grupo (incluidos nietos), si no un nieto huérfano retiene el fd del `$(...)`
+    # y la substitución de comando se cuelga hasta que ese proceso muera.
     if ($pid == 0) { setpgrp(0,0); exec @ARGV or exit 127; }
     local $SIG{ALRM} = sub { kill "TERM", -$pid; kill "KILL", -$pid; };
     alarm $s;
@@ -64,9 +64,9 @@ run_timeout() {
 
 # state-dir para el cache (mismo esquema slug que guardrails.sh).
 # El slug deriva SIEMPRE de $ROOT (el root probado), NO de CLAUDE_PROJECT_DIR: esa
-# variable es constante dentro de una sesion, asi que dos roots distintos (worktree
-# vs repo principal, o dos worktrees) compartirian el MISMO archivo de cache y un
-# status contaminaria al otro durante la ventana de TTL. Cada root => su cache. (issue #37)
+# variable es constante dentro de una sesión, así que dos roots distintos (worktree
+# vs repo principal, o dos worktrees) compartirían el MISMO archivo de cache y un
+# status contaminaría al otro durante la ventana de TTL. Cada root => su cache. (issue #37)
 state_dir() {
   local slug
   slug="$(printf '%s' "$ROOT" | sed 's|/|-|g')"
@@ -108,10 +108,10 @@ dbm=$(stat -f %m "$DBF" 2>/dev/null || stat -c %Y "$DBF" 2>/dev/null || echo "$n
 age_days=$(( ( now - dbm ) / 86400 ))
 
 # smoke: query real (usa -p). Solo el exit-code y el STDERR deciden 'broken' — NUNCA
-# el contenido de los RESULTADOS de la query (stdout). Con la query generica "the"
-# cualquier snippet legitimo que contenga "Error:", "fatal", etc. hacia matchear el
+# el contenido de los RESULTADOS de la query (stdout). Con la query genérica "the"
+# cualquier snippet legítimo que contenga "Error:", "fatal", etc. hacía matchear el
 # grep y reportaba un backend sano como roto (falso positivo). Capturamos solo stderr:
-# `2>&1 1>/dev/null` manda stderr a la substitucion y stdout (los matches) a /dev/null.
+# `2>&1 1>/dev/null` manda stderr a la substitución y stdout (los matches) a /dev/null.
 # (issue #37)
 err="$(run_timeout "$SMOKE_SECS" codegraph query "the" -p "$ROOT" 2>&1 1>/dev/null)"
 rc=$?
@@ -120,7 +120,7 @@ if [ "$rc" -ne 0 ] \
   finish broken "$age_days"
 fi
 
-# frescura vs HEAD; sync (path posicional) si la db quedo atras — salvo NO_SYNC.
+# frescura vs HEAD; sync (path posicional) si la db quedó atrás — salvo NO_SYNC.
 head_ct="$(git -C "$ROOT" log -1 --format=%ct 2>/dev/null || echo 0)"
 status=ok
 if [ "$head_ct" -gt "$dbm" ]; then

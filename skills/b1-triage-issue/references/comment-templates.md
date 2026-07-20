@@ -5,13 +5,13 @@ Full examples for the evaluation comment posted in Step 7 of `b1-triage-issue`. 
 ## Ready issue (Spanish)
 
 ```markdown
-## Evaluacion de Issue
+## Evaluación de Issue
 
 **Estado**: Listo para desarrollo
 
 ### Entendimiento
 
-Se solicita una pantalla CRUD para gestionar productos. Los comments #3 y #5 acotaron el alcance: incluir filtro por categoria y estado activo/inactivo, no estaba en el body original.
+Se solicita una pantalla CRUD para gestionar productos. Los comments #3 y #5 acotaron el alcance: incluir filtro por categoría y estado activo/inactivo, no estaba en el body original.
 
 ### Archivos afectados
 
@@ -20,7 +20,7 @@ Se solicita una pantalla CRUD para gestionar productos. Los comments #3 y #5 aco
 
 ### Complejidad estimada
 
-**Simple** — 1 entidad, 1 pantalla, CRUD estandar (3-4 archivos).
+**Simple** — 1 entidad, 1 pantalla, CRUD estándar (3-4 archivos).
 
 ### Riesgos
 
@@ -28,7 +28,7 @@ Se solicita una pantalla CRUD para gestionar productos. Los comments #3 y #5 aco
 
 ### Plan propuesto
 
-1. Crear `products.remote.ts` con `get_products`, `upsert_product`, `delete_product` (exporta tipos via `InferSelectModel`).
+1. Crear `products.remote.ts` con `get_products`, `upsert_product`, `delete_product` (exporta tipos vía `InferSelectModel`).
 2. Crear `+page.svelte` con tabla y formulario upsert.
 3. (Opcional) `+page.server.ts` con guard de permiso.
 4. Verificar en navegador.
@@ -68,10 +68,10 @@ User wants a CRUD screen for products. Comments #3 and #5 narrowed the scope: in
 
 ## Ready bug (Spanish, con Evidencia)
 
-Para un `type: fix` marcado ready, la seccion `### Evidencia` es obligatoria: cita el artefacto observado en Step 4e (error exacto, salida, o `path:linea` de la causa). Sin evidencia observada el veredicto correcto es needs-info — b7 baila un `fix` sin `evidence.observed`.
+Para un `type: fix` marcado ready, la sección `### Evidencia` es obligatoria: cita el artefacto observado en Step 4e (error exacto, salida, o `path:linea` de la causa). Sin evidencia observada el veredicto correcto es needs-info — b7 baila un `fix` sin `evidence.observed`.
 
 ```markdown
-## Evaluacion de Issue
+## Evaluación de Issue
 
 **Estado**: Listo para desarrollo
 
@@ -86,15 +86,15 @@ Observado al correr el flujo con total 0:
     POST /sales 500 — TypeError: Cannot read properties of undefined (reading 'toFixed')
         at formatTotal (src/routes/sales/sales.remote.ts:42)
 
-Fuente: `src/routes/sales/sales.remote.ts:42` — `formatTotal` asume `total` definido; con carrito vacio llega `undefined`.
+Fuente: `src/routes/sales/sales.remote.ts:42` — `formatTotal` asume `total` definido; con carrito vacío llega `undefined`.
 
 ### Archivos afectados
 
-- `src/routes/sales/sales.remote.ts` — `formatTotal` (linea 42), falta guarda de `total` nulo/0.
+- `src/routes/sales/sales.remote.ts` — `formatTotal` (línea 42), falta guarda de `total` nulo/0.
 
 ### Complejidad estimada
 
-**Simple** — fix acotado a una funcion (1 archivo).
+**Simple** — fix acotado a una función (1 archivo).
 
 ### Plan
 
@@ -105,7 +105,7 @@ Fuente: `src/routes/sales/sales.remote.ts:42` — `formatTotal` asume `total` de
 ## Needs-clarification issue (Spanish)
 
 ```markdown
-## Evaluacion de Issue
+## Evaluación de Issue
 
 **Estado**: Necesita información
 
@@ -132,7 +132,7 @@ La pantalla actual `src/routes/sales/+page.svelte` ya filtra por fecha y vendedo
 ## Duplicate issue (Spanish)
 
 ```markdown
-## Evaluacion de Issue
+## Evaluación de Issue
 
 **Estado**: Duplicado
 
@@ -144,7 +144,7 @@ Si hay diferencias específicas con la implementación actual, por favor descrí
 ## Blocked issue (Spanish)
 
 ```markdown
-## Evaluacion de Issue
+## Evaluación de Issue
 
 **Estado**: Bloqueado
 

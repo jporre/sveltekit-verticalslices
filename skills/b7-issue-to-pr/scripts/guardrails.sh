@@ -6,8 +6,8 @@
 #   preflight <issue-number>           — run before anything else; exits non-zero if unsafe to proceed
 #   check-budget <worktree-dir>        — verify files-changed / lines-added under cap; exits non-zero if exceeded
 #   acquire-lock [owner-pid] [issue]   — take the b7 lock (writes owner pid, default $PPID); exits non-zero if held.
-#                                        Con B7_PARALLEL=1 el issue es obligatorio: shard b7-issue-<N>.lock atomico (noclobber) y emite B7_LOCK_FILE=<path>
-#   release-lock [lock-file]           — remove the lock file (sin arg: b7.lock legacy; con path: SOLO ese shard, jamas glob)
+#                                        Con B7_PARALLEL=1 el issue es obligatorio: shard b7-issue-<N>.lock atómico (noclobber) y emite B7_LOCK_FILE=<path>
+#   release-lock [lock-file]           — remove the lock file (sin arg: b7.lock legacy; con path: SOLO ese shard, jamás glob)
 #   heartbeat <worktree-dir>           — write .b7/heartbeat (UTC) and touch the lock (keeps it fresh); si existe shard del issue (via .b7/state.json), toca ESE
 #   dev-server start|stop <worktree-dir> — start: nohup ./dev.sh (log/pid en .b7/), poll hasta B7_DEV_SERVER_WAIT_SECS (default 120s), WARN sin abortar si no responde; stop: kill del pid (idempotente)
 #   worktree-env <worktree-dir>        — emite WORKTREE=/BRANCH=/PORT= (eval-safe) desde .b7/worktree-ready.json
@@ -18,8 +18,8 @@
 #   verify-worktree <dir>              — verify the worktree was created by setup-worktree.sh (marker + symlinks + dev.sh + location)
 #   verify-port <port> <worktree-dir>  — verify the dev server on <port> is serving <worktree> (cwd match); exit 40 nadie escucha, 41 intruso
 #   validate-triage <triage.json>      — validate .b7/triage.json against triage-output.schema.json (required/enums/additionalProperties); exit 4 on invalid
-#   classify-run <triage.json> <state.json> — asigna carril S|M|L (lane=L si complex; S si simple y files_likely<=5; sino M); persiste lane en state.json; emite RUN_LANE=S|M|L
-#   screens-check <worktree-dir>       — gate observable del review visual (DoD): exige .b7/review/<name>.json por cada screens[].name del triage, o SKIPPED.json con reason del enum; exit 8 = run invalido
+#   classify-run <triage.json> <state.json> — asigna carril S|M|L (lane=L si complex; S si simple y files_likely<=5; si no, M); persiste lane en state.json; emite RUN_LANE=S|M|L
+#   screens-check <worktree-dir>       — gate observable del review visual (DoD): exige .b7/review/<name>.json por cada screens[].name del triage, o SKIPPED.json con reason del enum; exit 8 = run inválido
 #
 # Env knobs:
 #   B7_MAX_OPEN_PRS    (default 3)     — backpressure threshold for open auto-pr-bot PRs
@@ -28,15 +28,15 @@
 #   B7_BOT_LABEL       (default auto-pr-bot)
 #   B7_LOCK_STALE_SECS (default 7200)  — lock older than this (mtime) is stale; matches b10's 2h zombie threshold
 #   B7_DEV_SERVER_WAIT_SECS (default 120) — deadline del poll de dev-server start, por tiempo transcurrido
-#   B7_PARALLEL        (default 0)     — 1 = lock sharded por issue (b7-issue-<N>.lock); sin flag: b7.lock global, comportamiento identico al actual
-#   B7_PARALLEL_CAP    (default 2)     — max locks b7 frescos simultaneos (shards + b7.lock legacy) con B7_PARALLEL=1
+#   B7_PARALLEL        (default 0)     — 1 = lock sharded por issue (b7-issue-<N>.lock); sin flag: b7.lock global, comportamiento idéntico al actual
+#   B7_PARALLEL_CAP    (default 2)     — max locks b7 frescos simultáneos (shards + b7.lock legacy) con B7_PARALLEL=1
 #
 # env-check knobs:
 #   B_ENV_CHECKS          (default "bin,mcp,gh,db,codegraph,session") — subset de checks a correr (coma-separado)
 #   B_ENV_SKIP_MCP        (1 = saltar el check MCP; NUNCA setear dentro del loop por-issue de b8)
 #   B_ENV_REQUIRED_MCP    (default "svelte") — servers MCP cuyo estado Failed/Needs-auth es FAIL (resto warn)
 #   B_ENV_MCP_CACHE_SECS  (default 300) — TTL del cache de `claude mcp list` en <state-dir>/env-mcp.txt
-#   B_ENV_CODEGRAPH_STALE_DAYS (default 7) — dias tras los cuales la db de codegraph se reporta stale (warn)
+#   B_ENV_CODEGRAPH_STALE_DAYS (default 7) — días tras los cuales la db de codegraph se reporta stale (warn)
 
 set -euo pipefail
 
@@ -45,14 +45,14 @@ B7_BUDGET_FILES="${B7_BUDGET_FILES:-25}"
 B7_BUDGET_LINES="${B7_BUDGET_LINES:-1500}"
 B7_BOT_LABEL="${B7_BOT_LABEL:-auto-pr-bot}"
 
-# Plugin root derivado desde la ubicacion del script (.../skills/b7-issue-to-pr/scripts).
-# Portable: no asume instalacion en ~/.claude/skills.
+# Plugin root derivado desde la ubicación del script (.../skills/b7-issue-to-pr/scripts).
+# Portable: no asume instalación en ~/.claude/skills.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 . "$PLUGIN_ROOT/scripts/lib.sh"
 
-# Rama base real del repo via bp_default_branch (nunca asumir master).
-# Vacio si el cwd no resuelve (p.ej. fuera de un repo); los subcomandos que la
+# Rama base real del repo vía bp_default_branch (nunca asumir master).
+# Vacío si el cwd no resuelve (p.ej. fuera de un repo); los subcomandos que la
 # necesitan re-resuelven o fallan con mensaje claro.
 DEFAULT_BRANCH="$(bp_default_branch 2>/dev/null || true)"
 
@@ -79,7 +79,7 @@ ensure_state_dir() {
 }
 
 # Edad del lock en segundos (mtime). La staleness NO puede depender de kill -0:
-# el lock sobrevive a run.sh a proposito (lo retiene la fase LLM), asi que el PID
+# el lock sobrevive a run.sh a propósito (lo retiene la fase LLM), así que el PID
 # escritor muerto no significa run muerto. SKILL.md toca el lock en cada heartbeat.
 lock_age_secs() {
   local f="$1" mtime
@@ -115,8 +115,8 @@ cmd_preflight() {
   # Lock file — staleness por mtime, no por PID vivo (ver lock_age_secs).
   if [ "${B7_PARALLEL:-0}" = "1" ]; then
     # Sharded (opt-in): contar locks b7 frescos (shards b7-issue-*.lock + b7.lock
-    # legacy de sesiones de version vieja) contra el cap, en vez del check binario.
-    # acquire-lock re-verifica con creacion atomica (este conteo es solo fail-fast).
+    # legacy de sesiones de versión vieja) contra el cap, en vez del check binario.
+    # acquire-lock re-verifica con creación atómica (este conteo es solo fail-fast).
     local f n=0 cap="${B7_PARALLEL_CAP:-2}"
     for f in "$sd"/b7*.lock; do
       [ -f "$f" ] || continue
@@ -185,8 +185,8 @@ cmd_preflight() {
     return 18
   fi
 
-  # Codegraph: probe INFORMATIVO (nunca gate — decision del owner). Emite la linea
-  # CODEGRAPH_STATUS=...; los sub-skills eligen codegraph_* vs rg segun el status.
+  # Codegraph: probe INFORMATIVO (nunca gate — decisión del owner). Emite la línea
+  # CODEGRAPH_STATUS=...; los sub-skills eligen codegraph_* vs rg según el status.
   local cg_probe="$PLUGIN_ROOT/skills/b1-add-worktree/scripts/codegraph-probe.sh"
   if [ -x "$cg_probe" ]; then
     bash "$cg_probe" "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" || true
@@ -239,30 +239,30 @@ cmd_check_budget() {
 }
 
 cmd_acquire_lock() {
-  # Owner default: $PPID — el proceso invocador (cron/launchd/orquestador/sesion)
+  # Owner default: $PPID — el proceso invocador (cron/launchd/orquestador/sesión)
   # que sobrevive al handoff hacia la fase LLM. NO $$: ese PID muere con este script
-  # y dejaba un lock instantaneamente "stale" para el janitor de b10.
+  # y dejaba un lock instantáneamente "stale" para el janitor de b10.
   local owner="${1:-$PPID}" issue="${2:-}" sd
   sd="$(ensure_state_dir)"
 
   if [ "${B7_PARALLEL:-0}" = "1" ]; then
     # Sharding opt-in: un lock por issue. Sin issue no hay shard posible.
-    # Solo digitos: el numero forma el nombre del shard (nada de paths).
+    # Solo dígitos: el número forma el nombre del shard (nada de paths).
     case "$issue" in
       ''|*[!0-9]*)
-        echo "acquire-lock: B7_PARALLEL=1 requiere issue numerico — usage: acquire-lock [owner-pid] <issue>" >&2
+        echo "acquire-lock: B7_PARALLEL=1 requiere issue numérico — usage: acquire-lock [owner-pid] <issue>" >&2
         return 2
         ;;
     esac
     local shard="$sd/b7-issue-$issue.lock" cap="${B7_PARALLEL_CAP:-2}"
-    # Shard propio stale: removerlo ANTES del create atomico (noclobber falla
-    # sobre archivo existente, aunque este stale).
+    # Shard propio stale: removerlo ANTES del create atómico (noclobber falla
+    # sobre archivo existente, aunque esté stale).
     if [ -f "$shard" ] && [ "$(lock_age_secs "$shard")" -ge "${B7_LOCK_STALE_SECS:-7200}" ]; then
       echo "acquire-lock: stale shard (age $(lock_age_secs "$shard")s) — taking over" >&2
       rm -f "$shard"
     fi
     # Cap de locks b7 frescos: shards + b7.lock legacy (compat con sesiones de
-    # version vieja que sostienen el lock global).
+    # versión vieja que sostienen el lock global).
     local f n=0
     for f in "$sd"/b7*.lock; do
       [ -f "$f" ] || continue
@@ -272,8 +272,8 @@ cmd_acquire_lock() {
       echo "acquire-lock: $n locks b7 frescos — at or above B7_PARALLEL_CAP=$cap" >&2
       return 11
     fi
-    # Creacion ATOMICA via noclobber (no check-then-write): bajo despacho
-    # paralelo es la unica garantia anti doble-run del MISMO issue.
+    # Creación ATÓMICA vía noclobber (no check-then-write): bajo despacho
+    # paralelo es la única garantía anti doble-run del MISMO issue.
     if ! (set -C; echo "$owner" > "$shard") 2>/dev/null; then
       local pid age
       pid="$(cat "$shard" 2>/dev/null || echo '?')"
@@ -285,7 +285,7 @@ cmd_acquire_lock() {
     return 0
   fi
 
-  # Default sin flag: lock global b7.lock, comportamiento identico al historico.
+  # Default sin flag: lock global b7.lock, comportamiento idéntico al histórico.
   if [ -f "$sd/b7.lock" ]; then
     local pid age
     pid="$(cat "$sd/b7.lock" 2>/dev/null || echo '?')"
@@ -302,7 +302,7 @@ cmd_acquire_lock() {
 
 cmd_release_lock() {
   # release-lock [lock-file] — sin arg: borra b7.lock legacy (comportamiento
-  # actual). Con path: borra SOLO ese shard, jamas glob — un run no puede
+  # actual). Con path: borra SOLO ese shard, jamás glob — un run no puede
   # liberar el lock de otro. El path debe vivir en el state dir y calzar b7*.lock.
   local lock="${1:-}" sd
   sd="$(ensure_state_dir)"
@@ -311,22 +311,22 @@ cmd_release_lock() {
     return 0
   fi
   # Anti-traversal: en case "*" matchea "/" ($sd/b7-runs/../otro/b7.lock
-  # calzaria $sd/b7*.lock), asi que se valida prefijo + nombre plano aparte.
+  # calzaría $sd/b7*.lock), así que se valida prefijo + nombre plano aparte.
   local rel="${lock#"$sd"/}"
   if [ "$rel" = "$lock" ]; then
-    echo "release-lock: path invalido (esperaba $sd/b7*.lock): $lock" >&2
+    echo "release-lock: path inválido (esperaba $sd/b7*.lock): $lock" >&2
     return 2
   fi
   case "$rel" in
     */*)
-      echo "release-lock: path invalido (esperaba $sd/b7*.lock): $lock" >&2
+      echo "release-lock: path inválido (esperaba $sd/b7*.lock): $lock" >&2
       return 2
       ;;
     b7*.lock)
       rm -f "$lock"
       ;;
     *)
-      echo "release-lock: path invalido (esperaba $sd/b7*.lock): $lock" >&2
+      echo "release-lock: path inválido (esperaba $sd/b7*.lock): $lock" >&2
       return 2
       ;;
   esac
@@ -338,7 +338,7 @@ cmd_heartbeat() {
   # (la staleness del lock es por mtime; un build vivo lo mantiene fresco).
   # Firma intacta (heartbeat <worktree>): si existe shard b7-issue-<N>.lock del
   # issue derivado de .b7/state.json, toca ESE; fallback b7.lock legacy (sin
-  # sharding no hay shard y el comportamiento es identico al actual).
+  # sharding no hay shard y el comportamiento es idéntico al actual).
   local wt="${1:-}"
   if [ -z "$wt" ] || [ ! -d "$wt" ]; then
     echo "heartbeat: usage: heartbeat <worktree-dir>" >&2
@@ -429,15 +429,15 @@ src/routes/<feature>/
   <feature>-types.ts               # tipos (o exportarlos desde <feature>.remote.ts)
   <Feature>Form.svelte             # componentes hermanos, planos, PascalCase (sin subcarpeta ui/)
   schemas.ts                       # solo si la validacion es compleja
-  <feature>.server.ts              # logica compleja (solo si aplica)
-  <feature>.md                     # doc del feature: proposito, pantallas, remote fns, datos, decisiones
+  <feature>.server.ts              # lógica compleja (solo si aplica)
+  <feature>.md                     # doc del feature: propósito, pantallas, remote fns, datos, decisiones
   new/ , [id]/                     # sub-rutas con su propio +page.svelte (y *.remote.ts si aplica)
 \`\`\`
 Todo el feature vive en una carpeta bajo src/routes (regla 99%). Nada NUEVO en src/lib/features
 ni thin wrappers. En \$lib solo: shadcn (\$lib/components/ui), css global, db (\$lib/server/db),
-transversales genuinos (logger/auth/format usados por 3+ features sin logica de un feature).
-Tolerancia legacy: EDITAR un feature existente bajo src/lib/features sigue SU patron interno;
-CREAR un feature nuevo ahi esta prohibido. Al debuggear: leer primero el <feature>.md si existe.
+transversales genuinos (logger/auth/format usados por 3+ features sin lógica de un feature).
+Tolerancia legacy: EDITAR un feature existente bajo src/lib/features sigue SU patrón interno;
+CREAR un feature nuevo ahí está prohibido. Al debuggear: leer primero el <feature>.md si existe.
 Spec completa: skills/b2-build-feature/references/slice-spec.md (en el plugin).
 
 ## Convenciones obligatorias
@@ -482,10 +482,10 @@ EOF
 Estado (probe informativo, nunca gate): \`$cg_line\`
 
 Regla: si el status **no es \`ok\`** (\`stale\`/\`missing\`/\`broken\`), usar \`rg\`/grep para
-ubicar simbolos/rutas y **NO** invocar las tools \`codegraph_*\` (devolverian datos
-stale o fallarian). Solo con status \`ok\` preferir \`codegraph_search\`/\`codegraph_context\`
-(mas rapido que grep; suele evitar el fan-out de Explore). El probe SIEMPRE sale 0:
-el status es recomendacion, no error.
+ubicar símbolos/rutas y **NO** invocar las tools \`codegraph_*\` (devolverían datos
+stale o fallarían). Solo con status \`ok\` preferir \`codegraph_search\`/\`codegraph_context\`
+(más rápido que grep; suele evitar el fan-out de Explore). El probe SIEMPRE sale 0:
+el status es recomendación, no error.
 EOF
 
   echo "context-snapshot: wrote $out"
@@ -556,8 +556,8 @@ state = {
   "run_report_path": "—",
   "branch": "—",
   "worktree_dir": "—",
-  # Impact set (issue #22): archivos afectados por simbolos existentes que el plan
-  # modifica. CSV via state-set; "[]" explicito = greenfield. Vacio = no computado.
+  # Impact set (issue #22): archivos afectados por símbolos existentes que el plan
+  # modifica. CSV vía state-set; "[]" explícito = greenfield. Vacío = no computado.
   "impact_files": "",
   "triage_verdict": "—",
   "triage_type": "—",
@@ -674,9 +674,9 @@ HINT
 }
 
 cmd_worktree_env() {
-  # worktree-env <worktree-dir> — emite lineas WORKTREE=<dir> BRANCH=<branch> PORT=<port>
+  # worktree-env <worktree-dir> — emite líneas WORKTREE=<dir> BRANCH=<branch> PORT=<port>
   # (eval-safe) leyendo el marker .b7/worktree-ready.json que siembra setup-worktree.sh.
-  # Reemplaza el parseo inline (eval/sed/awk) de la linea WORKTREE_READY en SKILL.md.
+  # Reemplaza el parseo inline (eval/sed/awk) de la línea WORKTREE_READY en SKILL.md.
   local dir="${1:-}"
   if [ -z "$dir" ] || [ ! -d "$dir" ]; then
     echo "worktree-env: usage: worktree-env <worktree-dir>" >&2
@@ -696,7 +696,7 @@ except Exception as e:
     print(f"worktree-env: invalid {marker}: {e}", file=sys.stderr)
     sys.exit(30)
 # Todo-o-nada: validar las 3 claves ANTES de emitir — un marker incompleto no
-# debe dejar claves parciales en stdout (el eval del caller las tomaria como validas).
+# debe dejar claves parciales en stdout (el eval del caller las tomaría como válidas).
 lines = []
 for out_key, json_key in (("WORKTREE", "dir"), ("BRANCH", "branch"), ("PORT", "port")):
     v = m.get(json_key)
@@ -732,7 +732,7 @@ cmd_verify_port() {
 
   local pid cwd got
   for pid in $pids; do
-    # cwd del pid: lsof -Fn imprime lineas 'n<path>' para el fd cwd.
+    # cwd del pid: lsof -Fn imprime líneas 'n<path>' para el fd cwd.
     cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)"
     [ -z "$cwd" ] && continue
     got="$(realpath "$cwd" 2>/dev/null || echo "$cwd")"
@@ -808,9 +808,9 @@ cmd_dev_server() {
   fi
 
   # Poll hasta B7_DEV_SERVER_WAIT_SECS (default 120) medido por tiempo
-  # transcurrido, no por iteraciones: vite frio supera los ~30s del poll viejo.
-  # El curl va SIN --max-time a proposito — una vez bindeado el puerto, el curl
-  # bloqueante cabalga la primera compilacion completa.
+  # transcurrido, no por iteraciones: vite frío supera los ~30s del poll viejo.
+  # El curl va SIN --max-time a propósito — una vez bindeado el puerto, el curl
+  # bloqueante cabalga la primera compilación completa.
   local wait_secs="${B7_DEV_SERVER_WAIT_SECS:-120}" start_ts
   start_ts="$(date +%s)"
   while [ $(( $(date +%s) - start_ts )) -lt "$wait_secs" ]; do
@@ -820,7 +820,7 @@ cmd_dev_server() {
     fi
     sleep 2
   done
-  echo "dev-server: WARN :$port no respondio tras ${wait_secs}s — revisar $wt/.b7/dev-server.log (no aborta)" >&2
+  echo "dev-server: WARN :$port no respondió tras ${wait_secs}s — revisar $wt/.b7/dev-server.log (no aborta)" >&2
   return 0
 }
 
@@ -840,9 +840,9 @@ cmd_validate_triage() {
     return 3
   fi
 
-  # Validacion mecanica contra el schema (draft 2020-12, subset): required, enums
+  # Validación mecánica contra el schema (draft 2020-12, subset): required, enums
   # de propiedades de primer nivel, y additionalProperties:false. No depende de la
-  # libreria jsonschema (no siempre instalada); implementa el subset que importa.
+  # librería jsonschema (no siempre instalada); implementa el subset que importa.
   python3 - "$file" "$schema" <<'PY'
 import json, sys
 
@@ -887,10 +887,10 @@ print(f"validate-triage OK: {triage_path}")
 PY
 }
 
-# classify-run: asigna el carril (lane) del run segun complejidad + tamaño estimado.
+# classify-run: asigna el carril (lane) del run según complejidad + tamaño estimado.
 #   lane=L  si estimated_complexity == complex
 #   lane=S  si estimated_complexity == simple Y files_likely tiene <=5 entradas
-#   lane=M  en cualquier otro caso (default seguro; byte-identico al flujo actual)
+#   lane=M  en cualquier otro caso (default seguro; byte-idéntico al flujo actual)
 # Persiste lane en state.json y emite RUN_LANE=S|M|L. El carril S baja modelo
 # (sonnet), saltea diseño LLM de screens y recorta iteraciones; ver SKILL.md paso 1.
 cmd_classify_run() {
@@ -940,13 +940,13 @@ PY
 # screens[].name de .b7/triage.json exige .b7/review/<name>.json, o un
 # .b7/review/SKIPPED.json con reason del enum CERRADO
 # no-screens-flag|lane-s-no-ui|no-port|dry-run.
-#   exit 0 = ok o skip valido; screens[] vacio o ausente sale 0 directo
-#            (backend puro no paga friccion; NO exige SKIPPED.json)
-#   exit 8 = run invalido: JSON de pantalla faltante sin skip valido, algun
+#   exit 0 = ok o skip válido; screens[] vacío o ausente sale 0 directo
+#            (backend puro no paga fricción; NO exige SKIPPED.json)
+#   exit 8 = run inválido: JSON de pantalla faltante sin skip válido, algún
 #            verdict=fail, o reason=lane-s-no-ui con diff que toca UI
 # verdict not-evaluated NO es fail (pass-through con nota). Las rutas terminales
 # bailed/aborted salen ANTES del DoD y no corren este check — no agregarles
-# skip files ni exenciones aca (reintroduciria el deadlock que esto previene).
+# skip files ni exenciones acá (reintroduciría el deadlock que esto previene).
 cmd_screens_check() {
   local wt="${1:-}"
   if [ -z "$wt" ] || [ ! -d "$wt" ]; then
@@ -975,7 +975,7 @@ cmd_screens_check() {
         ;;
       lane-s-no-ui)
         # Cross-check: el skip solo vale si el diff contra la rama base NO toca
-        # UI. Base via bp_default_branch resuelta SIEMPRE dentro del worktree
+        # UI. Base vía bp_default_branch resuelta SIEMPRE dentro del worktree
         # (el invocador puede correr desde otro repo; DEFAULT_BRANCH global no sirve).
         local base ui wt_branch
         wt_branch="$( (cd "$wt" && bp_default_branch) 2>/dev/null || true)"
@@ -990,7 +990,7 @@ cmd_screens_check() {
         fi
         ui="$(git -C "$wt" diff --name-only "$base" -- | grep -E '\.svelte$|\.remote\.ts$|^src/routes/' || true)"
         if [ -n "$ui" ]; then
-          echo "screens-check: FAIL skip lane-s-no-ui invalido — el diff toca UI:" >&2
+          echo "screens-check: FAIL skip lane-s-no-ui inválido — el diff toca UI:" >&2
           printf '%s\n' "$ui" | head -5 >&2
           return 8
         fi
@@ -998,21 +998,21 @@ cmd_screens_check() {
         return 0
         ;;
       *)
-        echo "screens-check: FAIL SKIPPED.json con reason invalida '${reason:-<vacia>}' (enum: no-screens-flag|lane-s-no-ui|no-port|dry-run)" >&2
+        echo "screens-check: FAIL SKIPPED.json con reason inválida '${reason:-<vacía>}' (enum: no-screens-flag|lane-s-no-ui|no-port|dry-run)" >&2
         return 8
         ;;
     esac
   fi
 
   # Un JSON de review por pantalla. verdict=fail invalida el run: un fail visual
-  # sin re-iteracion ni escalada no puede cerrar status=ok.
+  # sin re-iteración ni escalada no puede cerrar status=ok.
   local name vfile verdict n=0 bad=0
   while IFS= read -r name; do
     [ -z "$name" ] && continue
     n=$((n+1))
     vfile="$wt/.b7/review/$name.json"
     if [ ! -f "$vfile" ]; then
-      echo "screens-check: FAIL falta $vfile (pantalla '$name' sin review ni skip valido)" >&2
+      echo "screens-check: FAIL falta $vfile (pantalla '$name' sin review ni skip válido)" >&2
       bad=1
       continue
     fi
@@ -1035,13 +1035,13 @@ cmd_screens_check() {
   return 0
 }
 
-# env-check: dueño unico de la validacion de entorno. Emite una linea por check
+# env-check: dueño único de la validación de entorno. Emite una línea por check
 #   B_ENV name=<check> status=ok|fail|warn hint=<accion>
-# y sale 19 SOLO si algun check es fail. Nunca imprime valores de .env (solo host/port
-# del DB, explicitamente permitido por el AC del issue #7). Diseñado para correr como
+# y sale 19 SOLO si algún check es fail. Nunca imprime valores de .env (solo host/port
+# del DB, explícitamente permitido por el AC del issue #7). Diseñado para correr como
 # primer paso de los preflights de b7/b10/b8 y (subset bin+db) antes del worktree en b1.
 #
-# Checks (seleccionables via B_ENV_CHECKS): bin, mcp, gh, db, codegraph, session.
+# Checks (seleccionables vía B_ENV_CHECKS): bin, mcp, gh, db, codegraph, session.
 cmd_env_check() {
   local fail=0
   local checks="${B_ENV_CHECKS:-bin,mcp,gh,db,codegraph,session}"
@@ -1067,7 +1067,7 @@ cmd_env_check() {
     done
   fi
 
-  # (2) MCP: cache de `claude mcp list`; fail solo si un server REQUERIDO esta caido
+  # (2) MCP: cache de `claude mcp list`; fail solo si un server REQUERIDO está caído
   # o pide auth. Skippable con B_ENV_SKIP_MCP=1 (NUNCA dentro del loop por-issue).
   if _want mcp; then
     if [ "${B_ENV_SKIP_MCP:-0}" = "1" ]; then
@@ -1110,13 +1110,13 @@ cmd_env_check() {
     if login="$(gh api user -q .login 2>/dev/null)" && [ -n "$login" ]; then
       echo "B_ENV name=gh-token status=ok hint=autenticado como $login"
     else
-      echo "B_ENV name=gh-token status=fail hint=gh auth login (token invalido/ausente)"
+      echo "B_ENV name=gh-token status=fail hint=gh auth login (token inválido/ausente)"
       fail=1
     fi
   fi
 
-  # (4) DB: host/port de DATABASE_URL via python3 SIN imprimir el valor crudo
-  # (stderr suprimido; el script atrapa toda excepcion y no emite el URL). nc -z -w3.
+  # (4) DB: host/port de DATABASE_URL vía python3 SIN imprimir el valor crudo
+  # (stderr suprimido; el script atrapa toda excepción y no emite el URL). nc -z -w3.
   if _want db; then
     if [ -z "${DATABASE_URL:-}" ]; then
       echo "B_ENV name=db status=warn hint=DATABASE_URL no seteada; skip check DB"
@@ -1141,14 +1141,14 @@ except Exception:
         if nc -z -w3 "$dbhost" "$dbport" >/dev/null 2>&1; then
           echo "B_ENV name=db status=ok hint=tcp $dbhost:$dbport alcanzable"
         else
-          echo "B_ENV name=db status=fail hint=sin TCP a $dbhost:$dbport (DB caida/red)"
+          echo "B_ENV name=db status=fail hint=sin TCP a $dbhost:$dbport (DB caída/red)"
           fail=1
         fi
       fi
     fi
   fi
 
-  # (5) codegraph: SOLO warn informativo si la db esta stale. NUNCA gate (decision del owner).
+  # (5) codegraph: SOLO warn informativo si la db está stale. NUNCA gate (decisión del owner).
   if _want codegraph; then
     local repo_root cg dbf
     repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -1171,8 +1171,8 @@ except Exception:
   fi
 
   # (6) session: presencia de vars para mint-dev-session (pantallas protegidas).
-  # SIEMPRE warn, NUNCA fail — fail dispara exit 19 y abortaria todos los runs
-  # de b7/b10/b8 por 2 vars opcionales. Solo presencia: jamas imprimir valores.
+  # SIEMPRE warn, NUNCA fail — fail dispara exit 19 y abortaría todos los runs
+  # de b7/b10/b8 por 2 vars opcionales. Solo presencia: jamás imprimir valores.
   if _want session; then
     if [ -n "${B7_SESSION_USER_ID:-}" ] || [ -n "${B7_SESSION_EMAIL:-}" ]; then
       echo "B_ENV name=session-mint status=ok hint=-"
@@ -1182,7 +1182,7 @@ except Exception:
   fi
 
   if [ "$fail" -ne 0 ]; then
-    echo "env-check: uno o mas checks FAIL — abortando antes de gastar la sesion" >&2
+    echo "env-check: uno o más checks FAIL — abortando antes de gastar la sesión" >&2
     return 19
   fi
   return 0

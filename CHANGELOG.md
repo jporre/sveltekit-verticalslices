@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-07-19
+
+### refactor — BREAKING: `b11-genie` ahora se llama `b-setup-or-fix`
+
+El nombre viejo no decía nada sobre lo que el skill hace; el nuevo sí. Se renombró el directorio, las referencias internas (`SKILL.md`, `audit.sh`, `rung-verify.sh`, `fix-ladder.md`) y el `README.md`.
+
+- **Cambio de invocación**: `/b-pipeline:b11-genie` deja de existir. Usar `/b-pipeline:b-setup-or-fix`. No hay alias de compatibilidad — quien tenga el nombre viejo en scripts o notas debe actualizarlo.
+- **Sin alias por diseño**: mantener dos nombres para el mismo skill invita a que la mitad de la documentación quede apuntando al obsoleto.
+- El token `B11_RESULT` de la línea final machine-readable se conserva tal cual: nada dentro del repo lo parsea, pero un consumidor externo podría hacerlo, así que renombrarlo sería un breaking change sin beneficio.
+- Las notas históricas de v1.6.0 conservan el nombre `b11-genie` a propósito: describen lo que se publicó bajo ese nombre.
+
 ### docs — b-setup-or-fix: reference de PWA (manifest, service worker, cache, updates)
 
 El skill sabia dejar un repo SvelteKit sano pero no tenia nada que decir cuando el pedido era "hacela PWA" / "que ande offline" / "instalable en el celular". Nuevo `references/pwa-setup.md`, opt-in puro: no entra en la escalera E1-E6 ni en el modo base, y el skill tiene prohibido instalar service worker por iniciativa propia.

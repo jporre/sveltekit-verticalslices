@@ -170,12 +170,14 @@ Termina con `B11_RESULT mode=init rungs_done=E1 rungs_blocked= features=<n>`.
 - Borrar comentarios con contexto util sin migrarlo antes al `<feature>.md`. `// ponytail:` y TODO/FIXME accionables se preservan.
 - Copiar los catalogos de b2/b6 dentro de este skill (drift documental).
 - Resolver "rapido" un hallazgo agregando una capa nueva: la salida de cada peldaño es MENOS codigo, no mas.
+- Instalar service worker/PWA por iniciativa propia. Solo si el usuario lo pide, y ahi manda `references/pwa-setup.md`.
 
 ## Referencias
 
 - `references/fix-ladder.md` — las transformaciones exactas de cada peldaño E1-E6 con pares MAL/BIEN. Leer al ejecutar FASE 3.
 - `references/migrate-to-remote.md` — recetas R1-R7 de migracion a remote functions (E3): load→query, actions→form, fetch→await, single-flight. Leer al ejecutar E3.
 - `references/base-setup.md` — modo base completo: config canonica, guards, docs semilla, politica de comentarios. Leer con `--init` o mode=base.
+- `references/pwa-setup.md` — manifest, service worker, cache y flujo de update. Leer SOLO si el usuario pide PWA/offline/instalable; no es parte de la escalera ni del modo base.
 - `scripts/audit.sh` — diagnostico mecanico; secciones `=== E<n> ===` + `AUDIT_RESULT`. Exit 3 = no es SvelteKit.
 - `scripts/rung-verify.sh` — `baseline` captura estado inicial; `E<n>` compara y emite `RUNG_VERIFY ok|fail rung=E<n>`.
 - `../b6-pr-review/references/sveltekit-antipatterns.md` + `security-checklist.md` — catalogos AP/SEC canonicos.

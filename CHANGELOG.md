@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### docs — b-setup-or-fix: reference de PWA (manifest, service worker, cache, updates)
+
+El skill sabia dejar un repo SvelteKit sano pero no tenia nada que decir cuando el pedido era "hacela PWA" / "que ande offline" / "instalable en el celular". Nuevo `references/pwa-setup.md`, opt-in puro: no entra en la escalera E1-E6 ni en el modo base, y el skill tiene prohibido instalar service worker por iniciativa propia.
+
+- **Gate antes de codigo**: manifest solo ya cubre el pedido tipico (icono, standalone, instalable) — el service worker se agrega recien con requisito offline concreto. Chrome 108 movil / 112 desktop dejaron de exigir SW para instalabilidad.
+- **El ejemplo oficial de los docs de SvelteKit es inseguro con auth**: hace `cache.put` sobre toda respuesta 200 de su rama network-first, o sea escribe HTML SSR y respuestas de query de UN usuario en un cache compartido por origen. La version del reference nunca escribe cache en runtime (solo sirve lo precacheado en `install`) — menos codigo y elimina la clase de bug.
+- **Trampa verificada en el source de `@sveltejs/kit@2.70.1`, no documentada**: `query` sale GET a `${base}/_app/remote/<id>?payload=...` mientras `command`/`form`/`query.batch` salen POST. El filtro `method !== 'GET'` del ejemplo oficial salta commands y forms pero NO las queries — camino directo a filtrar datos autenticados entre usuarios del mismo dispositivo.
+- **Datos offline sin cache propio**: el flavor `prerender` de remote functions ya guarda su resultado en la Cache API (`sveltekit:${version}`), sobrevive reloads y se limpia solo en cada deploy. Encaja con la doctrina del plugin (datos solo por remote functions). Datos por usuario offline = sincronizacion, se declara como feature, no como flag.
+- **Flujo de update completo**: SW nuevo queda en `waiting` hasta cerrar todas las pestañas, las navegaciones client-side no disparan `registration.update()`, y una navegacion a pagina ya cacheada "tiene exito" con contenido viejo (kit#3666, abierto desde 2022). Componente `UpdatePrompt.svelte` con `afterNavigate` + prompt → `SKIP_WAITING` → reload en `controllerchange` con guard anti-primera-instalacion; validado con svelte-autofixer (cero issues).
+- **Tooling**: default SW a mano (los docs lo llaman "probably a good solution for most users"). `@vite-pwa/sveltekit` no aporta la lista de archivos — `$service-worker` ya la da; lo unico real es revision por archivo vs invalidar todo el `cache-${version}`. Agregar recien con granularidad como problema medido.
+- **Checklist de verificacion de browser**, no de types: Cache Storage sin HTML autenticado ni nada bajo `/_app/remote/`, offline throttling, deploy con pestaña abierta, logout → reabrir sin contenido del usuario anterior.
+
+**Archivos clave**: `skills/b-setup-or-fix/{SKILL.md,references/pwa-setup.md}`.
+
+**Riesgos / consideraciones**: investigado con dos rondas de workflow adversarial (210 agentes). La segunda ronda encontro que kit#3498 y kit#3642 — las issues que se citan habitualmente para el pitfall de cachear HTML autenticado — son misatribucion (una es feature request de SSR dentro del SW, la otra sobre cachear APIs externas); por eso el dato del metodo HTTP salio del source y no de docs. Marcado explicito como NO verificado dentro del archivo: Web Push en iOS 2026, Badging API en Safari, politica de eviccion de storage de iOS, reemplazo formal de la categoria PWA de Lighthouse, y edge cache de adapter-vercel. El reference no se probo aun contra un repo real.
+
 ## [1.6.0] — 2026-07-15
 
 ### feat — b0 modo diseño + modo rapido de epic con switch unico

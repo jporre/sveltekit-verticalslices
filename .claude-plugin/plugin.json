@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "b-pipeline",
   "displayName": "B Pipeline",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Pipeline conversación -> issue -> PR -> merge para SvelteKit: génesis de issues con slices verticales desde la conversación (b0), triage (b1), worktrees aislados (b1-add-worktree), build (b2), commit (b3), PR (b4), review (b6), orquestadores (b7 single, b8 cluster, b10 epic) y cierre con gate humano (b9). Validado end-to-end en un epic real de 10 sub-issues.",
   "author": {
     "name": "Jean Pierre Porre",

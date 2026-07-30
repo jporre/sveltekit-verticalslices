@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [1.7.2] — 2026-07-30
+
+### fix — b2: verify.sh formatea solo archivos cambiados, nunca repo-wide
+
+El paso 3 de `verify.sh` corría `pnpm format` sin argumentos — en SvelteKit eso es `prettier --write .` sobre el repo completo. Resultado real: un reformateo de 68 archivos ajenos al feature que hubo que revertir. Todos los demás gates ya estaban scoped al diff vs merge-base; format era el único sin scope.
+
+- Format ahora recibe solo la lista `$CHANGED` (diff vs merge-base + untracked, la misma de los otros gates) vía `pnpm exec prettier --write --ignore-unknown`.
+- Lista vacía → no corre nada. Sigue siendo auto-fix sin gate (WARN si falla, no bloquea).
+- Compatible con bash 3.2 de macOS bajo `set -euo pipefail` (guard de largo antes de expandir el array).
+
+**Archivos clave**: `skills/b2-build-feature/scripts/verify.sh`.
+
+Además: `marketplace.json` quedó en 1.7.0 desde la release anterior (el bump de 1.7.1 solo tocó `plugin.json`); sincronizado a 1.7.2.
+
 ## [1.7.1] — 2026-07-20
 
 ### fix — ortografía correcta en todo el repo (tildes, ñ)

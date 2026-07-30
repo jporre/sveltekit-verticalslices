@@ -9,7 +9,7 @@
 # Gates en orden (para en el primero que falla):
 #   1. branch guard: rama actual == rama default (o main/master) -> exit 3
 #   2. pnpm check:machine                               -> exit 4
-#   3. pnpm format (auto-fix, no-gate)
+#   3. format SOLO archivos cambiados (prettier, auto-fix, no-gate)
 #   4. grep anti-React SOLO en archivos cambiados       -> exit 5 (con file:line)
 #      .svelte: on:click | export let | useState | useEffect | onClick=
 #      .ts:     useState | useEffect | onClick=
@@ -62,8 +62,17 @@ if ! pnpm check:machine; then
 fi
 CHECK_S=ok
 
-# --- Paso 3: format (auto-fix, sin gate ni output que revisar) ---
-pnpm format >/dev/null 2>&1 || echo "WARN: pnpm format falló (no-gate)" >&2
+# --- Paso 3: format SOLO archivos cambiados (auto-fix, sin gate; nunca repo-wide) ---
+FMT_FILES=()
+while IFS= read -r f; do
+  [ -n "$f" ] && [ -f "$f" ] && FMT_FILES+=("$f")
+done <<EOF
+$CHANGED
+EOF
+if [ "${#FMT_FILES[@]}" -gt 0 ]; then
+  pnpm exec prettier --write --ignore-unknown "${FMT_FILES[@]}" >/dev/null 2>&1 \
+    || echo "WARN: format falló (no-gate)" >&2
+fi
 
 # --- Gate 4: grep anti-React scoped al diff ---
 REACT_HITS=""

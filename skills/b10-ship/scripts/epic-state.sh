@@ -72,6 +72,7 @@ def reconcile(n):
         elif key == "B10_WORKTREE":       live["worktree"] = val.split()[0]
         elif key == "B10_ZOMBIE":         live["zombie"] = True
         elif key == "B10_BLOCKED_BY":     live["blocked_open"] = val.strip()
+        elif key == "B10_TRIAGE":         live["triage"] = val.strip()
         elif key == "B10_NEEDS_INFO_ANSWERED": live["needs_info"] = val.strip()
     if r.returncode != 0 and not live["phase"]:
         live["phase"] = "error"

@@ -2,14 +2,19 @@
 
 El epic es un tracking issue con sub-issues nativos de GitHub (vincular una vez con `epic-link.sh`). Las dependencias finas viven en la sección `## Blocked by` de cada body.
 
+> **Decisión deliberada — deps como texto, no nativas.** GitHub tiene blocked-by nativo (GraphQL `addBlockedBy`), pero migrar sería una pesimización: `epic-graph.sh` obtiene los bodies de todos los subs GRATIS en la única llamada a `sub_issues` y `bp_blocked_by` parsea las deps con CERO llamadas extra; leer deps nativas costaría una query GraphQL adicional por snapshot y reescribir la gramática en sus 3 consumidores. No "modernizar" esto.
+
 ### Modo rápido — switch único
 
 `epic-auto-merge` vigente en el EPIC (actor humano no-bot vía `bp_label_event`; lo estampa b0 post-gate o el usuario a mano; re-verificar en CADA iteración — quitarlo apaga todo) activa el modo rápido COMPLETO, sin flags ni env vars:
 
 - **Drenaje auto-merge** (drain-first punto 4 — la semántica original del label).
 - **Cluster automático:** olas con ≥2 slices del mismo scope van por b8-swarm sin exigir `--cluster` (el flag queda para forzar cluster en epics SIN label).
-- **Wave-build:** la precondición `B7_PARALLEL=1` se considera cumplida — prefijar `B7_PARALLEL=1` inline en los comandos de guardrails de los agentes, igual que siempre. El RESTO de la elegibilidad (scopes distintos, `files_likely`/`## Archivos previstos` sin intersección, sin migraciones, nunca complex ni closing_slice) NO se relaja.
+- **Wave-build:** la precondición `B7_PARALLEL=1` se considera cumplida — prefijar `B7_PARALLEL=1` inline en los comandos de guardrails de los agentes, igual que siempre. El RESTO de la elegibilidad (scopes distintos, `files_likely`/`## Archivos previstos` sin intersección, sin migraciones, nunca complex ni closing_slice) NO se relaja. `B10_WAVE_MAX` defaultea a **4** (supervisado: 2).
 - **Cap dinámico de backpressure** (con su precondición de drain exitoso intacta).
+- **Review funcional diferido al epic-review:** todo despacho de build (b7 single-issue, wave-build, cluster b8) lleva `--no-screens` — EXCEPTO el `closing_slice`. El screen-review browser por PR (dev server + mint + un agente por pantalla) se paga UNA sola vez: en el walkthrough obligatorio del epic-review, que es cuando realmente importa. b6 ve `EVIDENCE=skipped reason=no-screens-flag` → WARNING no-bloqueante; el auto-merge (blockers=0) fluye. Bonus: sin browsers concurrentes desaparece la restricción de cookie-jar del wave-build.
+- **Review liviano por PR:** los builds b7 se despachan además con `--light-review` (b7 invoca `b6 --auto --light` en 8c) y el wave-verify pasa `--light`; al despachar b8, indicar en el prompt que su b6 del paso 8 corra `--light`. El juicio profundo (archivos completos, duplicación, cobertura del plan) se repite de todos modos en el pase opus agregado del epic-review — pagarlo dos veces por PR es ceremonia. `--light` conserva el piso: seguridad completa, callers de símbolos modificados, check-slice, FIX_SIN_TEST y SCREEN_EVIDENCE.
+- **CHANGELOG solo rollup:** los builds b7 llevan `--no-changelog` (salta la entrada por slice); al despachar b8, indicar en el prompt que omita las entradas de CHANGELOG. Cada PR tocando `CHANGELOG.md` era el ÚNICO archivo compartido de toda ola: generaba conflicto aditivo tras cada squash-merge (`mergeable != MERGEABLE` → PR saltado → drain frenado N-1 veces) y contradecía la elegibilidad de wave-build. El registro queda en la entrada rollup del cierre del epic (abajo).
 
 El label NO toca los gates humanos que sobreviven: batch complex post-triage, batch waivers fin de ola, epic-review + `epic-approved` antes del closing_slice, y CI FAILURE sigue cortando el drenaje. Sin el label: todo como se documenta abajo (secuencial por default, opt-ins explícitos).
 
@@ -29,7 +34,7 @@ Con el snapshot en mano, despachar fases — **leer una vez, actuar en paralelo 
 
 1. **Drain-first:** ANTES de lanzar builds, cerrar lo cerrable — los issues que el snapshot marca `closeable` (phase=close: PR abierto con veredicto b6 `blockers=0`, o PR mergeado con issue abierto). Las **decisiones** de cierre vienen del snapshot (`b6` + `B10_APPROVED` + `B10_DIRTY` del reconcile) y se miran juntas; el **merge en sí va serial** (b9 uno a uno — dos merges concurrentes a la rama default se pisan). Ruteo exacto en "Drain-first — ruteo con el snapshot" (abajo). Cada cierre libera backpressure y desbloquea dependencias.
 2. **Detectar el slice de cierre** (`closing_slice` del snapshot): el issue cuyas deps cubren al resto del grafo — frecuentemente es el PROPIO epic. NUNCA construirlo sin el gate de epic-review (abajo). Cuando es el epic mismo, tras el gate se corre la cadena single-issue sobre el número del epic.
-3. **Triagear la ola en paralelo:** los issues `buildable` cuya fase es `triage` (aún sin veredicto) se triagean **todos juntos** vía Workflow (read-only, ver "Triage paralelo de una ola"). Devuelve `{issue, verdict, complexity, scope}` por issue — el insumo para decidir build vs cluster sin pagar N triages secuenciales. Si la ola trae issues `complex`, resolver el gate en UNA pasada, no per-issue (ver "Batch de aprobaciones por ola", momento 1).
+3. **Triagear la ola en paralelo:** los issues cuyo `live.triage` del snapshot ya trae `ready complexity=...` NO van al Workflow — su veredicto sale del snapshot (flujo dominante: todos los issues de b0). Solo los issues `buildable` en fase `triage` SIN ese token se triagean **todos juntos** vía Workflow (read-only, ver "Triage paralelo de una ola"). Devuelve `{issue, verdict, complexity, scope}` por issue — el insumo para decidir build vs cluster sin pagar N triages secuenciales. Si la ola trae issues `complex`, resolver el gate en UNA pasada, no per-issue (ver "Batch de aprobaciones por ola", momento 1).
 3.5. **Verify de la ola:** issues con `live.phase=verify` y `live.b6=absent` (PR abierto sin marker de review) se revisan **todos juntos** vía Workflow (ver "Verify de la ola (Workflow)"). Los `verify` con `blockers>0` NUNCA se re-reviewan: label `needs-human-review` + comentario resumen desde el main context (igual que la fase 4 single-issue). Ojo: el csv `buildable` de la línea `B10_EPIC_STATE` mezcla `triage|build|verify` — filtrar por el objeto `live` del JSON, no por el csv.
 4. **Siguiente ola — build:** issues con todas sus deps `CLOSED` y sin PR propio, ya triageados. Despachar con el cap de la iteración (ver "Cap dinámico de backpressure").
    - Ola con 1 issue, o issues `complex` → cadena single-issue por issue, **secuencial** (ver "Paralelismo").
@@ -163,7 +168,7 @@ const verdicts = (await parallel(A.prs.map(p => () =>
         `Corre bash ${A.assert_clean} ${p.worktree} --fix; si sale exit 6: Skill b3-git-commit en el ` +
         `worktree + push (el PR debe contener TODO ANTES del review). `
       : '') +
-    `Luego Skill b6-pr-review "${p.pr} --auto" — SIN --light forzado: el size-gate de pr-context decide. ` +
+    `Luego Skill b6-pr-review "${p.pr} --auto${A.light ? ' --light' : ''}" — en modo rapido va --light (el pase profundo lo hace el epic-review); sin modo rapido decide el size-gate. ` +
     `Devolve {pr:${p.pr}, verdict, blockers, warnings} parseado de la linea B6_VERDICT.`,
     { label: `verify:#${p.pr}`, phase: 'verify', schema: VERDICT }
   )
@@ -172,7 +177,7 @@ const verdicts = (await parallel(A.prs.map(p => () =>
 return { verdicts }
 ```
 
-Invocación: `Workflow({ script:<lo de arriba>, args:{ assert_clean:"<PLUGIN_ROOT>/skills/b1-add-worktree/scripts/assert-clean.sh", prs:[{pr:312, worktree:"/abs/wt/312-foo"}, {pr:315, worktree:null}] } })` — `worktree` sale de `live.worktree` del snapshot. Con `{verdicts}` en mano: `blockers=0` → closeable en la próxima iteración; `blockers>0` → `needs-human-review` desde el main context. El marker lo estampa `verdict.sh` dentro de b6 (stamp + check de coherencia, igual que hoy) — un review a medias sin marker queda `absent` en el próximo `epic-state.sh` y se reintenta. NUNCA `b9-close`, `b7-issue-to-pr` ni `b8-swarm` dentro de este `parallel()`.
+Invocación: `Workflow({ script:<lo de arriba>, args:{ assert_clean:"<PLUGIN_ROOT>/skills/b1-add-worktree/scripts/assert-clean.sh", prs:[{pr:312, worktree:"/abs/wt/312-foo"}, {pr:315, worktree:null}], light:true } })` — `worktree` sale de `live.worktree` del snapshot; `light:true` solo en modo rápido. Con `{verdicts}` en mano: `blockers=0` → closeable en la próxima iteración; `blockers>0` → `needs-human-review` desde el main context. El marker lo estampa `verdict.sh` dentro de b6 (stamp + check de coherencia, igual que hoy) — un review a medias sin marker queda `absent` en el próximo `epic-state.sh` y se reintenta. NUNCA `b9-close`, `b7-issue-to-pr` ni `b8-swarm` dentro de este `parallel()`.
 
 ### Wave-build (Workflow, opt-in)
 
@@ -182,7 +187,8 @@ Builds de una ola en paralelo. **PRECONDICIÓN DURA — sin ella, builds secuenc
 
 ```bash
 open=$(gh pr list --state open --label auto-pr-bot --json number | jq length)
-# slots = min(B7_MAX_OPEN_PRS - open, B10_WAVE_MAX (default 2), cantidad de elegibles)
+# slots = min(B7_MAX_OPEN_PRS - open, B10_WAVE_MAX, cantidad de elegibles)
+# B10_WAVE_MAX default: 4 en modo rápido (sin screen-review por PR los builds son livianos), 2 supervisado.
 ```
 
 `slots <= 1` → build secuencial como hoy (paso 4). La lista `issues` del Workflow ya va recortada a `slots` en el main context.
@@ -212,7 +218,7 @@ const BUILD = {
 phase('build')
 const builds = (await parallel(A.issues.map(i => () =>
   agent(
-    `Corre la cadena b7 del issue #${i.n}: Skill b7-issue-to-pr "${i.n} --lang=es". ` +
+    `Corre la cadena b7 del issue #${i.n}: Skill b7-issue-to-pr "${i.n} --lang=es${A.flags || ''}". ` +
     `El worktree YA existe en ${i.worktree} (setup previo secuencial) — b7 lo detecta y retoma. ` +
     `Prefija B7_PARALLEL=1 INLINE en cada comando bash de guardrails de b7 (nunca export). ` +
     `Escribi SOLO en tu worktree. Devolve {issue:${i.n}, pr, status} parseado de la linea B7_DONE.`,
@@ -223,7 +229,7 @@ const builds = (await parallel(A.issues.map(i => () =>
 return { builds }
 ```
 
-Invocación: `Workflow({ script:<lo de arriba>, args:{ issues:[{n:262, worktree:"/abs/wt/262-foo"}, {n:263, worktree:"/abs/wt/263-bar"}] } })` — la lista ya recortada a `slots`, worktrees creados en FASE 1.
+Invocación: `Workflow({ script:<lo de arriba>, args:{ issues:[{n:262, worktree:"/abs/wt/262-foo"}, {n:263, worktree:"/abs/wt/263-bar"}], flags:" --no-screens --light-review --no-changelog" } })` — la lista ya recortada a `slots`, worktrees creados en FASE 1. `flags` SOLO en modo rápido (los tres del switch); en wave-build vía `B7_PARALLEL=1` explícito sin label, omitirlo (`""`).
 
 - `verify-port` sigue siendo gate duro por pantalla (evita revisar el checkout equivocado). Cada agente escribe SOLO en su worktree — vigilado por verify-worktree y el DoD check 3 de b7 (porcelain vacío en el repo principal): mantener esos checks.
 - Sesiones: el mint per-worktree no se pisa en DB (token/hash por worktree, cleanup por hash propio) y la sesión de browser es per-run (`b7-<worktree>-<screen>`), pero rige la restricción documentada de b7 sobre mint paralelo contra el mismo host: si los browsers comparten cookie jar de localhost, un review puede correr con la sesión de otro run — aceptable solo si toda la ola usa el mismo `B7_SESSION_USER_ID`.
@@ -241,7 +247,7 @@ Lanzar un Agent (model opus) con: (a) el diff agregado, (b) el plan doc referenc
 
 1. **Matriz de cobertura** cubierto/parcial/ausente por decisión del plan y por slice.
 2. **Tabla consolidada de sub-PRs mergeados** — una fila por sub-PR del epic ya mergeado, columnas: PR, issue, veredicto b6 (blockers), CI, diffstat, vía de merge (`merge-approved` por @actor / auto-merge vía `epic-auto-merge`). Si CUALQUIER sub-PR entró por auto-merge la tabla es OBLIGATORIA, no recomendada: es el ÚNICO punto donde el humano ve esos sub-PRs antes de aprobar el cierre — sin ella aprueba ciego.
-3. **Walkthrough en browser del flujo COMPLETO integrado** sobre la rama default actualizada: worktree temporal (`setup-worktree.sh epic-review-<EPIC> --headless`, sin arg de rama base — defaultea a `bp_default_branch`), `./dev.sh`, y el contrato de `b7-screen-review` recorriendo el flujo punta a punta. El diff valida código contra intención; solo el browser valida la experiencia.
+3. **Walkthrough en browser del flujo COMPLETO integrado** sobre la rama default actualizada: worktree temporal (`setup-worktree.sh epic-review-<EPIC> --headless`, sin arg de rama base — defaultea a `bp_default_branch`), `./dev.sh`, y UNA sesión de browser recorriendo el flujo punta a punta (no un agente por pantalla): **1 PNG golden por pantalla**, criterios adicionales validados en el JSON de resultado SIN fotografiarlos — PNG extra SOLO cuando un criterio falla (toda falla queda con captura). El diff valida código contra intención; solo el browser valida la experiencia. En modo rápido este walkthrough es LA revisión funcional del epic (los PRs entraron con `--no-screens`): recorrer los acceptance criteria de CADA sub-issue, no solo el camino feliz. La sesión se obtiene según la estrategia declarada en `## Auth de pruebas (browser)` del CLAUDE.md del repo — mismo dispatch que b7 paso 5.1 (dev-user / dev-endpoint / session-mint / manual-cookies).
 4. Gaps concretos → sugerir issues nuevos.
 
 > **Solapar el análisis con la preparación del browser:** el Agent del diff (parte 1, read-only) no toca estado — lánzalo `run_in_background` y, mientras corre, anda levantando el worktree temporal + `./dev.sh` para el walkthrough (parte 2). Cuando el diff termina, ya tienes el server arriba. Así el gate de epic-review no paga diff-luego-server en serie.
@@ -263,4 +269,4 @@ LAST_REVIEW=$(gh issue view <EPIC> --json comments \
   { gh issue edit <EPIC> --remove-label epic-approved; echo "epic-approved STALE — re-pedir aprobacion"; }
 ```
 
-**Al cerrar el epic completo:** entrada rollup en CHANGELOG (`### epic — <título> (#N)`) + `Skill informe-semanal "--feature <EPIC>"` (informe comercial consolidado, SIEMPRE en epics).
+**Al cerrar el epic completo:** entrada rollup en CHANGELOG (`### epic — <título> (#N)`, con una línea por slice — en modo rápido es el ÚNICO registro: los PRs entraron con `--no-changelog`). Editar CHANGELOG → `Skill b-pipeline:b3-git-commit` → **verificar la línea `B3_DONE commits=<n> head=<sha>`** antes de reportar cerrado — un rollup fantasma deja el tree sucio y el próximo preflight corta todo con exit 18. Luego `Skill informe-semanal "--feature <EPIC>"` (informe comercial consolidado, SIEMPRE en epics).

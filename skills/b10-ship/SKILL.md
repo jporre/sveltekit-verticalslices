@@ -59,6 +59,8 @@ Saltar a la fase que indica `B10_PHASE=`:
 
 ### 2. Triage — gate condicional
 
+**Fast-path (issues de b0):** si el reconcile emitió `B10_TRIAGE=ready complexity=<x> scope=<y>`, usar ese veredicto DIRECTO — no invocar b1 (haría lo mismo: leer esos labels). El gate complex de abajo aplica igual. Sin el token (issue foráneo, o con comentario humano nuevo):
+
 ```bash
 # vía Skill tool:
 Skill b-pipeline:b1-triage-issue "<N> --auto"
@@ -127,7 +129,7 @@ B10_DONE issue=<N> phase_final=<done|stopped-at-*> pr=<url|none>
 
 Leer `references/epic-mode.md` ANTES de despachar — loop principal, drain-first con snapshot, paralelismo (triage/verify/wave-build), batch de aprobaciones por ola, cap dinámico de backpressure y gate de epic-review viven ahí.
 
-**Switch único — modo rápido:** si el epic trae `epic-auto-merge` vigente (actor humano no-bot; lo estampa b0 en el gate o el usuario a mano), el modo rápido se activa COMPLETO sin flags ni env vars: drenaje auto-merge + wave-build (`B7_PARALLEL=1` implícito) + cluster automático por scope + cap dinámico. Quitar el label del epic apaga todo y vuelve a secuencial+gates. Detalle en epic-mode.md ("Modo rápido").
+**Switch único — modo rápido:** si el epic trae `epic-auto-merge` vigente (actor humano no-bot; lo estampa b0 en el gate o el usuario a mano), el modo rápido se activa COMPLETO sin flags ni env vars: drenaje auto-merge + wave-build (`B7_PARALLEL=1` implícito, `B10_WAVE_MAX=4`) + cluster automático por scope + cap dinámico + review funcional diferido al epic-review (builds con `--no-screens --light-review --no-changelog`; excepto el closing_slice). Quitar el label del epic apaga todo y vuelve a secuencial+gates. Detalle en epic-mode.md ("Modo rápido").
 
 ## Runs zombie
 

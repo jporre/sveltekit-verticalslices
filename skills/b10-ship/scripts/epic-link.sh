@@ -12,7 +12,8 @@ set -euo pipefail
 EPIC="$1"; shift
 REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
 
-gh issue edit "$EPIC" --add-label epic 2>/dev/null || true
+# Sin add-label "epic" acá: en el path b0 create-epic.sh ya lo pone al crear, y en
+# el path --from=<issue> el contrato es NO tocar labels del issue origen.
 
 # Sub-issues ya vinculados (por número), para idempotencia.
 EXISTING="$(gh api "repos/${REPO}/issues/${EPIC}/sub_issues" --paginate --jq '.[].number' 2>/dev/null | tr '\n' ' ' || true)"
@@ -30,6 +31,5 @@ for n in "$@"; do
   fi
 done
 
-SUMMARY="$(gh api "repos/${REPO}/issues/${EPIC}" --jq '.sub_issues_summary | "completed=\(.completed) total=\(.total) percent=\(.percent_completed)"' 2>/dev/null || echo 'n/a')"
-echo "EPIC_LINK epic=$EPIC ok=$OK skip=$SKIP fail=$FAIL summary: $SUMMARY"
+echo "EPIC_LINK epic=$EPIC ok=$OK skip=$SKIP fail=$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -94,9 +94,11 @@ En `--wet` el cierre válido es: branch + commits + PR URL + review adjunto + la
 
 ```
 <issue> [--dry-run | --wet] [--max-iterations=N] [--budget-files=N] [--no-pr]
-        [--no-screens] [--lang=es|en]
+        [--no-screens] [--light-review] [--no-changelog] [--lang=es|en]
         [--directives="<texto>"] [--force-complex]
 ```
+
+> `--light-review` y `--no-changelog` son los flags del modo rápido de epic (los pasa b10 junto con `--no-screens`): el primero fuerza `b6 --auto --light` en 8c para TODO carril; el segundo salta la entrada de CHANGELOG en el paso 6 (el registro va en el rollup del cierre del epic). Fuera de modo epic no se usan.
 
 **Argumentos recibidos en esta invocación:** `$ARGUMENTS`
 
@@ -120,7 +122,7 @@ Texto adicional en el mismo prompt (ej. `/b7-issue-to-pr #121 agregale el campo 
 Cada feature se evalúa, diseña, programa, revisa y aprueba como **pantallas y/o flujos de pantallas tal como las usaría alguien en la app**. Esto es **obligatorio**:
 
 - El triage debe identificar `screens[]` con `route`, `user_journey`, `acceptance_criteria_visual` y `success_metrics`.
-- La implementación coloca cada pantalla en su carpeta de ruta `src/routes/<feature>/`: la UI va directo en `+page.svelte`, los datos en `<feature>.remote.ts`, y los sub-componentes como hermanos PascalCase (sin subcarpeta `ui/`). Spec canónica del layout (regla 99%, excepciones `$lib`, tolerancia legacy `src/lib/features/`, doc `<feature>.md`): `$PLUGIN_ROOT/skills/b2-build-feature/references/slice-spec.md`.
+- La implementación coloca cada pantalla en su carpeta de ruta `src/routes/<feature>/`: la UI va directo en `+page.svelte`, los datos en `server/data.remote.ts`, y los componentes del feature en `ui/<Componente>.svelte` (PascalCase). Spec canónica del layout (regla 99%, excepciones `$lib`, tolerancia legacy `src/lib/features/`, doc `docs/<feature>.md`): `$PLUGIN_ROOT/skills/b2-build-feature/references/slice-spec.md`.
 - La revisión usa el agente del plugin `b7-screen-review` por cada pantalla declarada (un Agent call por pantalla).
 - El reporte y los artefactos documentales hablan en lenguaje de pantallas y flujos, no de funciones internas.
 
@@ -443,9 +445,22 @@ Reglas por exit code:
 
 **No revisar pantallas contra un server que no sea el del worktree** — ese fue el incidente que este gate previene (screen-review contra la rama default).
 
-#### 5.1 Auth: sesión scriptada (preferido) con fallback sin cookie
+#### 5.1 Auth: estrategia declarada del repo, con fallback
 
-La app exige login (OAuth Google/Microsoft) y **no** se hace login interactivo automatizado. Dos caminos, en orden:
+**Primero, leer la estrategia que el repo declara** — sección `## Auth de pruebas (browser)` de su CLAUDE.md (la instala b-setup-or-fix; formato `clave: valor`). El método de auth depende del proyecto, su DB y sus criterios de seguridad — NO asumir uno:
+
+```bash
+sed -n '/^## Auth de pruebas/,/^## /p' "$WORKTREE/CLAUDE.md"
+```
+
+Dispatch por `estrategia:`:
+
+- **`dev-user`** → el primer agente navega `login_url:` y llena el form con los VALORES de las env vars que `credenciales:` nombra (leerlas del entorno; NUNCA imprimirlas ni pegarlas en logs). Las cookies de esa sesión sirven para el resto del run.
+- **`dev-endpoint`** → `curl -si "http://localhost:${PORT}<endpoint>"` captura el `Set-Cookie` → esa es `AUTH_COOKIE`. El endpoint solo existe en dev (404 en prod por diseño).
+- **`session-mint`** → flujo A de abajo (`email_seed:` alimenta `B7_SESSION_EMAIL` si el entorno no lo trae).
+- **`manual-cookies`** → en sesión interactiva: pedir al usuario UN login manual en el browser y reusar las cookies de esa sesión. Headless: pantallas protegidas → `not-evaluated (auth-required)` + nota en el run-report (no es `fail`).
+
+Sin sección declarada: flujo A→B histórico de abajo, y dejar en el run-report: "declara `## Auth de pruebas (browser)` en CLAUDE.md (b-setup-or-fix modo base) para que los runs no improvisen el método".
 
 **A. Intentar sesión scriptada (`mint-dev-session.sh`).** Inserta una fila de sesión válida en la DB del worktree y devuelve la cookie — sin ritual manual. Requiere `B7_SESSION_USER_ID` o `B7_SESSION_EMAIL` en el entorno del run:
 
@@ -515,7 +530,7 @@ Precondición anclada a comando: el paso 6 corre **solo si** `bash "$PLUGIN_ROOT
 Si step 4 verde (pasada final `verify.sh` exit 0) AND budgets OK AND `screens-check` exit 0:
 
 - `b3-git-commit` agrupa cambios temáticos.
-- **Antes** de invocarlo, asegurar entrada en `CHANGELOG.md` usando `scripts/publish-docs.sh changelog` (lee `.b7/state.json`).
+- **Antes** de invocarlo, asegurar entrada en `CHANGELOG.md` usando `scripts/publish-docs.sh changelog` (lee `.b7/state.json`) — **salvo con `--no-changelog`** (modo epic: el registro va en el rollup del cierre; cada slice tocando CHANGELOG generaba conflicto aditivo entre PRs de la misma ola).
 
 En modo `--dry-run`, saltarse el commit y avisar al usuario que el worktree quedó con cambios sin commitear para inspección. En `--wet`, el commit NO cierra el run: continuar directo al paso 7 (publish-docs) → 8 (PR draft) → 8b (labels) → 8c (b6-pr-review).
 
@@ -605,7 +620,7 @@ PY
 
 Si `IMPACT_DRIFT` lista archivos, emitir la señal visible: línea de warning en consola, nota en el run-report y mención en el sticky del issue. NO abortar el run por esto — el gate duro sigue siendo el budget (files/lines); esto expone drift silencioso al reviewer.
 
-Apenas el PR está abierto (incluso draft), invocar `b6-pr-review "<PR> --auto"`. **Carril S:** agregar `--light` (ver `references/lane-s.md`). Carriles M y L: sin `--light` (review completo, sin cambios). **b6 en modo `--auto` publica el reporte por sí mismo** (`gh pr comment` con el marker `<!-- b6:verdict=... -->`) — NO volver a postearlo desde acá (doble posteo). Verificar que quedó publicado:
+Apenas el PR está abierto (incluso draft), invocar `b6-pr-review "<PR> --auto"`. **Carril S o flag `--light-review`:** agregar `--light` (carril S: ver `references/lane-s.md`; `--light-review` lo pasa b10 en modo rápido — el pase profundo lo hace el epic-review). Carriles M y L sin esos flags: sin `--light` (review completo, sin cambios). **b6 en modo `--auto` publica el reporte por sí mismo** (`gh pr comment` con el marker `<!-- b6:verdict=... -->`) — NO volver a postearlo desde acá (doble posteo). Verificar que quedó publicado:
 
 ```bash
 bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR> \

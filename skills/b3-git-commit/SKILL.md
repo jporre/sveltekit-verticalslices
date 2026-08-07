@@ -78,7 +78,13 @@ bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" . --fix
 
 Según exit code:
 
-- **0** → limpio, terminado. Mostrar el commit graph.
+- **0** → limpio, terminado. **Probar que los commits aterrizaron** — pegar la salida CRUDA de `git log --oneline -n <k>` (los k commits creados en este run) y terminar SIEMPRE con la línea machine-readable:
+
+  ```
+  B3_DONE commits=<n> head=<sha-corto>
+  ```
+
+  Si `git log` no muestra el commit prometido, el run NO terminó — jamás reportar un commit sin su SHA en la evidencia (un commit fantasma deja el tree sucio y corta el pipeline entero en el próximo preflight). Los orquestadores (b7/b9/b10) parsean esta línea igual que `B7_DONE`/`B9_MERGED`.
 - **6** (código sin commitear) → los archivos listados bajo `--- CODIGO ---` pertenecen al cambio: stagearlos y commitearlos (en el commit lógico que corresponda, o un commit extra `chore: incluir archivos restantes del cambio`). Re-correr la verificación. Repetir hasta exit 0. PROHIBIDO terminar reportando éxito con exit 6.
 - **7** (artefactos que `--fix` no pudo excluir, ej. tracked/staged) → reportarlos al usuario con el listado; no descartarlos.
 - **2** (invocación inválida / el directorio no es repo git) → abortar reportando el error textual; no reintentar ni dar el commit por verificado.

@@ -182,7 +182,7 @@ cmd_needs_info_check() {
 cmd_reconcile() {
   local n="$1"
   local ijson state labels pr wt marker blockers hb age now
-  ijson="$(gh issue view "$n" --json state,labels,title,body)"
+  ijson="$(gh issue view "$n" --json state,labels,title,body,createdAt,comments)"
   state="$(echo "$ijson" | jq -r .state)"
   labels="$(echo "$ijson" | jq -r '[.labels[].name] | join(",")')"
   echo "B10_ISSUE=$n"
@@ -275,6 +275,23 @@ cmd_reconcile() {
     echo "B10_PHASE=blocked"; return 0
   fi
 
+  # Fast-path: issues nacidos de b0 traen ready + complejidad en labels — emitir el
+  # veredicto de ahí para que b10 salte el spawn de b1 (que haría exactamente lo
+  # mismo: leer estos labels). Un comentario humano posterior a la creación (que no
+  # sea marker del pipeline) lo anula: ese issue va a triage completo.
+  local cx scope humans
+  case ",$labels," in *,ready,*)
+    cx=""
+    case ",$labels," in *,simple,*) cx=simple ;; *,medium,*) cx=medium ;; *,complex,*) cx=complex ;; esac
+    if [ -n "$cx" ]; then
+      scope="$(echo "$labels" | tr ',' '\n' | grep '^scope:' | head -1 | cut -d: -f2-)"
+      humans="$(echo "$ijson" | jq -r '[.comments[]?
+        | select(((.author.login // "") | test("\\[bot\\]$") | not)
+          and ((.body // "") | test("^<!-- b|^## Evaluaci") | not)
+          and (.createdAt > $created))] | length' --arg created "$(echo "$ijson" | jq -r .createdAt)" 2>/dev/null || echo 1)"
+      [ "${humans:-1}" -eq 0 ] && echo "B10_TRIAGE=ready complexity=$cx scope=${scope:-none}"
+    fi
+  ;; esac
   echo "B10_PHASE=triage"
 }
 

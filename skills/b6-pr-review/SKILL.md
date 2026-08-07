@@ -93,7 +93,9 @@ modelo: sale de la regla `blockers>0 -> request-changes; warnings>0 -> approve-w
 
 ### Área 1: Calidad del PR (redacción y comprensibilidad)
 
-Evalúa el PR como documento, no el código:
+**PRs de bot (`BOT_PR=true`): solo 3 checks mecánicos** — el body lo genera `publish-docs.sh` por plantilla determinística; revisar la redacción de tu propia plantilla en cada PR es ceremonia. (1) `Closes #N` presente, (2) body no vacío ni placeholder (BLOCKER si lo es), (3) checks de CI (punto 6 de abajo). Sin findings de redacción/scope/commits — el scope-growth ya lo expone IMPACT_DRIFT de b7 y los commits los formatea b3.
+
+**PRs humanos:** evalúa el PR como documento, no el código:
 
 1. **Título**: ¿Es claro, conciso, y describe el cambio? ¿Sigue algún patrón (conventional commits, etc)?
 2. **Descripción/Body**: ¿Explica el "por qué" del cambio, no solo el "qué"? ¿Tiene contexto suficiente para que un reviewer entienda sin leer todo el diff?
@@ -114,8 +116,8 @@ Lee los archivos cambiados con atención. Para archivos `.svelte` y `.ts` releva
 
 **Paso mecánico primero (antes del juicio LLM):** correr `check-slice.sh` sobre la rama del PR.
 Valida la conformidad estructural del slice-spec que no requiere criterio (feature nuevo
-bajo `src/lib/features/`, `data.remote.ts`, `*.remote.ts` bajo `src/lib/server/`, slice
-nuevo sin `<feature>.md`):
+bajo `src/lib/features/`, `*.remote.ts` fuera de `server/`, `*.remote.ts` bajo `src/lib/server/`, slice
+nuevo sin `docs/<feature>.md`):
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
@@ -170,11 +172,11 @@ Evalúa:
    - **Prosa de más**: comentarios que explican el QUÉ (el código ya lo dice), docstrings de párrafos, comentarios que referencian el task/PR. SUGGESTION para borrarlos. (Excepción: `// ponytail:` es la prosa válida — marca intención.)
 2. **Arquitectura colocada por feature**: ¿Los archivos están en la estructura correcta? Spec canónica (regla 99%, tabla de excepciones `$lib`, tolerancia legacy, checklist): `../b2-build-feature/references/slice-spec.md`.
    - Todo el feature vive en su carpeta de ruta `src/routes/<feature>/` (página, remote, componentes, types)
-   - `+page.svelte` ES la pantalla; componentes como hermanos PascalCase, sin subcarpeta `ui/` ni `src/lib/features/`
-   - Remote functions en `<feature>.remote.ts` (fuera de `src/lib/server/`), no el genérico `data.remote.ts`
+   - `+page.svelte` ES la pantalla; componentes del feature en `ui/<Componente>.svelte` (PascalCase), nunca en `src/lib/features/`
+   - Remote functions en `server/data.remote.ts` — ningún `*.remote.ts` fuera de `server/` (patrón viejo `<feature>.remote.ts` suelto en la raíz) ni bajo `src/lib/server/`
    - Server-only code en `.server.ts` colocados; solo lo realmente compartido vive en `$lib` (excepciones taxativas del spec: shadcn, css, db, transversales 3+ features)
    - **Tolerancia legacy**: editar un feature existente bajo `src/lib/features/` siguiendo su patrón interno NO es finding; crear un feature NUEVO ahí es BLOCKER.
-   - Feature nuevo sin su `<feature>.md` colocado (doc del slice) → WARNING
+   - Feature nuevo sin su `docs/<feature>.md` (doc del slice) → WARNING
 3. **Convenciones**:
    - shadcn-svelte con namespace imports (`import * as Card from ...`)
    - Lucide con deep imports (`import Plus from '@lucide/svelte/icons/plus'`)
@@ -223,7 +225,7 @@ La lista inline de abajo es la fuente canónica; `references/sveltekit-antipatte
 8. `Select.Value` (no existe)
 9. Lucide imports incorrectos (`import { Plus } from 'lucide-svelte'`)
 
-**En archivos REMOTE_FUNCTION** (`.remote.ts`): 10. Archivo dentro de `src/lib/server/` (prohibido) 11. Query sin `refresh()` después de mutación en el componente que la usa
+**En archivos REMOTE_FUNCTION** (`.remote.ts`): 10. Archivo dentro de `src/lib/server/` o fuera de `server/` del feature (prohibido) 11. Query sin `refresh()` después de mutación en el componente que la usa
 
 **En archivos TYPESCRIPT** (`.ts`): 12. `try/catch` envolviendo `error()` o `redirect()` de SvelteKit 13. Errores sin estructura (`error(400, 'string')` en vez de `error(400, { message, code })`)
 

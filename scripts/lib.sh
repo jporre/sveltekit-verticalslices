@@ -34,10 +34,13 @@
 
 # set estricto solo al ejecutar directo (selftest); al sourcear NO se impone
 # set -e/-u al caller (los snippets de SKILL.md corren sin modo estricto).
-if [ "${BASH_SOURCE[0]}" = "$0" ]; then set -euo pipefail; fi
+if [ "${BASH_SOURCE[0]:-}" = "$0" ]; then set -euo pipefail; fi
 
-# Raíz del plugin derivada de la ubicación de este archivo (<root>/scripts/lib.sh).
-_BP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Raíz del plugin. zsh-safe: al sourcear desde zsh BASH_SOURCE no existe y el
+# fallback por dirname resolvería relativo al cwd — priorizar los env vars que
+# todos los snippets de SKILL.md definen antes de sourcear (PLUGIN_ROOT).
+_BP_ROOT="${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT:-}}"
+[ -n "$_BP_ROOT" ] || _BP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 
 bp_find_pr() {
   local n="$1" state="${2:-open}"
@@ -115,7 +118,7 @@ bp_selftest() {
   echo "BP_LIB=ok"
 }
 
-if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+if [ "${BASH_SOURCE[0]:-}" = "$0" ]; then
   case "${1:-}" in
     selftest) bp_selftest ;;
     *) echo "Usage: . lib.sh  |  $0 selftest" >&2; exit 2 ;;

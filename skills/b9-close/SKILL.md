@@ -76,7 +76,7 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
 ```
 
-- **exit 6** (código sin commitear) → invocar `Skill b-pipeline:b3-git-commit` desde el worktree para commitearlo (b3 garantiza terminar limpio), luego seguir.
+- **exit 6** (código sin commitear) → invocar `Skill b-pipeline:b3-git-commit` desde el worktree para commitearlo, y **verificar antes de seguir**: la línea `B3_DONE commits=<n> head=<sha>` presente, `assert-clean.sh "$WORKTREE"` con exit 0, y tras el push `git -C "$WORKTREE" rev-list --count @{u}..HEAD` == 0 — reportar el SHA como evidencia. Si algo falla, ABORTAR con diagnóstico: continuar con un commit fantasma hace que el squash-merge pierda ese trabajo EN SILENCIO.
 - **exit 7** (artefactos persistentes) → reportar, no bloquea.
 
 ```bash
@@ -101,7 +101,7 @@ bp_b6_verdict "$PR"
 
 - **exit 0** → review presente. Del `B6_VERDICT`: si `blockers > 0` sin resolver, PARA y reporta — devuelve al usuario / a b7, no parchea acá.
 - **exit 3** → no hubo review. **Ofrece correrlo ahora** (`Skill b-pipeline:b6-pr-review` con el número de PR). No mergees sin review.
-- **Frescura**: si PASO 1.5 commiteó/pusheó commits nuevos (`SYNCED=1`), el review existente no los cubre — re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"` antes de seguir. El commit de sync suele ser chico; `--light` combina con el size-gate para no re-revisar full una rama ya aprobada.
+- **Frescura**: si PASO 1.5 commiteó/pusheó commits nuevos (`SYNCED=1`), el review existente no los cubre — re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"` antes de seguir. **Excepción mecánica (sync de artefactos):** si `git -C "$WORKTREE" diff --name-only <sha-del-marker-b6>..HEAD` toca SOLO `CHANGELOG.md`, `.b7/**` o `docs/**`, el review existente sigue válido — no re-correr b6 (regla por path exacto, sin juicio; el sync típico del drain es CHANGELOG/heartbeat y re-reviewarlo era churn puro). El commit de sync suele ser chico; `--light` combina con el size-gate para no re-revisar full una rama ya aprobada.
 
 ## PASO 3: Resumen pre-merge
 
@@ -189,7 +189,7 @@ B6_AT=$(gh pr view "$PR" --json comments,reviews \
 LAST_PUSH=$(gh pr view "$PR" --json commits --jq '[.commits[].committedDate] | max')
 ```
 
-- **Condición 4 — review con blockers=0 y fresca:** `bp_b6_verdict "$PR"` (corrido en PASO 2) con `blockers=0`; exit 3 (sin review) o `blockers>0` → DESCALIFICADO. Si `[[ "$LAST_PUSH" > "$B6_AT" ]]` (hubo push después de la review — el marker no cubre HEAD) → NO abortar: re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"` (mismo patrón de frescura de PASO 2), re-leer `bp_b6_verdict` y `B6_AT`; si persisten blockers>0 → DESCALIFICADO.
+- **Condición 4 — review con blockers=0 y fresca:** `bp_b6_verdict "$PR"` (corrido en PASO 2) con `blockers=0`; exit 3 (sin review) o `blockers>0` → DESCALIFICADO. Si `[[ "$LAST_PUSH" > "$B6_AT" ]]` (hubo push después de la review — el marker no cubre HEAD) → aplicar primero la excepción de sync de artefactos del PASO 2 (diff post-marker SOLO en `CHANGELOG.md`/`.b7/**`/`docs/**` → review sigue válida); si el diff trae código real, re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"`, re-leer `bp_b6_verdict` y `B6_AT`; si persisten blockers>0 → DESCALIFICADO.
 - **Condición 5 — CI y mergeable:**
 
   ```bash
@@ -276,23 +276,11 @@ bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" -
 - **exit 7** → seguir, pero si los artefactos persistentes están tracked/staged el `worktree remove` va a fallar y caer en el ABORT del fallback de abajo: es el comportamiento esperado — resolver a mano.
 
 ```bash
-# Sacar el worktree. Sin --force primero; --force SOLO si el porcelain está vacío
-# (lo único que queda son artefactos ignorados — seguro de borrar).
-if ! git -C "$REPO_MAIN" worktree remove "$WORKTREE" 2>/dev/null; then
-  if [ -z "$(git -C "$WORKTREE" status --porcelain)" ]; then
-    git -C "$REPO_MAIN" worktree remove "$WORKTREE" --force
-  else
-    # Posible con exit 7 (artefactos tracked/staged que --fix no pudo excluir):
-    # reportar pids/archivos y PARAR sin forzar.
-    lsof +D "$WORKTREE" 2>/dev/null | head -10
-    git -C "$WORKTREE" status --porcelain
-    echo "ABORT: worktree no removible — resolver a mano"; exit 1
-  fi
-fi
-git -C "$REPO_MAIN" worktree prune
-
-# Borrar la rama local (la remota ya la borró --delete-branch).
-git -C "$REPO_MAIN" branch -D "$BRANCH" 2>/dev/null || true
+# Camino SANCIONADO (encapsula remove/prune/branch -D con guardas; también borra
+# huérfanos no registrados que demuestran ser worktrees — nunca rm -rf a mano):
+bash "$PLUGIN_ROOT/skills/b9-close/scripts/cleanup-worktree.sh" "$WORKTREE" --branch "$BRANCH"
+# exit 6 = quedó código sin commitear (el rescue de arriba debió correr) — resolver y reintentar.
+# exit 1 = no removible (artefactos tracked/staged) — reportar y resolver a mano, sin forzar.
 
 # Traer la rama default mergeada al repo principal (bp_default_branch viene de
 # scripts/lib.sh, ya sourceado en PASO 0/2).
@@ -315,15 +303,9 @@ done
 # Limpiar labels de aprobación del PR si quedaron.
 gh pr edit "$PR" --remove-label merge-approved --remove-label awaiting-approval 2>/dev/null || true
 
-# Si algún issue cerrado es sub-issue de un epic, comentar progreso en el epic.
-for i in $ISSUES; do
-  EPIC=$(gh api "repos/{owner}/{repo}/issues/${i}/parent" --jq '.number' 2>/dev/null || true)
-  if [ -n "$EPIC" ]; then
-    DONE=$(gh api "repos/{owner}/{repo}/issues/${EPIC}" --jq '.sub_issues_summary | "\(.completed)/\(.total)"' 2>/dev/null || echo "?")
-    gh issue comment "$EPIC" --body "✅ Sub-issue #${i} cerrado vía PR #${PR}. Progreso del epic: ${DONE}." 2>/dev/null || true
-  fi
-done
 ```
+
+> Sin comentario de progreso en el epic: `sub_issues_summary` nativo ya muestra completed/total vivo en la UI de GitHub — comentarlo por cada cierre era ruido duplicado (N comentarios por epic).
 
 Reporte (terminar SIEMPRE con la línea machine-readable):
 

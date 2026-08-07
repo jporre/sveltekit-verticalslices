@@ -548,7 +548,9 @@ Las tres salidas se generan desde el mismo `.b7/state.json` para garantizar cons
 
 Si NOT `--dry-run` y NOT `--no-pr`: invocar `b4-pull-request` con `--draft --label auto-pr-bot --body-file .b7/pr-body.md`. El cuerpo ya viene de `publish-docs.sh`. Para las screenshots de `b7-screen-review`: ejecutar el `attach.sh` que deja cada review, que postea un comentario informativo en el PR con los nombres de los PNG + puntero al run-report (GH REST no permite inline upload de imágenes en comentarios; las imágenes embebidas se ven en el run-report HTML local).
 
-**Marker de screen-review (OBLIGATORIO, apenas existe el PR y ANTES de invocar b6 en 8c).** Postear como comentario del PR el marker que consume el gate SCREEN_EVIDENCE de b6 — formato exacto, sin variaciones. El enum de `reason` del marker es un superset del de `SKIPPED.json` (que queda en 4 valores): `no-screens-flag | lane-s-no-ui | no-port | dry-run | triage-empty | infra-fail`. `triage-empty` e `infra-fail` son marker-only — NUNCA escribir `SKIPPED.json` con esos valores:
+**Marker de screen-review (OBLIGATORIO, apenas existe el PR y ANTES de invocar b6 en 8c).** Postear como comentario del PR el marker que consume el gate SCREEN_EVIDENCE de b6 — formato exacto, sin variaciones. El enum de `reason` del marker es un superset del de `SKIPPED.json` (que queda en 4 valores): `no-screens-flag | lane-s-no-ui | no-port | dry-run | triage-empty | infra-fail`. `triage-empty` e `infra-fail` son marker-only — NUNCA escribir `SKIPPED.json` con esos valores.
+
+El marker `done` lleva SIEMPRE el token `result=ok|fail` — la misma clasificación que `B7_DONE screens=` (`fail` = algún review útil quedó en `verdict: fail`). Es la señal durable que consume la condición 4b del canal auto-merge de b9: un marker `done` sin `result=` (formato viejo) se trata como no verificable, no como ok.
 
 ```bash
 if [ -f "$WORKTREE/.b7/review/SKIPPED.json" ]; then
@@ -562,9 +564,12 @@ else
   pngs=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')
   utiles=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
     -exec jq -r '.infra_fail // false' {} + | grep -cv '^true$' || true)
+  fails=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
+    -exec jq -r 'select((.infra_fail // false) | not) | .verdict // empty' {} + | grep -c '^fail$' || true)
   if [ "$pngs" -gt 0 ] && [ "$utiles" -gt 0 ]; then
     # done SOLO con evidencia util: >=1 PNG y >=1 review sin infra_fail
-    gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=done screens=${n} -->"
+    res=ok; [ "$fails" -gt 0 ] && res=fail
+    gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=done screens=${n} result=${res} -->"
   else
     # cero PNG en .b7/review/ o todos los JSON con infra_fail:true
     gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=skipped reason=infra-fail -->"

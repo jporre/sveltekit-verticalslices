@@ -15,17 +15,20 @@ set -euo pipefail
 #   - **BLOCKER**: <texto>
 #   - **WARNING**: <texto>
 #   - **SUGGESTION**: <texto>
+#   - **HUMAN**: <texto>      (condición humana: no altera verdict, estampa human=required)
 # Se cuentan SOLO estas líneas (no tokens crudos) para no doble-contar la tabla
 # resumen (`| Código | BLOCKER |`) ni los headers de área.
 #
 # Marker durable (última línea del reporte publicado en el PR):
-#   <!-- b6:verdict=approve|approve-with-changes|request-changes blockers=N warnings=M -->
+#   <!-- b6:verdict=approve|approve-with-changes|request-changes blockers=N warnings=M[ human=required] -->
+# El token human=required es opcional y va al final: los parsers viejos (que no lo
+# conocen) siguen matcheando el prefijo; su ausencia = no requerido.
 #
 # Subcomandos:
-#   check <report.md>   cuenta blockers/warnings, computa verdict esperado,
+#   check <report.md>   cuenta blockers/warnings/humans, computa verdict esperado,
 #                       verifica marker vs counts y vs regla. exit 4 en mismatch.
 #   read <pr>           un solo `gh pr view --json comments,reviews`; último marker;
-#                       imprime `B6_VERDICT verdict=.. blockers=N warnings=M pr=P`.
+#                       imprime `B6_VERDICT verdict=.. blockers=N warnings=M human=required|no pr=P`.
 #                       exit 3 si no hay marker.
 #   stamp <report.md>   estampa/reescribe el marker computado al final del reporte.
 #
@@ -54,25 +57,29 @@ verdict_for() {
   fi
 }
 
-# Extrae el último marker de stdin. Imprime "verdict blockers warnings" o vacío.
+# Extrae el último marker de stdin. Imprime "verdict blockers warnings human" o vacío.
 parse_marker() {
-  # lee stdin, emite: <verdict> <blockers> <warnings> (una línea) del último marker.
+  # lee stdin, emite: <verdict> <blockers> <warnings> <required|no> (una línea) del
+  # último marker. Markers viejos sin token human -> "no".
   # `|| true` en el grep: sin match no debe romper el pipeline bajo `pipefail`.
-  { grep -oE 'b6:verdict=[a-z-]+ blockers=[0-9]+ warnings=[0-9]+' 2>/dev/null || true; } \
+  { grep -oE 'b6:verdict=[a-z-]+ blockers=[0-9]+ warnings=[0-9]+( human=required)?' 2>/dev/null || true; } \
     | tail -1 \
-    | sed -E 's/b6:verdict=([a-z-]+) blockers=([0-9]+) warnings=([0-9]+)/\1 \2 \3/'
+    | sed -E 's/b6:verdict=([a-z-]+) blockers=([0-9]+) warnings=([0-9]+)( human=required)?/\1 \2 \3\4/' \
+    | awk '{print $1, $2, $3, ($4 == "human=required" ? "required" : "no")}'
 }
 
 cmd_check() {
   local file="$1"
   [ -f "$file" ] || { echo "verdict.sh: no existe $file" >&2; exit 2; }
 
-  local blockers warnings expected
+  local blockers warnings humans expected expected_h
   blockers="$(count_findings "$file" BLOCKER)"
   warnings="$(count_findings "$file" WARNING)"
+  humans="$(count_findings "$file" HUMAN)"
   expected="$(verdict_for "$blockers" "$warnings")"
+  expected_h="no"; [ "$humans" -gt 0 ] && expected_h="required"
 
-  local marker mv mb mw
+  local marker mv mb mw mh
   marker="$(parse_marker < "$file")"
   if [ -z "$marker" ]; then
     echo "verdict.sh check: FALTA marker <!-- b6:verdict=... blockers=N warnings=M --> en $file" >&2
@@ -82,6 +89,7 @@ cmd_check() {
   mv="$(echo "$marker" | awk '{print $1}')"
   mb="$(echo "$marker" | awk '{print $2}')"
   mw="$(echo "$marker" | awk '{print $3}')"
+  mh="$(echo "$marker" | awk '{print $4}')"
 
   local ok=1
   if [ "$mb" != "$blockers" ]; then
@@ -93,8 +101,11 @@ cmd_check() {
   if [ "$mv" != "$expected" ]; then
     echo "verdict.sh check: MISMATCH verdict marker=$mv esperado=$expected (blockers=$blockers warnings=$warnings)" >&2; ok=0
   fi
+  if [ "$mh" != "$expected_h" ]; then
+    echo "verdict.sh check: MISMATCH human marker=$mh esperado=$expected_h (lineas HUMAN=$humans)" >&2; ok=0
+  fi
   [ "$ok" -eq 1 ] || exit 4
-  echo "B6_VERDICT verdict=$mv blockers=$mb warnings=$mw"
+  echo "B6_VERDICT verdict=$mv blockers=$mb warnings=$mw human=$mh"
 }
 
 cmd_read() {
@@ -109,28 +120,32 @@ cmd_read() {
     echo "verdict.sh read: sin marker b6 en PR #$pr" >&2
     exit 3
   fi
-  local v b w
+  local v b w h
   v="$(echo "$marker" | awk '{print $1}')"
   b="$(echo "$marker" | awk '{print $2}')"
   w="$(echo "$marker" | awk '{print $3}')"
-  echo "B6_VERDICT verdict=$v blockers=$b warnings=$w pr=$pr"
+  h="$(echo "$marker" | awk '{print $4}')"
+  echo "B6_VERDICT verdict=$v blockers=$b warnings=$w human=$h pr=$pr"
 }
 
 cmd_stamp() {
   local file="$1"
   [ -f "$file" ] || { echo "verdict.sh: no existe $file" >&2; exit 2; }
-  local blockers warnings verdict
+  local blockers warnings humans verdict htoken hval
   blockers="$(count_findings "$file" BLOCKER)"
   warnings="$(count_findings "$file" WARNING)"
+  humans="$(count_findings "$file" HUMAN)"
   verdict="$(verdict_for "$blockers" "$warnings")"
-  local newmarker="<!-- b6:verdict=$verdict blockers=$blockers warnings=$warnings -->"
+  htoken=""; hval="no"
+  if [ "$humans" -gt 0 ]; then htoken=" human=required"; hval="required"; fi
+  local newmarker="<!-- b6:verdict=$verdict blockers=$blockers warnings=$warnings$htoken -->"
   # Borrar cualquier marker previo y anexar el computado al final.
   local tmp; tmp="$(mktemp)"
   grep -vE '<!-- b6:verdict=' "$file" > "$tmp" 2>/dev/null || true
   # sacar líneas en blanco finales, luego anexar
   printf '%s\n\n%s\n' "$(cat "$tmp")" "$newmarker" > "$file"
   rm -f "$tmp"
-  echo "B6_VERDICT verdict=$verdict blockers=$blockers warnings=$warnings"
+  echo "B6_VERDICT verdict=$verdict blockers=$blockers warnings=$warnings human=$hval"
 }
 
 [ "$#" -ge 1 ] || usage

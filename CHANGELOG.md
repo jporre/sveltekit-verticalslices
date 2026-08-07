@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.9.0] — 2026-08-07
 
 ### feat — doctrina slice v2: docs/readme.md, data/, frontera entre features, sufijo .server.ts, sin load()
 

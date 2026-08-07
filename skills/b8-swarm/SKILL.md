@@ -116,13 +116,16 @@ Cluster backend puro (sin screens) → saltar, anotar en el reporte. Un `fail` v
 pngs=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
 if [ "$pngs" -gt 0 ]; then
   n=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' | wc -l | tr -d ' ')
-  gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=done screens=${n} -->"
+  fails=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
+    -exec jq -r 'select((.infra_fail // false) | not) | .verdict // empty' {} + | grep -c '^fail$' || true)
+  res=ok; [ "$fails" -gt 0 ] && res=fail
+  gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=done screens=${n} result=${res} -->"
 else
   gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=skipped reason=<r> -->"
 fi
 ```
 
-`done` SOLO con >=1 PNG en `.b7/review/`. Sin PNG, `<r>` sale de lo que pasó en el paso 5 — enum cerrado, nada fuera de esto:
+`done` SOLO con >=1 PNG en `.b7/review/` (con `result=ok|fail` — `fail` si algún review útil quedó en `verdict: fail`; lo consume la condición 4b del canal auto-merge de b9). Sin PNG, `<r>` sale de lo que pasó en el paso 5 — enum cerrado, nada fuera de esto:
 
 | Caso del paso 5 | `<r>` |
 |---|---|

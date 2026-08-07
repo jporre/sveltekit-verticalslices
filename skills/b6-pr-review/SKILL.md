@@ -327,7 +327,17 @@ Presenta el reporte con este formato exacto:
 <!-- b6:verdict=approve|approve-with-changes|request-changes blockers=N warnings=M -->
 ```
 
+(Con líneas `- **HUMAN**:` en el reporte, el marker lleva además el token ` human=required` — lo anexa `verdict.sh stamp`, nunca a mano.)
+
 El marker HTML de la última línea es el **canal durable del veredicto**: queda en el comentario del PR en GitHub, sobrevive crashes de sesión, y los orquestadores (b9-close, b10-ship, b7) lo re-leen con `verdict.sh read <pr>` (lector único; cubre comentarios y reviews). Incluirlo SIEMPRE al publicar el reporte en GitHub.
+
+**Condición humana explícita (`- **HUMAN**:`).** Cuando el review concluye que algo solo se valida manualmente (flujo que el review no pudo ejercitar: pagos reales, hardware, migración destructiva, "el detalle debe recorrerse a mano"), NO dejarlo solo en prosa — emitir una línea contable:
+
+```
+- **HUMAN**: <qué recorrer manualmente y por qué el review no pudo validarlo>
+```
+
+No altera el verdict (no es blocker ni warning), pero `verdict.sh stamp` la detecta y anexa ` human=required` al marker; el canal auto-merge de b9 (condición 4) lo trata como veto — el PR cae a los canales humanos, donde la aprobación del humano ES la validación pedida. Prosa sin la línea contable = invisible para el pipeline (la causa del caso Snuuper#219, issue #50).
 
 **No escribir el marker a mano.** Escribir el cuerpo del reporte con findings de una
 línea, guardarlo en `/tmp/pr-review-<repo>-<PR>.md` (repo = nombre del directorio del

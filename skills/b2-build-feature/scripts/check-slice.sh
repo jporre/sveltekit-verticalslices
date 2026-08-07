@@ -9,8 +9,10 @@
 #
 # Checklist mecánico (slice-spec.md, checklist de conformidad):
 #   1. Nada NUEVO bajo src/lib/features/ (tolerancia legacy: EDITAR ahí es OK).
-#   2. Remote nombrado: sin data.remote.ts; ningún *.remote.ts bajo src/lib/server/.
-#   3. Feature NUEVO (slice colocado con +page.svelte/*.remote.ts nuevos) trae su .md.
+#   2. Remote colocado: todo *.remote.ts NUEVO va en server/ del feature
+#      (src/routes/<feature>/server/data.remote.ts); ninguno bajo src/lib/server/.
+#   3. Feature NUEVO (slice con +page.svelte/*.remote.ts nuevos) trae su docs/<feature>.md
+#      (se acepta .md en la raíz del slice: layout anterior).
 #   4. (WARNING) Archivos NUEVOS en $lib fuera de la tabla de excepciones del spec.
 #
 # Exit codes estables:
@@ -60,10 +62,7 @@ while IFS=$'\t' read -r status path rest; do
   [ -z "${path:-}" ] && continue
   base="$(basename "$path")"
 
-  # --- Check 2: remote nombrado ---
-  if [ "$base" = "data.remote.ts" ]; then
-    viol "remote genérico prohibido (usar <feature>.remote.ts): $path"
-  fi
+  # --- Check 2a: ningún remote bajo src/lib/server/ (el cliente lo importa) ---
   case "$path" in
     src/lib/server/*.remote.ts|src/lib/server/**/*.remote.ts)
       viol "*.remote.ts no puede vivir bajo src/lib/server/ (el cliente lo importa): $path" ;;
@@ -72,6 +71,15 @@ while IFS=$'\t' read -r status path rest; do
   # Solo los cambios que AGREGAN archivos disparan los checks de estructura.
   # (EDITAR un archivo existente = M/D => tolerancia legacy, no es violación.)
   [ "$status" = "A" ] || continue
+
+  # --- Check 2b: remote NUEVO va en server/ del feature ---
+  if [[ "$base" == *.remote.ts ]]; then
+    case "$path" in
+      src/lib/*) : ;;                # ya cubierto por 2a
+      */server/*.remote.ts) : ;;     # canónico
+      *) viol "remote NUEVO fuera de server/ (canónico: src/routes/<feature>/server/data.remote.ts): $path" ;;
+    esac
+  fi
 
   # --- Check 1: nada nuevo bajo src/lib/features/ ---
   case "$path" in
@@ -92,16 +100,17 @@ while IFS=$'\t' read -r status path rest; do
   case "$path" in
     src/routes/*)
       dir="$(dirname "$path")"
+      case "$dir" in */server) dir="$(dirname "$dir")" ;; esac
       if [ "$base" = "+page.svelte" ] || [[ "$base" == *.remote.ts ]]; then
         case " $new_slice_dirs " in *" $dir "*) : ;; *) new_slice_dirs="$new_slice_dirs $dir" ;; esac
       fi ;;
   esac
 done <<< "$CHANGED"
 
-# --- Check 3: cada slice nuevo trae un .md colocado ---
+# --- Check 3: cada slice nuevo trae su doc (docs/<feature>.md; raíz = legacy) ---
 for dir in $new_slice_dirs; do
-  if ! ls "$REPO_ROOT/$dir"/*.md >/dev/null 2>&1; then
-    viol "feature NUEVO sin doc <feature>.md colocado: $dir/"
+  if ! ls "$REPO_ROOT/$dir"/docs/*.md >/dev/null 2>&1 && ! ls "$REPO_ROOT/$dir"/*.md >/dev/null 2>&1; then
+    viol "feature NUEVO sin doc docs/<feature>.md: $dir/"
   fi
 done
 

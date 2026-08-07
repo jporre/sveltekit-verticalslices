@@ -3,8 +3,8 @@
 Copy-paste templates for common feature types. Replace `<feature>`, `<Feature>`, `<entity>`, `<Entity>` with your actual names.
 
 Everything for a feature is colocated in its route folder under `src/routes/`. Only `+`-prefixed
-files are special to the router, so the remote file, sibling components, and types all sit next to
-`+page.svelte`. No `src/lib/features/` split, no `ui/` subfolder, no thin wrappers.
+files are special to the router, so `server/data.remote.ts`, `ui/` components, and types all live
+in the route folder next to `+page.svelte`. No `src/lib/features/` split, no thin wrappers.
 Canonical layout spec (99% rule, `$lib` exceptions, legacy tolerance): `slice-spec.md`.
 
 ## Template 1: Simple CRUD (List + Create + Edit + Delete)
@@ -20,9 +20,9 @@ import { ta<Entity> } from '$lib/server/db/schema'
 export type <Entity> = InferSelectModel<typeof ta<Entity>>
 ```
 
-> For simple features you can skip this file and `export type` directly from `<feature>.remote.ts`.
+> For simple features you can skip this file and `export type` directly from `server/data.remote.ts`.
 
-### `src/routes/<feature>/<feature>.remote.ts`
+### `src/routes/<feature>/server/data.remote.ts`
 
 ```typescript
 import { query, form, command, getRequestEvent } from '$app/server'
@@ -84,7 +84,7 @@ The UI lives directly in `+page.svelte` and imports the colocated remote file:
 
 ```svelte
 <script lang="ts">
-  import { get_<entities>, upsert_<entity>, delete_<entity> } from './<feature>.remote'
+  import { get_<entities>, upsert_<entity>, delete_<entity> } from './server/data.remote'
   import * as Card from '$lib/components/ui/card'
   import * as Table from '$lib/components/ui/table'
   import { Button } from '$lib/components/ui/button'
@@ -206,7 +206,7 @@ export const load: PageServerLoad = ({ locals }) => {
 }
 ```
 
-That's the whole feature: one folder, `+page.svelte` + `<feature>.remote.ts` (+ optional types
+That's the whole feature: one folder, `+page.svelte` + `server/data.remote.ts` (+ optional types
 and guard). Copy the folder to reuse it elsewhere.
 
 ---
@@ -215,7 +215,7 @@ and guard). Copy the folder to reuse it elsewhere.
 
 For viewing items with search/filter and opening a detail view.
 
-### Additional in `<feature>.remote.ts`
+### Additional in `server/data.remote.ts`
 
 ```typescript
 // Query with filters
@@ -278,7 +278,7 @@ export const get_<entity> = query(
 
 ```svelte
 <script lang="ts">
-  import { get_<entities> } from './<feature>.remote'
+  import { get_<entities> } from './server/data.remote'
 
   let search = $state('')
   let status = $state<'all' | 'active' | 'inactive'>('all')
@@ -342,7 +342,7 @@ export const get_<entity> = query(
 
 Multiple queries, display as cards and charts.
 
-### `<feature>.remote.ts`
+### `server/data.remote.ts`
 
 ```typescript
 export const get_dashboard_stats = query(async () => {
@@ -366,7 +366,7 @@ export const get_dashboard_stats = query(async () => {
 
 ```svelte
 <script lang="ts">
-import {get_dashboard_stats} from './<feature>.remote'
+import {get_dashboard_stats} from './server/data.remote'
 import * as Card from '$lib/components/ui/card'
 
 const stats = $derived(await get_dashboard_stats())
@@ -430,9 +430,9 @@ Multiple views of the same data (e.g., overview + settings + history).
 ```svelte
 <script lang="ts">
 import * as Tabs from '$lib/components/ui/tabs'
-import OverviewTab from './OverviewTab.svelte'
-import SettingsTab from './SettingsTab.svelte'
-import HistoryTab from './HistoryTab.svelte'
+import OverviewTab from './ui/OverviewTab.svelte'
+import SettingsTab from './ui/SettingsTab.svelte'
+import HistoryTab from './ui/HistoryTab.svelte'
 </script>
 
 <Tabs.Root value="overview">
@@ -454,5 +454,5 @@ import HistoryTab from './HistoryTab.svelte'
 </Tabs.Root>
 ```
 
-Each tab is a separate component colocated in the same route folder (flat, PascalCase) that
-imports its own remote functions. Keep tabs independent — each manages its own data.
+Each tab is a separate component in the route folder's `ui/` (PascalCase) that
+imports its remote functions from `../server/data.remote`. Keep tabs independent — each manages its own data.

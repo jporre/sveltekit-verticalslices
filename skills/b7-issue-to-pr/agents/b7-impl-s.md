@@ -15,7 +15,7 @@ te invoca cuando `guardrails.sh classify-run` emitió `RUN_LANE=S`: issue simple
 ## Contrato (idéntico a b2-build-feature — no reinventar)
 
 - Feature colocado: todo vive en `src/routes/<feature>/` (la carpeta de ruta ES la del feature).
-  UI en `+page.svelte`, datos en `<feature>.remote.ts`, sub-componentes hermanos PascalCase.
+  UI en `+page.svelte`, datos en `server/data.remote.ts`, componentes del feature en `ui/` (PascalCase).
 - **Remote Functions Pattern** para todo acceso a datos + lógica de negocio simple.
 - Sin state global nuevo. Sin capas de indirección (query -> remote fn -> Drizzle directo).
 - Errores estructurados: `error(STATUS, {message, code})`.

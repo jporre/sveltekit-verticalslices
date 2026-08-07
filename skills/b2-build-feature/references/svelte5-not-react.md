@@ -241,7 +241,7 @@ useEffect(() => {
 ```svelte
 <!-- SvelteKit: one line with remote functions -->
 <script>
-import {get_items} from './<feature>.remote'
+import {get_items} from './server/data.remote'
 
 // experimental async: one line, reactive, cached
 const items = $derived(await get_items())
@@ -326,7 +326,7 @@ This is where React habits cause the most bugs. Read carefully.
 
 ```svelte
 <script>
-import {create_item, get_items} from './<feature>.remote'
+import {create_item, get_items} from './server/data.remote'
 </script>
 
 <form
@@ -344,7 +344,7 @@ import {create_item, get_items} from './<feature>.remote'
 
 ```svelte
 <script>
-import {upsert_item, get_items} from './<feature>.remote'
+import {upsert_item, get_items} from './server/data.remote'
 import {toast} from 'svelte-sonner'
 
 let editingId = $state<string | null>(null)
@@ -387,7 +387,7 @@ For forms with conditional fields, dynamic sections, or multi-step flows:
 
 ```svelte
 <script>
-import {upsert_item, get_items} from './<feature>.remote'
+import {upsert_item, get_items} from './server/data.remote'
 
 let name = $state('')
 let type = $state('simple')
@@ -487,7 +487,7 @@ For lists under 1000 items, filter on the client. No server round-trips.
 
 ```svelte
 <script>
-import {get_products} from './<feature>.remote'
+import {get_products} from './server/data.remote'
 
 const products = $derived(await get_products())
 let search = $state('')

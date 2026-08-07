@@ -2,7 +2,7 @@
 
 La regla del proyecto: **el código más simple que funciona, gana.** Capas de más, indirecciones y abstracciones especulativas son deuda, no rigor. Esta es la disciplina de construcción que b2 sigue al escribir y que b6 usa como lente al revisar.
 
-> El antipatrón a evitar: un `query` que llama a una función que llama a una abstracción Drizzle de otra función que recién hace la query. Cuatro saltos para una query. Si una pantalla necesita sus datos, `<feature>.remote.ts` hace la query Drizzle directo. Punto.
+> El antipatrón a evitar: un `query` que llama a una función que llama a una abstracción Drizzle de otra función que recién hace la query. Cuatro saltos para una query. Si una pantalla necesita sus datos, `server/data.remote.ts` hace la query Drizzle directo. Punto.
 
 ## La escalera — frena en el primer peldaño que aguante
 

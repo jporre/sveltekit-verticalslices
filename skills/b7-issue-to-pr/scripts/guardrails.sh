@@ -408,7 +408,7 @@ cmd_context_snapshot() {
 ## Stack
 - Paquete: \`$pkg_name\`
 - SvelteKit 2 + Svelte 5 (runes, async components)
-- Remote Functions (\`*.remote.ts\`) para todo acceso a datos + lógica de negocio simple
+- Remote Functions (\`server/data.remote.ts\` por feature) para todo acceso a datos + lógica de negocio simple
 - TailwindCSS 4 + shadcn-svelte + @lucide/svelte
 - Drizzle ORM + Postgres 18 (uuidv7 para IDs nuevos)
 - Zod para validación
@@ -423,28 +423,28 @@ cmd_context_snapshot() {
 ## Layout colocado por feature (la carpeta de ruta ES la carpeta del feature)
 \`\`\`
 src/routes/<feature>/
-  +page.svelte                     # la pantalla (UI aqui; importa componentes hermanos)
-  +page.server.ts                  # load + guard de permiso
-  <feature>.remote.ts              # query/form/command + reglas de negocio simples
-  <feature>-types.ts               # tipos (o exportarlos desde <feature>.remote.ts)
-  <Feature>Form.svelte             # componentes hermanos, planos, PascalCase (sin subcarpeta ui/)
-  schemas.ts                       # solo si la validacion es compleja
-  <feature>.server.ts              # lógica compleja (solo si aplica)
-  <feature>.md                     # doc del feature: propósito, pantallas, remote fns, datos, decisiones
-  new/ , [id]/                     # sub-rutas con su propio +page.svelte (y *.remote.ts si aplica)
+  +page.svelte                     # la pantalla (importa de ./ui/ y ./server/data.remote)
+  +page.server.ts                  # guard de permiso (opcional); load() solo si un mismo dato va a varios componentes a la vez
+  server/data.remote.ts            # TODO el manejo de datos del feature (query/form/command + reglas de negocio)
+  ui/<Componente>.svelte           # componentes del feature, PascalCase
+  docs/<feature>.md                # doc del feature: propósito, pantallas, remote fns, datos, decisiones
+  tests/*.test.ts                  # tests del feature
+  new/ , [id]/                     # sub-rutas con su +page.svelte; sus datos salen de ../server/data.remote.ts
 \`\`\`
-Todo el feature vive en una carpeta bajo src/routes (regla 99%). Nada NUEVO en src/lib/features
+Todo el feature vive en una carpeta bajo src/routes (regla 99%). Subcarpetas solo cuando
+hay contenido (cero carpetas vacías). Nada NUEVO en src/lib/features
 ni thin wrappers. En \$lib solo: shadcn (\$lib/components/ui), css global, db (\$lib/server/db),
 transversales genuinos (logger/auth/format usados por 3+ features sin lógica de un feature).
 Tolerancia legacy: EDITAR un feature existente bajo src/lib/features sigue SU patrón interno;
-CREAR un feature nuevo ahí está prohibido. Al debuggear: leer primero el <feature>.md si existe.
+CREAR un feature nuevo ahí está prohibido. Al debuggear: leer primero el docs/<feature>.md si existe.
 Spec completa: skills/b2-build-feature/references/slice-spec.md (en el plugin).
 
 ## Convenciones obligatorias
 - Imports shadcn con namespace: \`import * as Card from '\$lib/components/ui/card'\`
 - Lucide: \`import Plus from '@lucide/svelte/icons/plus'\`
 - Remote functions snake_case: \`get_*\`, \`create_*\`, \`update_*\`, \`delete_*\`
-- Archivo remote nombrado \`<feature>.remote.ts\` (nunca el generico \`data.remote.ts\`), fuera de \`src/lib/server/\`
+- Archivo remote: \`server/data.remote.ts\` — UNO por feature; prohibido cualquier \`*.remote.ts\` fuera de \`server/\` (patrón viejo \`<feature>.remote.ts\` en la raíz de la ruta) o bajo \`src/lib/server/\`
+- SQL-first: filtros, group by, agregaciones, promedios y aritmética EN SQL (Drizzle); JS solo lo mínimo justificable
 - Componentes PascalCase
 - Tablas DB \`ta_*\`, vistas \`vi_*\`
 - Errores estructurados: \`error(STATUS, {message, code})\`

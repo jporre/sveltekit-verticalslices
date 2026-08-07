@@ -15,14 +15,14 @@ No unnecessary layers. The shortest path: **Drizzle query -> remote function -> 
 
 **The route folder IS the feature folder.** Everything for a feature lives in one
 folder under `src/routes/` — page, remote functions, components, types. Only `+`-prefixed files
-are special to the router, so `<feature>.remote.ts`, sibling `.svelte` components, and
-`<feature>-types.ts` sit right next to `+page.svelte`. No `src/lib/features/` split, no thin
-wrappers. One folder you can review, debug, and copy to another project as a unit. Shared-only
+are special to the router, so `server/data.remote.ts`, `ui/<Componente>.svelte` components, and
+`<feature>-types.ts` live inside the route folder next to `+page.svelte`. No `src/lib/features/`
+split, no thin wrappers. One folder you can review, debug, and copy to another project as a unit. Shared-only
 code (shadcn `$lib/components/ui`, `$lib/server/db`, cross-feature helpers) stays in `$lib`.
 
 **Canonical spec: `references/slice-spec.md`** — the 99% rule, the exact `$lib` exception
 table, the legacy tolerance (editing an existing `src/lib/features/` feature follows ITS
-pattern; NEW features never go there), and the colocated `<feature>.md` doc every new
+pattern; NEW features never go there), and the colocated `docs/<feature>.md` doc every new
 feature ships with. When in doubt about where a file goes, that spec wins.
 
 ## Two Entry Points
@@ -119,20 +119,21 @@ Then propose the file structure — everything colocated in the route folder:
 
 ```
 src/routes/<feature>/
-  +page.svelte               # The page itself (UI here; imports sibling components)
-  +page.server.ts            # load + route guard (auth/permission)
-  <feature>.remote.ts        # query + form + command — all data ops
-  <feature>-types.ts         # types (or export them straight from <feature>.remote.ts)
+  +page.svelte               # The page itself (UI here; imports from ./ui/ and ./server/data.remote)
+  +page.server.ts            # route guard (auth/permission); load() solo según la regla de datos
+  server/data.remote.ts      # query + form + command — all data ops (SQL-first)
+  <feature>-types.ts         # types (or export them straight from server/data.remote.ts)
+  docs/<feature>.md          # doc del feature
 ```
 
 Placement: the route folder IS the feature folder (ver Colocation arriba y `references/slice-spec.md`).
 
 Only add more files — all colocated in the same folder — when justified:
 
-- `<Feature>Form.svelte`, `<Feature>Table.svelte` — sibling components, flat and PascalCase, NO `ui/` subfolder
+- `ui/<Feature>Form.svelte`, `ui/<Feature>Table.svelte` — componentes del feature en `ui/`, PascalCase
 - `schemas.ts` — only if validation is complex (beyond basic required/type checks)
-- `<feature>.server.ts` — only if there is real business logic (rules, orchestration), NOT for simple CRUD
-- sub-routes (`new/`, `[id]/`) get their own colocated `+page.svelte` and, if needed, a scoped `*.remote.ts`
+- archivos extra en `server/` — solo cuando el tamaño de `data.remote.ts` lo exija de verdad (ver `references/slice-spec.md`), NOT for simple CRUD
+- sub-routes (`new/`, `[id]/`) get their own colocated `+page.svelte`; their data also comes from `../server/data.remote.ts`
 
 ### Phase 1.5: Análisis de impacto (condicional)
 
@@ -151,8 +152,8 @@ Corriendo bajo b7, el impact set se persiste en `.b7/state.json` campo `impact_f
 
 **Feature NUEVO: arranca del esqueleto por script — no improvises la estructura.**
 `scaffold-slice.sh` crea el slice colocado mínimo compilable (`+page.svelte`,
-`<feature>.remote.ts`, `<feature>.md`) siguiendo `references/slice-spec.md` (regla 99%,
-sin `ui/`, sin `data.remote.ts` genérico, sin capa service):
+`server/data.remote.ts`, `docs/<feature>.md`) siguiendo `references/slice-spec.md` (regla 99%,
+remote SOLO bajo `server/`, sin capa service; `ui/` y `tests/` se crean cuando hay contenido):
 
 ```bash
 bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/scaffold-slice.sh" <feature> [--route-group <g>]
@@ -167,17 +168,18 @@ todos los archivos y verifica una sola vez. El código copy-paste completo de ca
 `references/feature-templates.md` (Template 1); acá solo el orden, nombres y gotchas:
 
 **Step 1: Types** (`<feature>-types.ts`) — `InferSelectModel` sobre la tabla Drizzle; en features
-simples exporta los types directo desde `<feature>.remote.ts`. Si la tabla no existe, crea el
+simples exporta los types directo desde `server/data.remote.ts`. Si la tabla no existe, crea el
 schema Drizzle primero (skill `postgresql-table-design` si está disponible).
 
-**Step 2: Remote functions** (`<feature>.remote.ts`, e.g. `products.remote.ts`) — el archivo CORE:
-`query` (list) + `form` (UN upsert con `id` opcional) + `command` (delete). Nombrado por feature,
-nunca `data.remote.ts` genérico; NO va bajo `src/lib/server/` (el cliente lo importa). Toda remote
+**Step 2: Remote functions** (`server/data.remote.ts`) — el archivo CORE, SQL-first:
+`query` (list) + `form` (UN upsert con `id` opcional) + `command` (delete). Siempre
+`server/data.remote.ts`, nunca `*.remote.ts` suelto en la raíz de la ruta (patrón anterior
+`<feature>.remote.ts`) ni bajo `src/lib/server/` (el cliente lo importa). Toda remote
 function llama `requireUser()` (importado de `$lib/server`, ver `references/slice-spec.md`) como
 primera operación — b6 marca BLOCKER si falta.
 
-**Step 3: Page** (`+page.svelte`) — la UI va directo en `+page.svelte`: importa el remote colocado
-y componentes siblings; sin wrapper `<Feature>Page.svelte`. Query con `$derived(await get_x())`,
+**Step 3: Page** (`+page.svelte`) — la UI va directo en `+page.svelte`: importa `./server/data.remote`
+y componentes de `./ui/`; sin wrapper `<Feature>Page.svelte`. Query con `$derived(await get_x())`,
 form con `{...upsert_x.enhance(...)}` + `fields.as(...)`, refresh con `.updates(get_x)` /
 `get_x.refresh()`.
 
@@ -185,7 +187,7 @@ form con `{...upsert_x.enhance(...)}` + `fields.as(...)`, refresh con `.updates(
 chequean auth, pero un `load` que tira `error(401, {...})` si `!locals.user` evita renderizar una
 página que el usuario no puede usar.
 
-When a feature needs more screens, split into colocated sibling components and sub-route folders
+When a feature needs more screens, split into `ui/` components and sub-route folders
 (`new/+page.svelte`, `[id]/+page.svelte`) — the route folder IS the feature folder (ver Colocation).
 
 ### Phase 3: Verify (MANDATORY — no exceptions)
@@ -197,8 +199,8 @@ Code that compiles but hasn't been tested in a browser is NOT done.
    bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh"
    # → SLICE_CHECK ok | SLICE_CHECK violations=<n>
    ```
-   Cualquier `VIOLATION` (feature nuevo bajo `src/lib/features/`, `data.remote.ts`,
-   `*.remote.ts` bajo `src/lib/server/`, slice nuevo sin `<feature>.md`) se corrige
+   Cualquier `VIOLATION` (feature nuevo bajo `src/lib/features/`, `*.remote.ts` fuera de
+   `server/`, `*.remote.ts` bajo `src/lib/server/`, slice nuevo sin `docs/<feature>.md`) se corrige
    ANTES de seguir. Es la misma verificación que corre b6 en el review.
 1. **Correr `verify.sh`** — los gates mecánicos como script (branch guard, `check:machine`,
    `format`, grep anti-React scoped al diff, `test:unit` condicional, browser-gate):
@@ -231,9 +233,9 @@ Read `references/verification-checklist.md` for the browser walkthrough how-to.
 
 After verification passes:
 
-1. **Write/update the feature doc `<feature>.md`** — colocado en `src/routes/<feature>/<feature>.md`.
+1. **Write/update the feature doc `docs/<feature>.md`** — colocado en `src/routes/<feature>/docs/<feature>.md`.
    Es la primera parada de debug (ver `references/slice-spec.md`). No es opcional:
-   - **Feature NUEVO** → crear `<feature>.md` con las 6 secciones del slice-spec:
+   - **Feature NUEVO** → crear `docs/<feature>.md` con las 6 secciones del slice-spec:
      **Propósito** (2-3 líneas, lenguaje de usuario), **Pantallas y rutas** (qué se ve, dónde),
      **Remote functions** (nombre + una línea de contrato c/u), **Datos** (tablas/vistas que toca),
      **Decisiones** (por qué así, atajos `ponytail:` relevantes), **Problemas conocidos**.

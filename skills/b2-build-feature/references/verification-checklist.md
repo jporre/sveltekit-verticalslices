@@ -125,7 +125,7 @@ If any step found issues:
 
 ## Finalize
 
-El cierre del trabajo (doc `<feature>.md`, CHANGELOG, commit via b3, reporte) vive en
+El cierre del trabajo (doc `docs/<feature>.md`, CHANGELOG, commit via b3, reporte) vive en
 Phase 4 del SKILL.md — única fuente.
 
 ## Final Sign-Off
@@ -133,7 +133,7 @@ Phase 4 del SKILL.md — única fuente.
 Before marking feature as complete, confirm ALL of these:
 
 - [ ] `scripts/verify.sh` exit 0 — `VERIFY_RESULT branch=ok check=ok react=ok test=ok|skipped` (branch, type check, format y grep anti-React absorbidos ahi)
-- [ ] Doc del feature `<feature>.md` presente (feature nuevo) o actualizada (contratos/pantallas cambiados)
+- [ ] Doc del feature `docs/<feature>.md` presente (feature nuevo) o actualizada (contratos/pantallas cambiados)
 - [ ] All `.svelte` files (csv `svelte_files=` de VERIFY_RESULT) pass `svelte-autofixer`
 - [ ] Si `browser=required`: page loads in browser without console errors
 - [ ] All CRUD operations work (create, read, update, delete)

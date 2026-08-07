@@ -94,7 +94,7 @@ bash "$CLAUDE_PLUGIN_ROOT/skills/b1-add-worktree/scripts/codegraph-probe.sh" .  
 
 **Gate anti-fabricación en `files_likely`.** Todo path que exista en el repo DEBE venir del output de una herramienta (codegraph/rg/fd), no de memoria. Un archivo que aún no existe y hay que crear va como glob marcado (ej. `src/routes/<feature>/+page.svelte (nuevo)`). No listar un path existente sin haberlo visto en un output. Si no se pudo verificar ningún path, dejar `files_likely: []` y decirlo en el triage.
 
-**4a-doc. Read the feature doc FIRST (antes del grep).** Si el issue es un bug o cambio sobre un feature EXISTENTE, leer su doc colocado `src/routes/<feature>/<feature>.md` (o el `docs/` legacy si el feature vive bajo `src/lib/features/`) ANTES de grepear entidades. El `.md` es la primera parada de debug: da propósito, pantallas/rutas, remote functions, datos y problemas conocidos sin escanear código. Si existe, citarlo en el triage (sección Archivos / Files) y usarlo para acotar el grep de 4a. Si no existe, seguir con 4a normal.
+**4a-doc. Read the feature doc FIRST (antes del grep).** Si el issue es un bug o cambio sobre un feature EXISTENTE, leer su doc `src/routes/<feature>/docs/<feature>.md` (o el `<feature>.md` en la raíz del slice — layout viejo — o el `docs/` legacy si el feature vive bajo `src/lib/features/`) ANTES de grepear entidades. El `.md` es la primera parada de debug: da propósito, pantallas/rutas, remote functions, datos y problemas conocidos sin escanear código. Si existe, citarlo en el triage (sección Archivos / Files) y usarlo para acotar el grep de 4a. Si no existe, seguir con 4a normal.
 
 ```bash
 # El nombre del feature suele salir de las entidades del issue.
@@ -109,7 +109,7 @@ rg -l "<entidad>" src/routes src/lib/server/db/schema
 
 Open a file only when the match count justifies it (>1 hit, or the path is the obvious owner — e.g., `src/routes/<entidad>/`). Do not open the full directory tree. Do not read README unless the issue references concepts you don't recognize.
 
-**4b. Already implemented?** If 4a lands on a feature route folder matching the request, read its `+page.svelte` and `<entidad>.remote.ts` only. If the function/screen exists → mark `duplicate` and stop researching.
+**4b. Already implemented?** If 4a lands on a feature route folder matching the request, read its `+page.svelte` and `server/data.remote.ts` only. If the function/screen exists → mark `duplicate` and stop researching.
 
 **4c. Affected files.** List specific paths that would change. This grounds the complexity estimate and the risk checklist below.
 

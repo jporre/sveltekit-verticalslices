@@ -19,7 +19,7 @@ export async function load({params}) {
 }
 ```
 
-## 2. Remote Functions (`<feature>.remote.ts`)
+## 2. Remote Functions (`server/data.remote.ts`)
 
 Ejemplos de `requireUser()` / `requirePermission()` como primera operación (regla: tabla del Area 3):
 

@@ -24,18 +24,29 @@ El **99% del código del feature vive en su carpeta de ruta** `src/routes/<featu
 
 ```
 src/routes/<feature>/
-  +page.svelte                 # la pantalla (UI aqui; importa componentes hermanos)
-  +page.server.ts              # load + guard de permiso (opcional pero recomendado)
-  <feature>.remote.ts          # query/form/command + reglas de negocio simples
-  <feature>-types.ts           # tipos (o exportarlos desde <feature>.remote.ts)
-  <Feature>Form.svelte         # componentes hermanos, planos, PascalCase (sin subcarpeta ui/)
-  schemas.ts                   # solo si la validacion es compleja
-  <feature>.server.ts          # logica compleja (solo si aplica)
-  <feature>.md                 # doc del feature (primera parada de debug — ver abajo)
-  new/ , [id]/                 # sub-rutas con su propio +page.svelte (y *.remote.ts si aplica)
+  +page.svelte                 # la pantalla (importa de ./ui/ y ./server/data.remote)
+  +page.server.ts              # guard de permiso (opcional); load() solo según la regla de datos
+  +page.ts / +layout.svelte / +error.svelte   # solo los que apliquen
+  server/
+    data.remote.ts             # TODO el manejo de datos del feature (query/form/command + reglas de negocio)
+  ui/
+    <Componente>.svelte        # componentes del feature, PascalCase
+  docs/
+    <feature>.md               # doc del feature (primera parada de debug — ver abajo)
+  tests/
+    *.test.ts                  # tests del feature
+  new/ , [id]/                 # sub-rutas con su +page.svelte; sus datos también salen de ../server/data.remote.ts
 ```
 
+Ninguna subcarpeta es obligatoria — se crea cuando hay contenido (cero carpetas vacías). El INVARIANTE: todo el manejo de datos del feature vive en `server/data.remote.ts` — debuggear una query = revisar UN archivo, siempre el mismo path en cualquier feature.
+
 Feature típico = 3-5 archivos, 15-35 KB. Más archivos = sospecha de over-engineering.
+
+## Reglas de datos (`server/data.remote.ts`)
+
+- **SQL-first**: filtros, group by, agregaciones, promedios y aritmética se resuelven EN SQL (Drizzle); JavaScript solo lo mínimo justificable (presentación, mapeos triviales). Si el JS re-filtra o re-suma lo que SQL puede hacer, está mal.
+- **Remote functions por default**: type-safe, se llaman desde cualquier parte, corren siempre en server (acceso seguro a env vars y cliente de db) y con async experimental se consumen con `await` directo en el componente.
+- **`load()` es la excepción**: útil solo cuando un mismo dato se reparte a varios componentes de la ruta a la vez — pocos casos donde gana a una remote function. En la duda, remote function.
 
 ## El 1% permitido en `$lib` (excepciones taxativas)
 
@@ -51,24 +62,28 @@ la carpeta del feature. Si la usan 3+ features y es genérica (formatear fecha,
 loggear, validar sesión), va en `$lib`.
 
 Prohibiciones que se mantienen siempre:
-- Ningun `*.remote.ts` bajo `src/lib/server/` (el cliente lo importa).
-- Archivo remote nombrado `<feature>.remote.ts`, nunca el generico `data.remote.ts`.
+- Ningun `*.remote.ts` fuera de `server/` del feature: ni suelto en la raíz de la ruta
+  (patrón anterior `<feature>.remote.ts`), ni bajo `src/lib/server/` (el cliente lo importa).
+- El archivo remote es `server/data.remote.ts` — UNO por feature; partirlo recién cuando
+  el tamaño lo exija de verdad, y siempre dentro de `server/`.
 - Sin capa service para CRUD simple: remote function consulta Drizzle directo.
 
-## Tolerancia legacy (`src/lib/features/`)
+## Tolerancia legacy
 
-Proyectos existentes pueden tener features bajo `src/lib/features/<feature>/`
-(patrón anterior). Regla:
+Proyectos existentes pueden tener features bajo `src/lib/features/<feature>/` (patrón
+viejo) o con el layout colocado anterior (`<feature>.remote.ts` y componentes sueltos
+en la raíz de la ruta). Regla:
 
 - **Editar un feature legacy**: OK — seguir el patrón interno que ese feature ya usa.
-  No migrar de carpeta como parte de un fix/feature chico (eso es un issue propio).
-- **Crear un feature NUEVO**: SIEMPRE colocado en `src/routes/<feature>/`. Prohibido
-  crear features nuevos bajo `src/lib/features/`.
-- Migrar un legacy a slice colocado es un issue explicito, nunca un efecto colateral.
+  No migrar de layout como parte de un fix/feature chico (eso es un issue propio).
+- **Crear un feature NUEVO**: SIEMPRE con el layout de arriba. Prohibido crear features
+  nuevos bajo `src/lib/features/`.
+- Migrar un legacy al layout canónico es un issue explícito o el peldaño E2 de
+  b-setup-or-fix, nunca un efecto colateral.
 
-## Doc del feature: `<feature>.md` (primera parada de debug)
+## Doc del feature: `docs/<feature>.md` (primera parada de debug)
 
-Cada feature nuevo incluye un `<feature>.md` colocado con:
+Cada feature nuevo incluye un `docs/<feature>.md` con:
 
 - **Propósito** (2-3 líneas, lenguaje de usuario)
 - **Pantallas y rutas** (qué se ve, dónde)
@@ -86,10 +101,12 @@ o pantallas. Features legacy: generar el `.md` la primera vez que un issue los t
 1. Archivos nuevos del feature dentro de `src/routes/<feature>/` (o el legacy que ya
    habitaba, si el issue edita un legacy).
 2. Nada nuevo bajo `src/lib/features/`.
-3. Todo lo agregado a `$lib` cae en una fila de la tabla de excepciones (si no: mover
+3. Manejo de datos NUEVO solo en `server/data.remote.ts`; SQL-first (filtros y
+   agregaciones en la query, no en JS); `load()` nuevo solo con la excepción declarada.
+4. Todo lo agregado a `$lib` cae en una fila de la tabla de excepciones (si no: mover
    al slice o justificar como transversal 3+ features).
-4. Sin duplicados: la funcion nueva no re-implementa un helper existente.
-5. Sin codigo muerto: exports nuevos tienen consumidor; helpers que quedaron sin
+5. Sin duplicados: la funcion nueva no re-implementa un helper existente.
+6. Sin codigo muerto: exports nuevos tienen consumidor; helpers que quedaron sin
    callers tras el cambio se eliminan.
-6. Feature nuevo trae su `<feature>.md`; feature tocado con contratos cambiados lo
+7. Feature nuevo trae su `docs/<feature>.md`; feature tocado con contratos cambiados lo
    actualiza.

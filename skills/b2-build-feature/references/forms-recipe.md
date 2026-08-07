@@ -16,7 +16,7 @@ anti-pattern hides the very error borders it should show.
 Server: schema lives IN the remote function. Never validate on the client for the server op.
 
 ```ts
-// src/routes/<feature>/<feature>.remote.ts
+// src/routes/<feature>/server/data.remote.ts
 import { z } from 'zod/v4'
 import { form, query, getRequestEvent } from '$app/server'
 import { error } from '@sveltejs/kit'
@@ -60,7 +60,7 @@ Client: spread the form on `<form>`, native fields via `.as()`, toast on success
 
 ```svelte
 <script lang="ts">
-  import { get_items, upsert_item } from './<feature>.remote'
+  import { get_items, upsert_item } from './server/data.remote'
   import * as Card from '$lib/components/ui/card'
   import { Button } from '$lib/components/ui/button'
   import { Input } from '$lib/components/ui/input'

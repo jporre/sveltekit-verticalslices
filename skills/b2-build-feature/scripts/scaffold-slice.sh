@@ -7,10 +7,11 @@
 #   <feature>        nombre del feature (kebab o snake). Ej: productos, orden-compra
 #   --route-group <g> coloca el slice bajo src/routes/(<g>)/<feature>/
 #
-# Genera (mínimos COMPILABLES, sin ui/, sin data.remote.ts genérico, sin service):
+# Genera (mínimos COMPILABLES, sin service, sin carpetas vacías — ui/ y tests/ se
+# crean recién cuando haya contenido):
 #   src/routes/<feature>/+page.svelte
-#   src/routes/<feature>/<feature>.remote.ts
-#   src/routes/<feature>/<feature>.md
+#   src/routes/<feature>/server/data.remote.ts
+#   src/routes/<feature>/docs/<feature>.md
 #
 # Emite en la última línea: SCAFFOLD_OK dir=<path> files=<csv>
 set -euo pipefail
@@ -54,13 +55,13 @@ if [ -d "$DIR" ]; then
   exit 1
 fi
 
-mkdir -p "$DIR"
+mkdir -p "$DIR/server" "$DIR/docs"
 
-REMOTE_FILE="${feat_kebab}.remote.ts"
-MD_FILE="${feat_kebab}.md"
+REMOTE_FILE="server/data.remote.ts"
+MD_FILE="docs/${feat_kebab}.md"
 
-# --- <feature>.remote.ts : el archivo CORE. Query mínima compilable. ---
-# Nombrado por el feature (nunca data.remote.ts). Fuera de src/lib/server/.
+# --- server/data.remote.ts : el archivo CORE. TODO el manejo de datos del feature. ---
+# Path fijo en todo feature: debug de una query = revisar este archivo, siempre.
 cat > "${DIR}/${REMOTE_FILE}" <<REMOTE
 import {query} from '\$app/server'
 
@@ -74,7 +75,7 @@ REMOTE
 # --- +page.svelte : la pantalla. UI aquí; importa el remote colocado. ---
 cat > "${DIR}/+page.svelte" <<PAGE
 <script lang="ts">
-import {get_${feat_snake}} from './${feat_kebab}.remote'
+import {get_${feat_snake}} from './server/data.remote'
 
 const items = \$derived(await get_${feat_snake}())
 </script>
@@ -90,7 +91,7 @@ const items = \$derived(await get_${feat_snake}())
 </div>
 PAGE
 
-# --- <feature>.md : doc del slice (primera parada de debug). 6 secciones del spec. ---
+# --- docs/<feature>.md : doc del slice (primera parada de debug). 6 secciones del spec. ---
 cat > "${DIR}/${MD_FILE}" <<DOC
 # ${feat_pascal}
 

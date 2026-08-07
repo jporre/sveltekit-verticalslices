@@ -28,7 +28,7 @@ Se solicita una pantalla CRUD para gestionar productos. Los comments #3 y #5 aco
 
 ### Plan propuesto
 
-1. Crear `products.remote.ts` con `get_products`, `upsert_product`, `delete_product` (exporta tipos vía `InferSelectModel`).
+1. Crear `server/data.remote.ts` con `get_products`, `upsert_product`, `delete_product` (exporta tipos vía `InferSelectModel`).
 2. Crear `+page.svelte` con tabla y formulario upsert.
 3. (Opcional) `+page.server.ts` con guard de permiso.
 4. Verificar en navegador.
@@ -60,7 +60,7 @@ User wants a CRUD screen for products. Comments #3 and #5 narrowed the scope: in
 
 ### Plan
 
-1. Create `products.remote.ts` with `get_products`, `upsert_product`, `delete_product` (export types via `InferSelectModel`).
+1. Create `server/data.remote.ts` with `get_products`, `upsert_product`, `delete_product` (export types via `InferSelectModel`).
 2. Create `+page.svelte` with table and upsert form.
 3. (Optional) `+page.server.ts` with a permission guard.
 4. Browser verification.
@@ -84,13 +84,13 @@ El guardado de venta falla cuando el total es 0: la pantalla queda cargando y no
 Observado al correr el flujo con total 0:
 
     POST /sales 500 — TypeError: Cannot read properties of undefined (reading 'toFixed')
-        at formatTotal (src/routes/sales/sales.remote.ts:42)
+        at formatTotal (src/routes/sales/server/data.remote.ts:42)
 
-Fuente: `src/routes/sales/sales.remote.ts:42` — `formatTotal` asume `total` definido; con carrito vacío llega `undefined`.
+Fuente: `src/routes/sales/server/data.remote.ts:42` — `formatTotal` asume `total` definido; con carrito vacío llega `undefined`.
 
 ### Archivos afectados
 
-- `src/routes/sales/sales.remote.ts` — `formatTotal` (línea 42), falta guarda de `total` nulo/0.
+- `src/routes/sales/server/data.remote.ts` — `formatTotal` (línea 42), falta guarda de `total` nulo/0.
 
 ### Complejidad estimada
 

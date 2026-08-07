@@ -34,7 +34,7 @@ onMount(async () => {
 
 <!-- BIEN: remote function -->
 <script>
-import { get_items } from './<feature>.remote'
+import { get_items } from './server/data.remote'
 const items = $derived(await get_items())
 </script>
 ```
@@ -155,9 +155,9 @@ import Plus from '@lucide/svelte/icons/plus'
 </script>
 ```
 
-## 10. Remote function en src/lib/server (prohibido)
+## 10. Remote function fuera de server/ del feature (prohibido)
 
-Los archivos `.remote.ts` NO pueden estar dentro de `src/lib/server/` (el cliente los importa). Viven colocados en la carpeta de ruta del feature como `src/routes/<feature>/<feature>.remote.ts`, nunca como `data.remote.ts` genérico.
+Los archivos `.remote.ts` NO pueden estar dentro de `src/lib/server/` (el cliente los importa). Viven en `src/routes/<feature>/server/data.remote.ts`, nunca sueltos en la raíz de la ruta (patrón viejo `<feature>.remote.ts`).
 
 ## 11. Query sin refresh después de mutación
 

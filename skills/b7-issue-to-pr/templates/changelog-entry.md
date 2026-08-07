@@ -18,7 +18,7 @@ ${SUMMARY_TECHNICAL}
 **Archivos clave**:
 ${FILES_KEY_LIST}
 <!--
-  - `src/routes/${SCOPE}/${SCOPE}.remote.ts` — nueva query + permission check
+  - `src/routes/${SCOPE}/server/data.remote.ts` — nueva query + permission check
   - `src/routes/${SCOPE}/+page.svelte` — UI principal
 -->
 

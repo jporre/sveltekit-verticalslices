@@ -27,21 +27,21 @@ until the end, when there are 5 errors across 15 files.
 
 ```
 Screen 1: List page
-  → <feature>.remote.ts (get_items query)
+  → server/data.remote.ts (get_items query)
   → +page.svelte (list UI)
   → VERIFY: type check + browser test
   ✓ Screen 1 works
 
 Screen 2: Create/Edit form
-  → add upsert_item form to <feature>.remote.ts
-  → <Feature>Form.svelte (colocated sibling)
+  → add upsert_item form to server/data.remote.ts
+  → ui/<Feature>Form.svelte
   → sub-routes new/+page.svelte, [id]/+page.svelte
   → VERIFY: type check + browser test (create AND edit)
   ✓ Screen 2 works
 
 Screen 3: Detail/execution view
-  → add queries to <feature>.remote.ts
-  → <Feature>Detail.svelte (colocated sibling)
+  → add queries to server/data.remote.ts
+  → ui/<Feature>Detail.svelte
   → VERIFY: type check + browser test
   ✓ Screen 3 works
 ```
@@ -86,16 +86,18 @@ For each screen, write these files in order:
 
 Only then move to the next screen.
 
-### Step 4: Keep ONE `<feature>.remote.ts`
+### Step 4: Keep ONE `server/data.remote.ts`
 
-Do NOT split remote functions across files. One `<feature>.remote.ts` per feature, growing
+Do NOT split remote functions across files. One `server/data.remote.ts` per feature, growing
 as you add screens. This prevents import confusion and makes the API surface visible.
+Sub-routes (`new/`, `[id]/`) import from `../server/data.remote` — never a scoped remote
+file colocated in the sub-route folder.
 
 For a complex feature the file might reach 200-300 lines — that's fine. A single file
 with 15 well-organized remote functions is better than 3 files with unclear boundaries.
 
-Exception: a sub-route with heavy, self-contained data needs may get its own scoped remote file
-colocated in that sub-route folder (e.g. `[id]/detail.remote.ts`, `new/create.remote.ts`).
+Exception: split only when size truly demands it, and always inside `server/`
+(e.g. `server/detail.remote.ts`).
 
 ## When to Split Files
 
@@ -105,10 +107,10 @@ All split targets stay INSIDE the feature route folder — never `src/lib/featur
 | -------------------------------------------- | ------ | --------------------------------------------------- |
 | Multiple screens sharing types               | Yes    | One `<feature>-types.ts`                             |
 | Complex validation schemas                   | Yes    | One `schemas.ts`                                     |
-| Business logic beyond CRUD                   | Yes    | `<feature>.server.ts`                               |
-| Multiple destination types (adapter pattern) | Yes    | `adapters/` subfolder (`*.server.ts` files)         |
-| UI components reused across screens          | Yes    | Sibling `.svelte` files, flat and PascalCase        |
-| Simple CRUD screens                          | No     | Query in `<feature>.remote.ts`, UI in `+page.svelte`|
+| Business logic beyond CRUD                   | Yes    | Extra files in `server/` next to `data.remote.ts`   |
+| Multiple destination types (adapter pattern) | Yes    | `server/adapters/` subfolder (`*.server.ts` files)  |
+| UI components reused across screens          | Yes    | `ui/<Componente>.svelte`, PascalCase                |
+| Simple CRUD screens                          | No     | Query in `server/data.remote.ts`, UI in `+page.svelte`|
 
 ## When NOT to Abstract
 
@@ -136,7 +138,7 @@ Better: use `$state` for the form data and submit manually:
 
 ```svelte
 <script>
-import {create_envio, get_envios} from './envios.remote'
+import {create_envio, get_envios} from './server/data.remote'
 
 let formData = $state({
   nombre: '',

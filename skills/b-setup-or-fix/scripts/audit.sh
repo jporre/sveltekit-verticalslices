@@ -55,6 +55,8 @@ done < <(find "$SRC" \( -name '*.remote.ts' -o -name '*.remote.js' \) 2>/dev/nul
 show "remote functions sin requireUser/requirePermission (SEC-B)" "$h"
 h="$(g '*.server.ts' '^(let|var) ')"
 show "estado mutable a nivel de modulo en .server.ts (SEC-E)" "$h"
+h="$(find "$SRC/routes" -path '*/server/*' \( -name '*.ts' -o -name '*.js' \) ! -name '*.remote.ts' ! -name '*.server.ts' 2>/dev/null)"
+show "archivos en server/ sin sufijo .server.ts (sin enforcement server-only del compilador)" "$h"
 h="$(grep -rEin --include='*.ts' "(api_?key|token|password|secret)$Q?[[:space:]]*[:=][[:space:]]*$Q[A-Za-z0-9_-]{8,}" "$SRC" 2>/dev/null | grep -v '\.test\.' || true)"
 show "posibles secrets hardcodeados (SEC-D)" "$h"
 rung E1
@@ -130,7 +132,7 @@ while IFS= read -r d; do
   ls "$d"/docs/*.md >/dev/null 2>&1 || ls "$d"/*.md >/dev/null 2>&1 || h="$h$d
 "
 done < <(find "$SRC/routes" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
-show "features sin doc colocado (docs/<feature>.md) (CAL-6)" "$h"
+show "features sin doc colocado (docs/readme.md) (CAL-6)" "$h"
 [ -f docs/ARCHITECTURE.md ] || [ -f ARCHITECTURE.md ] || { echo "-- falta doc nivel repo (ARCHITECTURE.md)"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
 rung E6
 

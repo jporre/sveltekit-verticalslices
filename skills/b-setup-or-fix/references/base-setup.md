@@ -84,14 +84,15 @@ Solo las claves de la estrategia elegida. Reglas de seguridad: NADA de esto pued
 ```markdown
 # Reglas del proyecto
 
-- Cada feature es un vertical slice en `src/routes/<feature>/`: archivos de ruta (`+page.svelte`, `+page.server.ts`, …) + `server/data.remote.ts` (TODO el manejo de datos) + `ui/` (componentes) + `docs/` + `tests/` — solo las subcarpetas con contenido. La carpeta de ruta ES la carpeta del feature.
-- Datos SOLO via remote functions (`query`/`form`/`command` de `$app/server`) en `server/data.remote.ts`: sin `+server.ts` internos, sin `fetch` manual; `load()` solo si un mismo dato va a varios componentes de la ruta a la vez (raro). Camino más corto: Drizzle -> remote function -> componente; cero capas intermedias.
+- Cada feature es un vertical slice en `src/routes/<feature>/`: archivos de ruta (`+page.svelte`, `+page.server.ts`, …) + `server/data.remote.ts` (TODO el manejo de datos) + `ui/` (componentes) + `data/` (constantes `as const` y schemas) + `docs/` + `tests/` — solo las subcarpetas con contenido. La carpeta de ruta ES la carpeta del feature.
+- Datos SOLO via remote functions (`query`/`form`/`command` de `$app/server`) en `server/data.remote.ts`: sin `+server.ts` internos, sin `fetch` manual, sin `load()` para datos (`+page.server.ts` solo guard/redirect; la deduplicación de queries cubre el dato compartido). Camino más corto: Drizzle -> remote function -> componente; cero capas intermedias.
+- En `server/`, todo archivo que no es `*.remote.ts` lleva sufijo `.server.ts` (enforcement server-only del compilador). Entre features solo se importan remote functions ajenas (API pública); `ui/`/`data/`/`tests/` son privados.
 - SQL-first: filtros, group by, agregaciones y aritmética en la query (Drizzle); JavaScript solo lo mínimo justificable. Debug de datos = `server/data.remote.ts`, un solo archivo.
 - Toda remote function: guard (`requireUser`/`requirePermission`) primera línea + schema zod si recibe argumentos. Nombres `snake_case`.
 - Svelte 5 runes siempre: `$state`/`$derived`/`$props`/snippets; `onclick` no `on:click`; `$effect` solo para efectos reales (DOM, timers).
 - Mutación => refresh explícito (`.refresh()` / `.updates()`), nunca datos stale.
 - `$lib` solo para transversales genuinos (ui shadcn, db, auth, helpers de 3+ features).
-- Sin comentarios salvo `// ponytail:` (atajo deliberado, nombra el techo). La documentación vive en `docs/<feature>.md` del slice y `docs/ARCHITECTURE.md`, no en el código.
+- Sin comentarios salvo `// ponytail:` (atajo deliberado, nombra el techo). La documentación vive en `docs/readme.md` del slice y `docs/ARCHITECTURE.md`, no en el código.
 - El código más simple que funciona, gana: nada especulativo, abstraer recién con 2+ implementaciones reales.
 ```
 
@@ -108,7 +109,7 @@ SvelteKit (remote functions + async experimental) · Svelte 5 runes · Drizzle +
 ## Mapa de slices
 | Feature | Ruta | Doc |
 |---|---|---|
-| <feature> | `src/routes/<feature>/` | [`<feature>.md`](../src/routes/<feature>/docs/<feature>.md) |
+| <feature> | `src/routes/<feature>/` | [`docs/readme.md`](../src/routes/<feature>/docs/readme.md) |
 
 ## Transversales ($lib)
 - `$lib/server/db` — cliente Drizzle
@@ -116,16 +117,16 @@ SvelteKit (remote functions + async experimental) · Svelte 5 runes · Drizzle +
 - `$lib/components/ui` — shadcn-svelte
 
 ## Decisiones
-- <fecha> — <decision y por qué> (las decisiones de features viven en su <feature>.md)
+- <fecha> — <decision y por qué> (las decisiones de features viven en su docs/readme.md)
 ```
 
 Se actualiza la tabla al agregar slices. Rechazos load-bearing del usuario durante un rescate se anotan en Decisiones para no re-sugerirlos.
 
 ## 5. Política documental y de comentarios (E6)
 
-- **Por feature**: `docs/<feature>.md` dentro del slice, 6 secciones (fuente única: `slice-spec.md`): Propósito, Pantallas y rutas, Remote functions, Datos, Decisiones, Problemas conocidos. Primera parada de debug; se actualiza en el mismo PR que cambia contratos o pantallas.
+- **Por feature**: `docs/readme.md` dentro del slice, 6 secciones (fuente única: `slice-spec.md`): Propósito, Pantallas y rutas, Remote functions, Datos, Decisiones, Problemas conocidos. Primera parada de debug; se actualiza en el mismo PR que cambia contratos o pantallas.
 - **Nivel repo**: `docs/ARCHITECTURE.md` (mapa) + `CLAUDE.md` (reglas para agentes). Nada más — la doc que nadie mantiene es peor que ninguna.
-- **Comentarios**: default cero. Borrar el QUÉ ("incrementa el contador"), referencias a tasks/PRs, y prosa defensiva. Preservar `// ponytail:` (con techo y upgrade path) y TODO/FIXME accionables. Contexto útil migra al `docs/<feature>.md` antes de borrar. Regla: si la explicación es más larga que el código, se borra la explicación.
+- **Comentarios**: default cero. Borrar el QUÉ ("incrementa el contador"), referencias a tasks/PRs, y prosa defensiva. Preservar `// ponytail:` (con techo y upgrade path) y TODO/FIXME accionables. Contexto útil migra al `docs/readme.md` antes de borrar. Regla: si la explicación es más larga que el código, se borra la explicación.
 
 ## 6. Checklist de base instalada
 

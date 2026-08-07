@@ -11,7 +11,7 @@
 #   1. Nada NUEVO bajo src/lib/features/ (tolerancia legacy: EDITAR ahí es OK).
 #   2. Remote colocado: todo *.remote.ts NUEVO va en server/ del feature
 #      (src/routes/<feature>/server/data.remote.ts); ninguno bajo src/lib/server/.
-#   3. Feature NUEVO (slice con +page.svelte/*.remote.ts nuevos) trae su docs/<feature>.md
+#   3. Feature NUEVO (slice con +page.svelte/*.remote.ts nuevos) trae su docs/readme.md
 #      (se acepta .md en la raíz del slice: layout anterior).
 #   4. (WARNING) Archivos NUEVOS en $lib fuera de la tabla de excepciones del spec.
 #
@@ -107,10 +107,10 @@ while IFS=$'\t' read -r status path rest; do
   esac
 done <<< "$CHANGED"
 
-# --- Check 3: cada slice nuevo trae su doc (docs/<feature>.md; raíz = legacy) ---
+# --- Check 3: cada slice nuevo trae su doc (docs/readme.md; raíz = legacy) ---
 for dir in $new_slice_dirs; do
   if ! ls "$REPO_ROOT/$dir"/docs/*.md >/dev/null 2>&1 && ! ls "$REPO_ROOT/$dir"/*.md >/dev/null 2>&1; then
-    viol "feature NUEVO sin doc docs/<feature>.md: $dir/"
+    viol "feature NUEVO sin doc docs/readme.md: $dir/"
   fi
 done
 

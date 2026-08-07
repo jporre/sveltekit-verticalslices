@@ -95,7 +95,7 @@ Regla dura: **no agregar requisitos que no estén en la conversación o el doc.*
 
 Para que los issues nombren rutas/entidades REALES (no inventadas), un grounding breve — mismo espíritu acotado que b1-triage (grounding, no exploración exhaustiva).
 
-Incluye la doc viva del repo: `docs/ARCHITECTURE.md` (mapa de slices + Decisiones) y el `<feature>.md` colocado de cada feature que un slice toque. Títulos y bodies usan el vocabulario real del dominio, y ningún slice re-propone algo rechazado en Decisiones.
+Incluye la doc viva del repo: `docs/ARCHITECTURE.md` (mapa de slices + Decisiones) y el `docs/readme.md` colocado de cada feature que un slice toque. Títulos y bodies usan el vocabulario real del dominio, y ningún slice re-propone algo rechazado en Decisiones.
 
 **Primero, un probe FUNCIONAL de codegraph** (no confiar en "existe `.codegraph/`": la db puede estar rota o stale). Correr el probe compartido y, si dice `ok`, confirmar con una query real de la **entidad 1**:
 

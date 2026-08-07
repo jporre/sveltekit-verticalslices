@@ -22,7 +22,7 @@ code (shadcn `$lib/components/ui`, `$lib/server/db`, cross-feature helpers) stay
 
 **Canonical spec: `references/slice-spec.md`** — the 99% rule, the exact `$lib` exception
 table, the legacy tolerance (editing an existing `src/lib/features/` feature follows ITS
-pattern; NEW features never go there), and the colocated `docs/<feature>.md` doc every new
+pattern; NEW features never go there), and the colocated `docs/readme.md` doc every new
 feature ships with. When in doubt about where a file goes, that spec wins.
 
 ## Two Entry Points
@@ -123,7 +123,7 @@ src/routes/<feature>/
   +page.server.ts            # route guard (auth/permission); load() solo según la regla de datos
   server/data.remote.ts      # query + form + command — all data ops (SQL-first)
   <feature>-types.ts         # types (or export them straight from server/data.remote.ts)
-  docs/<feature>.md          # doc del feature
+  docs/readme.md          # doc del feature
 ```
 
 Placement: the route folder IS the feature folder (ver Colocation arriba y `references/slice-spec.md`).
@@ -152,7 +152,7 @@ Corriendo bajo b7, el impact set se persiste en `.b7/state.json` campo `impact_f
 
 **Feature NUEVO: arranca del esqueleto por script — no improvises la estructura.**
 `scaffold-slice.sh` crea el slice colocado mínimo compilable (`+page.svelte`,
-`server/data.remote.ts`, `docs/<feature>.md`) siguiendo `references/slice-spec.md` (regla 99%,
+`server/data.remote.ts`, `docs/readme.md`) siguiendo `references/slice-spec.md` (regla 99%,
 remote SOLO bajo `server/`, sin capa service; `ui/` y `tests/` se crean cuando hay contenido):
 
 ```bash
@@ -200,7 +200,7 @@ Code that compiles but hasn't been tested in a browser is NOT done.
    # → SLICE_CHECK ok | SLICE_CHECK violations=<n>
    ```
    Cualquier `VIOLATION` (feature nuevo bajo `src/lib/features/`, `*.remote.ts` fuera de
-   `server/`, `*.remote.ts` bajo `src/lib/server/`, slice nuevo sin `docs/<feature>.md`) se corrige
+   `server/`, `*.remote.ts` bajo `src/lib/server/`, slice nuevo sin `docs/readme.md`) se corrige
    ANTES de seguir. Es la misma verificación que corre b6 en el review.
 1. **Correr `verify.sh`** — los gates mecánicos como script (branch guard, `check:machine`,
    `format`, grep anti-React scoped al diff, `test:unit` condicional, browser-gate):
@@ -233,9 +233,9 @@ Read `references/verification-checklist.md` for the browser walkthrough how-to.
 
 After verification passes:
 
-1. **Write/update the feature doc `docs/<feature>.md`** — colocado en `src/routes/<feature>/docs/<feature>.md`.
+1. **Write/update the feature doc `docs/readme.md`** — colocado en `src/routes/<feature>/docs/readme.md`.
    Es la primera parada de debug (ver `references/slice-spec.md`). No es opcional:
-   - **Feature NUEVO** → crear `docs/<feature>.md` con las 6 secciones del slice-spec:
+   - **Feature NUEVO** → crear `docs/readme.md` con las 6 secciones del slice-spec:
      **Propósito** (2-3 líneas, lenguaje de usuario), **Pantallas y rutas** (qué se ve, dónde),
      **Remote functions** (nombre + una línea de contrato c/u), **Datos** (tablas/vistas que toca),
      **Decisiones** (por qué así, atajos `ponytail:` relevantes), **Problemas conocidos**.

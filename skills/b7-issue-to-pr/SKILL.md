@@ -122,7 +122,7 @@ Texto adicional en el mismo prompt (ej. `/b7-issue-to-pr #121 agregale el campo 
 Cada feature se evalúa, diseña, programa, revisa y aprueba como **pantallas y/o flujos de pantallas tal como las usaría alguien en la app**. Esto es **obligatorio**:
 
 - El triage debe identificar `screens[]` con `route`, `user_journey`, `acceptance_criteria_visual` y `success_metrics`.
-- La implementación coloca cada pantalla en su carpeta de ruta `src/routes/<feature>/`: la UI va directo en `+page.svelte`, los datos en `server/data.remote.ts`, y los componentes del feature en `ui/<Componente>.svelte` (PascalCase). Spec canónica del layout (regla 99%, excepciones `$lib`, tolerancia legacy `src/lib/features/`, doc `docs/<feature>.md`): `$PLUGIN_ROOT/skills/b2-build-feature/references/slice-spec.md`.
+- La implementación coloca cada pantalla en su carpeta de ruta `src/routes/<feature>/`: la UI va directo en `+page.svelte`, los datos en `server/data.remote.ts`, y los componentes del feature en `ui/<Componente>.svelte` (PascalCase). Spec canónica del layout (regla 99%, excepciones `$lib`, tolerancia legacy `src/lib/features/`, doc `docs/readme.md`): `$PLUGIN_ROOT/skills/b2-build-feature/references/slice-spec.md`.
 - La revisión usa el agente del plugin `b7-screen-review` por cada pantalla declarada (un Agent call por pantalla).
 - El reporte y los artefactos documentales hablan en lenguaje de pantallas y flujos, no de funciones internas.
 

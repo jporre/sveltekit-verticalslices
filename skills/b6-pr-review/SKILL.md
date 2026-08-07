@@ -117,7 +117,7 @@ Lee los archivos cambiados con atención. Para archivos `.svelte` y `.ts` releva
 **Paso mecánico primero (antes del juicio LLM):** correr `check-slice.sh` sobre la rama del PR.
 Valida la conformidad estructural del slice-spec que no requiere criterio (feature nuevo
 bajo `src/lib/features/`, `*.remote.ts` fuera de `server/`, `*.remote.ts` bajo `src/lib/server/`, slice
-nuevo sin `docs/<feature>.md`):
+nuevo sin `docs/readme.md`):
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
@@ -176,7 +176,7 @@ Evalúa:
    - Remote functions en `server/data.remote.ts` — ningún `*.remote.ts` fuera de `server/` (patrón viejo `<feature>.remote.ts` suelto en la raíz) ni bajo `src/lib/server/`
    - Server-only code en `.server.ts` colocados; solo lo realmente compartido vive en `$lib` (excepciones taxativas del spec: shadcn, css, db, transversales 3+ features)
    - **Tolerancia legacy**: editar un feature existente bajo `src/lib/features/` siguiendo su patrón interno NO es finding; crear un feature NUEVO ahí es BLOCKER.
-   - Feature nuevo sin su `docs/<feature>.md` (doc del slice) → WARNING
+   - Feature nuevo sin su `docs/readme.md` (doc del slice) → WARNING
 3. **Convenciones**:
    - shadcn-svelte con namespace imports (`import * as Card from ...`)
    - Lucide con deep imports (`import Plus from '@lucide/svelte/icons/plus'`)

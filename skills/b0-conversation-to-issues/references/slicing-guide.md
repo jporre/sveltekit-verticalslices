@@ -53,7 +53,7 @@ Corre DESPUÉS de asignar olas y ANTES del gate. Cruzar los `## Archivos previst
 
 1. **Mismo archivo, misma ola** → wave-build lo prohíbe: cluster (mismo scope, un PR vía b8) o merge de los slices.
 2. **Mismo archivo, olas distintas** → aceptable solo si es **append-only** (cada slice AGREGA una remote function o un bloque a la pantalla existente). Si un slice REESCRIBE lo que otro creó (rehace el layout, cambia la firma de la query), mergearlos: dos pasadas sobre lo mismo son roce puro, no dos slices.
-3. **Cola transversal** — tests automatizados y docs (`docs/<feature>.md`, mapa de ARCHITECTURE) que 3+ slices tocarían: extraer a UN slice de cierre `chore(scope): tests y docs del epic`, `blocked_by` todos los slices que cubre — o el epic mismo como `closing_slice: "epic"` si el cierre además incluye limpieza/swap. Se escriben UNA vez contra el estado final, no N veces contra estados intermedios que el siguiente slice invalida.
+3. **Cola transversal** — tests automatizados y docs (`docs/readme.md`, mapa de ARCHITECTURE) que 3+ slices tocarían: extraer a UN slice de cierre `chore(scope): tests y docs del epic`, `blocked_by` todos los slices que cubre — o el epic mismo como `closing_slice: "epic"` si el cierre además incluye limpieza/swap. Se escriben UNA vez contra el estado final, no N veces contra estados intermedios que el siguiente slice invalida.
 
 Qué NO se consolida: los **criterios de aceptación visuales** se quedan en su slice — b7-screen-review verifica cada pantalla en el browser al mergear; eso es lo que mantiene cada slice demoable por sí solo. Lo que se concentra al final es la redacción (docs) y la automatización (tests), no la verificación.
 
@@ -156,7 +156,7 @@ simple | medium  (simple = 3-5 archivos, medium = 5-8)
 Reglas del body:
 
 - Si existe design doc (`docs/plans/<tema>.md`), linkearlo al final del body (`> Diseño: docs/plans/<tema>.md`) — las reglas globales de ejecución (sin comentarios, simplicidad, browser-first) viven UNA vez ahí, no se repiten por issue.
-- Si el plan tiene slice de cierre (tests + docs consolidados), el `## Alcance` de cada slice lo declara explícito: "tests y `docs/<feature>.md` van en <id-del-cierre>" — no se escriben por slice.
+- Si el plan tiene slice de cierre (tests + docs consolidados), el `## Alcance` de cada slice lo declara explícito: "tests y `docs/readme.md` van en <id-del-cierre>" — no se escriben por slice.
 
 - **No** escribir `## Blocked by` ni `#numeros` aquí — las deps van en `blocked_by` (slice-ids) del plan; el script las inyecta resolviendo a números reales.
 - Slice **backend puro** (sin pantalla): reemplazar `## Pantalla(s)` por `## Remote functions / endpoints` con los criterios de aceptación no-visuales. b7 corre igual con `screens: []`.

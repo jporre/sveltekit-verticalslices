@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### feat — doctrina slice v2: docs/readme.md, data/, frontera entre features, sufijo .server.ts, sin load()
+
+Absorbe las definiciones acordadas en el starter de Bnex (CONTEXT.md + ADR 0001 del starter):
+
+- Doc del feature pasa de `docs/<feature>.md` a **`docs/readme.md`** — path fijo en todo feature (mismo argumento que `data.remote.ts`) y GitHub lo renderiza al navegar la carpeta. `docs/comments.md` opcional: el porqué de código no obvio anclado por símbolo. Sin changelog local: git es el changelog.
+- Subcarpeta **`data/`** nueva en el layout: constantes estructurales `as const` y `schemas.ts` isomórficos (zod único validador; schemas inline en `data.remote.ts` por default, se extraen cuando el cliente los necesita).
+- **Frontera entre features**: `server/data.remote.ts` es la API pública — lo único importable desde otro feature; `ui/`/`data/`/`server/*.server.ts`/`tests/` son privados. Tests solo importan del propio feature o `$lib`. Checklist de conformidad item 8 nuevo.
+- **Sufijo `.server.ts` obligatorio** para todo archivo no-remote en `server/` (la carpeta no protege; el sufijo activa el enforcement del compilador). Check mecánico nuevo en `audit.sh` (E1).
+- **`load()` deja de ser excepción**: la deduplicación de queries por request cubre el dato compartido; `+page.server.ts` queda solo para guard/redirect. `+server.ts` solo consumidores externos.
+- **Tests**: tríada `*.test.ts` / `*.svelte.test.ts` / `*.e2e.ts` plana en `tests/` (el sufijo decide el runner).
+
+**Archivos clave**: `skills/b2-build-feature/references/slice-spec.md` (fuente única), `scaffold-slice.sh` (genera `docs/readme.md`), `audit.sh` (check E1 nuevo + CAL-6 renombrado), `base-setup.md` (doctrina CLAUDE.md), `fix-ladder.md`, renombres de la doc en b0/b1/b6/b7.
+
 ### fix — b9: el canal auto-merge ahora ve el screen-review y las condiciones humanas de b6 (#50)
 
 El canal auto-merge gateaba solo con `b6 blockers=0` + CI + `mergeable`; un `Veredicto: fail` del screen-review o un "esto debe recorrerse a mano" en prosa del b6 no lo frenaban (casos reales Snuuper#218/#219).

@@ -11,7 +11,7 @@
 # crean recién cuando haya contenido):
 #   src/routes/<feature>/+page.svelte
 #   src/routes/<feature>/server/data.remote.ts
-#   src/routes/<feature>/docs/<feature>.md
+#   src/routes/<feature>/docs/readme.md
 #
 # Emite en la última línea: SCAFFOLD_OK dir=<path> files=<csv>
 set -euo pipefail
@@ -58,7 +58,7 @@ fi
 mkdir -p "$DIR/server" "$DIR/docs"
 
 REMOTE_FILE="server/data.remote.ts"
-MD_FILE="docs/${feat_kebab}.md"
+MD_FILE="docs/readme.md"
 
 # --- server/data.remote.ts : el archivo CORE. TODO el manejo de datos del feature. ---
 # Path fijo en todo feature: debug de una query = revisar este archivo, siempre.
@@ -91,7 +91,7 @@ const items = \$derived(await get_${feat_snake}())
 </div>
 PAGE
 
-# --- docs/<feature>.md : doc del slice (primera parada de debug). 6 secciones del spec. ---
+# --- docs/readme.md : doc del slice (primera parada de debug). 6 secciones del spec. ---
 cat > "${DIR}/${MD_FILE}" <<DOC
 # ${feat_pascal}
 

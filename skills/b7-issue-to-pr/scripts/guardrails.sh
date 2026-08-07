@@ -427,7 +427,7 @@ src/routes/<feature>/
   +page.server.ts                  # guard de permiso (opcional); load() solo si un mismo dato va a varios componentes a la vez
   server/data.remote.ts            # TODO el manejo de datos del feature (query/form/command + reglas de negocio)
   ui/<Componente>.svelte           # componentes del feature, PascalCase
-  docs/<feature>.md                # doc del feature: propósito, pantallas, remote fns, datos, decisiones
+  docs/readme.md                # doc del feature: propósito, pantallas, remote fns, datos, decisiones
   tests/*.test.ts                  # tests del feature
   new/ , [id]/                     # sub-rutas con su +page.svelte; sus datos salen de ../server/data.remote.ts
 \`\`\`
@@ -436,7 +436,7 @@ hay contenido (cero carpetas vacías). Nada NUEVO en src/lib/features
 ni thin wrappers. En \$lib solo: shadcn (\$lib/components/ui), css global, db (\$lib/server/db),
 transversales genuinos (logger/auth/format usados por 3+ features sin lógica de un feature).
 Tolerancia legacy: EDITAR un feature existente bajo src/lib/features sigue SU patrón interno;
-CREAR un feature nuevo ahí está prohibido. Al debuggear: leer primero el docs/<feature>.md si existe.
+CREAR un feature nuevo ahí está prohibido. Al debuggear: leer primero el docs/readme.md si existe.
 Spec completa: skills/b2-build-feature/references/slice-spec.md (en el plugin).
 
 ## Convenciones obligatorias

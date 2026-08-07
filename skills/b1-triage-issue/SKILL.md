@@ -94,11 +94,11 @@ bash "$CLAUDE_PLUGIN_ROOT/skills/b1-add-worktree/scripts/codegraph-probe.sh" .  
 
 **Gate anti-fabricación en `files_likely`.** Todo path que exista en el repo DEBE venir del output de una herramienta (codegraph/rg/fd), no de memoria. Un archivo que aún no existe y hay que crear va como glob marcado (ej. `src/routes/<feature>/+page.svelte (nuevo)`). No listar un path existente sin haberlo visto en un output. Si no se pudo verificar ningún path, dejar `files_likely: []` y decirlo en el triage.
 
-**4a-doc. Read the feature doc FIRST (antes del grep).** Si el issue es un bug o cambio sobre un feature EXISTENTE, leer su doc `src/routes/<feature>/docs/<feature>.md` (o el `<feature>.md` en la raíz del slice — layout viejo — o el `docs/` legacy si el feature vive bajo `src/lib/features/`) ANTES de grepear entidades. El `.md` es la primera parada de debug: da propósito, pantallas/rutas, remote functions, datos y problemas conocidos sin escanear código. Si existe, citarlo en el triage (sección Archivos / Files) y usarlo para acotar el grep de 4a. Si no existe, seguir con 4a normal.
+**4a-doc. Read the feature doc FIRST (antes del grep).** Si el issue es un bug o cambio sobre un feature EXISTENTE, leer su doc `src/routes/<feature>/docs/readme.md` (o el `<feature>.md` en la raíz del slice — layout viejo — o el `docs/` legacy si el feature vive bajo `src/lib/features/`) ANTES de grepear entidades. El `.md` es la primera parada de debug: da propósito, pantallas/rutas, remote functions, datos y problemas conocidos sin escanear código. Si existe, citarlo en el triage (sección Archivos / Files) y usarlo para acotar el grep de 4a. Si no existe, seguir con 4a normal.
 
 ```bash
 # El nombre del feature suele salir de las entidades del issue.
-fd -g '<feature>.md' src/routes 2>/dev/null || find src/routes -name '<feature>.md'
+ls src/routes/<feature>/docs/readme.md 2>/dev/null || find src/routes -name '<feature>.md'   # fallback: layout viejo
 ```
 
 **4a. Extract entities.** Pull 1-3 nouns the issue is about (e.g., "productos", "ventas", "auth", "campaigns"). For each, one targeted grep:

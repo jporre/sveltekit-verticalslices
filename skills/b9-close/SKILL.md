@@ -201,7 +201,7 @@ LAST_PUSH=$(gh pr view "$PR" --json commits --jq '[.commits[].committedDate] | m
   - `result=fail` → DESCALIFICADO + label `needs-human-review` a cada issue del PR (mismo veto persistente que la condición 4) + comentario en el PR citando el review visual que falló. Un `Veredicto: fail` del screen-review NUNCA se auto-mergea.
   - `=done ... result=ok` → condición cumplida.
   - `=skipped reason=<r>` → condición cumplida (skip declarado no bloquea — mismo criterio que el WARNING de b6), pero `<r>` DEBE quedar visible en el comentario de audit del merge (abajo), nunca tapado por un genérico.
-  - Marker ausente o `=done` sin `result=` (formato viejo) → no verificable: si el diff toca UI (`gh pr diff "$PR" --name-only | grep -qE '\.svelte$|^src/routes/'`) → DESCALIFICADO (default-deny: cae al canal humano); sin UI en el diff → condición cumplida (`screens=n/a`).
+  - Marker ausente o `=done` sin `result=` (formato viejo) → no verificable: correr `DIFF_FILES=$(gh pr diff "$PR" --name-only)` — si el comando FALLA (API error, PR gigante), DESCALIFICADO (falla de comando ≠ ausencia de UI; default-deny, nunca fail-open); si `DIFF_FILES` matchea `grep -qE '(^|/)src/routes/|\.svelte$|\.remote\.ts$'` (la MISMA regex UI de `pr-context.sh` de b6 — no una más angosta) → DESCALIFICADO (cae al canal humano); sin UI en el diff → condición cumplida (`screens=n/a`).
 - **Condición 5 — CI y mergeable:**
 
   ```bash

@@ -6,7 +6,7 @@
 
 El canal auto-merge gateaba solo con `b6 blockers=0` + CI + `mergeable`; un `Veredicto: fail` del screen-review o un "esto debe recorrerse a mano" en prosa del b6 no lo frenaban (casos reales Snuuper#218/#219).
 
-- b7/b8: el marker `b7:screen-review=done` lleva `result=ok|fail` (la clasificación que ya calculaba para `B7_DONE screens=`).
+- b7/b8: el marker `b7:screen-review=done` lleva `result=ok|fail` (la clasificación que ya calculaba para `B7_DONE screens=`); b8 hereda el guard `utiles` de b7 (100% `infra_fail` → `skipped reason=infra-fail`, nunca `done result=ok`).
 - b9 condición 4b nueva: `result=fail` → DESCALIFICADO + `needs-human-review` persistente; marker ausente o formato viejo con UI en el diff → default-deny al canal humano; `skipped-<r>` no bloquea pero queda visible en el audit.
 - b6: línea contable `- **HUMAN**: <razón>` → `verdict.sh stamp` anexa ` human=required` al marker (retrocompatible; no altera el verdict); b9 lo trata como veto del auto-merge en la condición 4.
 - Audit trail del auto-merge refleja lo evaluado real: `CI n/a (sin checks)` cuando la condición 5 pasó por lista vacía, y `screens=<estado>` de 4b.

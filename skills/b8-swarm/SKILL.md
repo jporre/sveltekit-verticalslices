@@ -114,7 +114,9 @@ Cluster backend puro (sin screens) → saltar, anotar en el reporte. Un `fail` v
 
 ```bash
 pngs=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
-if [ "$pngs" -gt 0 ]; then
+utiles=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
+  -exec jq -r '.infra_fail // false' {} + 2>/dev/null | grep -cv '^true$' || true)
+if [ "$pngs" -gt 0 ] && [ "$utiles" -gt 0 ]; then
   n=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' | wc -l | tr -d ' ')
   fails=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
     -exec jq -r 'select((.infra_fail // false) | not) | .verdict // empty' {} + | grep -c '^fail$' || true)
@@ -125,7 +127,7 @@ else
 fi
 ```
 
-`done` SOLO con >=1 PNG en `.b7/review/` (con `result=ok|fail` — `fail` si algún review útil quedó en `verdict: fail`; lo consume la condición 4b del canal auto-merge de b9). Sin PNG, `<r>` sale de lo que pasó en el paso 5 — enum cerrado, nada fuera de esto:
+`done` SOLO con >=1 PNG en `.b7/review/` Y >=1 review sin `infra_fail` (mismo guard `utiles` de b7 — con browser caído en todos los reviews el marker es `skipped reason=infra-fail`, nunca `done result=ok`). `result=ok|fail`: `fail` si algún review útil quedó en `verdict: fail`; lo consume la condición 4b del canal auto-merge de b9. Sin PNG o sin reviews útiles, `<r>` sale de lo que pasó en el paso 5 — enum cerrado, nada fuera de esto:
 
 | Caso del paso 5 | `<r>` |
 |---|---|

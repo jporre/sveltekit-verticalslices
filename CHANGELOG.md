@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-08-06
+
+### feat — slice: layout canónico `server/ui/docs/tests`
+
+Todo el manejo de datos del feature en `server/data.remote.ts` (debug de una query = UN archivo, mismo path en todo feature); componentes en `ui/`, doc en `docs/<feature>.md`, tests en `tests/`. Invierte dos reglas: `data.remote.ts` pasa de prohibido a canon, `ui/` de vetada a canónica. SQL-first (filtros/group by/agregaciones en la query; JS mínimo); `load()` solo para dato compartido entre varios componentes. `scaffold-slice`/`check-slice`/`audit.sh` generan y validan el árbol nuevo; tolerancia legacy al layout colocado anterior.
+
+**Archivos clave**: `skills/b2-build-feature/references/slice-spec.md` (fuente única), scripts de b2, referencias de b0/b1/b6/b7.
+
+### feat — b10: modo rápido completo (épicas a wall-clock mínimo)
+
+Con `epic-auto-merge` vigente: builds con `--no-screens --light-review --no-changelog` — la revisión funcional en browser se paga UNA vez en el walkthrough del epic-review (1 sesión, 1 PNG golden por pantalla), b6 light por PR (el pase profundo lo hace el epic-review) y CHANGELOG solo rollup al cierre (mata el conflicto aditivo que frenaba el drain N-1 veces por ola). `B10_WAVE_MAX` 2→4. Triage sin re-spawn para issues de b0 (`B10_TRIAGE` desde labels en el reconcile, anulado por comentario humano nuevo).
+
+**Archivos clave**: `skills/b10-ship/references/epic-mode.md`, `skills/b10-ship/scripts/run.sh`, `skills/b7-issue-to-pr/SKILL.md` (flags nuevos).
+
+### feat — b0: `--from=<issue>`, consolidación anti-roce y gate por criterios
+
+Un issue existente puede ser la fuente Y el epic padre (`epic.number` — solo linkeo nativo, no se edita el origen). Consolidación pre-gate: matriz archivo × slice (overlap misma ola → cluster/merge; tests+docs de 3+ slices → UN slice de cierre, escritos una vez contra el estado final). Excepciones de corte: prefactor y refactor ancho expand–contract. El gate muestra el plan completo y aprueba CRITERIOS de éxito por slice — no un "¿de acuerdo?" genérico.
+
+### feat — b-setup-or-fix: vite.config, orden de archivos y auth de pruebas declarada
+
+Flags experimentales donde la config ya vive (kit ≥ 2.62 ignora `svelte.config.js` si `sveltekit()` recibe opciones; `sv` ≥ 0.16 scaffoldea sin él). E2 ordena archivos al layout canónico y actualiza la sección Estructura del README/CLAUDE.md del repo. Paso nuevo del modo base: estrategia de auth de pruebas del browser (dev-user / dev-endpoint / session-mint / manual-cookies) decidida con el usuario y declarada en `## Auth de pruebas (browser)` del CLAUDE.md — b7 5.1 y el walkthrough la leen.
+
+### fix — fricciones de pipeline
+
+- `lib.sh` zsh-safe: `_BP_ROOT` prioriza `PLUGIN_ROOT`/`CLAUDE_PLUGIN_ROOT` con fallback `${BASH_SOURCE[0]:-$0}` (bug real de `bp_b6_verdict` al sourcear desde zsh).
+- Commit fantasma: b3 termina con `B3_DONE commits=<n> head=<sha>` probado con `git log`; b9 verifica post-b3 (`rev-list @{u}..HEAD` == 0) antes del merge.
+- `cleanup-worktree.sh` (b9): camino sancionado de limpieza — rescue primero, huérfanos solo si demuestran ser worktrees, nunca `rm -rf` a mano.
+- Menos ceremonia: rollup del epic como lista plana, sin comentario de progreso duplicado en b9, b6 Área 1 mecánica en PRs bot, epic-link sin label/summary redundantes.
+
 ## [1.7.2] — 2026-07-30
 
 ### fix — b2: verify.sh formatea solo archivos cambiados, nunca repo-wide

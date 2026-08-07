@@ -160,7 +160,7 @@ Antes de escribir una sola línea de cache de datos: el flavor **`prerender` de 
 // MAL — cachear respuestas de query a mano en el service worker
 // (fuga de datos entre usuarios + invalidación propia que mantener)
 
-// BIEN — <feature>.remote.ts: datos que cambian a lo sumo por deploy
+// BIEN — server/data.remote.ts: datos que cambian a lo sumo por deploy
 import { prerender } from '$app/server';
 
 export const get_catalogo = prerender(async () => {

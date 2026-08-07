@@ -40,11 +40,11 @@ Orden fijo: primero lo que habilita (config, seguridad), después mover archivos
 | Peldaño | Corrige | Riesgo |
 |---|---|---|
 | **E1 Base y seguridad** | flags `remoteFunctions`/`async` faltantes, scripts npm mínimos, infra `requireUser`/`requirePermission` inexistente, remote functions/endpoints sin guard, estado mutable a nivel de módulo en `.server.ts`, secrets hardcodeados | bajo |
-| **E2 Estructura** | features fuera de `src/routes/<feature>/`, `data.remote.ts` genérico, `*.remote.ts` bajo `src/lib/server/`, subcarpetas `ui/`, wrappers `<Feature>Page.svelte` | bajo-medio (mueve archivos: trazar callers antes) |
+| **E2 Estructura** | features fuera de `src/routes/<feature>/`, `*.remote.ts` fuera de `server/` (canónico: `server/data.remote.ts`), `*.remote.ts` bajo `src/lib/server/`, componentes sueltos fuera de `ui/`, docs fuera de `docs/`, wrappers `<Feature>Page.svelte`, sección Estructura stale en README/CLAUDE.md del repo | bajo-medio (mueve archivos: trazar callers antes) |
 | **E3 Remote functions** | `load()` en `+page(.server).ts`, `export const actions`, `+server.ts` internos, `onMount`+`fetch`, mutaciones sin refresh → `query`/`form`/`command` + single-flight | medio-alto (cambia semántica SSR: feature por feature, nunca barrido ciego) |
 | **E4 Runas y stack** | `on:click`, `export let`, `<slot>`, `$:`, `$effect` que computa, spreads inmutables sobre `$state`, named imports shadcn, `lucide-svelte`, `Select.Value` | medio |
 | **E5 Desingenieria y duplicados** | capas pass-through (service/repository/factory para CRUD), helpers que solo reenvían, funciones duplicadas, código muerto | medio-alto (consolidar sin tests del survivor está prohibido) |
-| **E6 Comentarios y docs** | prosa que explica el QUÉ (se preserva `// ponytail:`), `<feature>.md` faltantes, doc nivel repo inexistente | bajo |
+| **E6 Comentarios y docs** | prosa que explica el QUÉ (se preserva `// ponytail:`), `docs/<feature>.md` faltantes, doc nivel repo inexistente | bajo |
 
 **Catálogos canónicos — citar, no duplicar.** Los antipatrones viven en `../b6-pr-review/references/sveltekit-antipatterns.md` (sus secciones 1-14 son lo que este skill llama `AP1`-`AP14`) y los checks de seguridad en `security-checklist.md`; el layout del slice en `../b2-build-feature/references/slice-spec.md` (gana ante cualquier contradicción); la escalera de simpleza en `../b2-build-feature/references/simplicity-ladder.md`. Las siglas `SEC-*`/`CAL-*`/`DUP-*`/`REG-*` son notación interna de este skill — tabla de mapeo a las secciones reales al inicio de `references/fix-ladder.md`. Este skill solo agrega lo propio: la escalera E1-E6, las recetas de migración y el modo base.
 
@@ -91,12 +91,14 @@ El script **cuenta**; el juicio LLM **filtra** antes de que algo sea hallazgo:
 Presentar el plan como tabla y **preguntar vía AskUserQuestion** hasta qué peldaño subir y, si el repo es grande, qué features entran en esta corrida:
 
 ```markdown
-| Peldaño | Hallazgos | Riesgo | Qué se hace |
-|---|---|---|---|
-| E1 Base y seguridad | 4 | bajo | flags + guard en 3 remote functions + 1 secret a $env |
-| E3 Remote functions | 12 | medio-alto | migrar 4 features: load->query, actions->form |
-| ... | | | |
+| Peldaño | Hallazgos | Riesgo | Qué se hace | Sale verde cuando |
+|---|---|---|---|---|
+| E1 Base y seguridad | 4 | bajo | flags + guard en 3 remote functions + 1 secret a $env | RUNG_VERIFY ok + audit E1=0 |
+| E3 Remote functions | 12 | medio-alto | migrar 4 features: load->query, actions->form | cero load()/actions en el plan + check/build verdes |
+| ... | | | | |
 ```
+
+La columna **"Sale verde cuando"** es obligatoria: nombra el criterio MECÁNICO que determina que el peldaño se logró (RUNG_VERIFY, contadores del audit en 0, check-slice sin violaciones). La aprobación del gate versa sobre esos criterios — el usuario aprueba QUÉ prueba el éxito, no un "de acuerdo" genérico. Nunca preguntar sin la tabla completa visible en el mismo mensaje.
 
 - `--hasta=E<n>` pre-fija el tope, pero la aprobación del plan sigue siendo humana.
 - Con `--audit` (o si el usuario no aprueba): terminar aquí con el reporte y `B11_RESULT mode=audit rungs_done= rungs_blocked= features=<n>` (mismo shape siempre, campos vacíos incluidos — los parsers no adivinan).
@@ -151,12 +153,13 @@ Sugerir el siguiente paso (abrir PR vía b4, o próxima corrida con los features
 
 Para proyecto nuevo o sano (E2-E4 en cero y menos de 3 features — E5/E6 son señales blandas y no bloquean el modo). Sin `--init`, el gate de FASE 2 corre igual antes de tocar nada. Aplica `references/base-setup.md` completo:
 
-1. `svelte.config.js` con `kit.experimental.remoteFunctions: true` + `compilerOptions.experimental.async: true`.
+1. Flags `kit.experimental.remoteFunctions: true` + `compilerOptions.experimental.async: true` — donde viva la config: `sveltekit({...})` en `vite.config` o `svelte.config.js` (regla de ubicación en `base-setup.md`; kit >= 2.62 ignora `svelte.config.js` si el plugin recibe opciones).
 2. `$lib/server/auth.ts` con `requireUser`/`requirePermission` (formato `verbo:sustantivo`) si no existen.
-3. `CLAUDE.md` del repo con la doctrina en ~10 líneas + punteros a `slice-spec.md`.
-4. `docs/ARCHITECTURE.md` semilla (stack, mapa de slices, decisiones).
-5. Primer slice vía `../b2-build-feature/scripts/scaffold-slice.sh` solo si el usuario nombra un feature concreto — nada especulativo (YAGNI: cero capas, cero scaffolding "para después").
-6. Verificar (`rung-verify.sh E1`) y commitear vía b3: `chore(genie): base sveltekit`.
+3. **Auth de pruebas del browser**: analizar el repo (¿usuario seed solo-dev? ¿endpoint de login solo-dev? ¿mint en DB? ¿o login manual + cookies?), decidir la estrategia CON el usuario y declararla en la sección `## Auth de pruebas (browser)` del CLAUDE.md — análisis y template en `base-setup.md` § 3. b7-screen-review y el walkthrough de epic-review leen esa sección.
+4. `CLAUDE.md` del repo con la doctrina en ~10 líneas + punteros a `slice-spec.md`.
+5. `docs/ARCHITECTURE.md` semilla (stack, mapa de slices, decisiones).
+6. Primer slice vía `../b2-build-feature/scripts/scaffold-slice.sh` solo si el usuario nombra un feature concreto — nada especulativo (YAGNI: cero capas, cero scaffolding "para después").
+7. Verificar (`rung-verify.sh E1`) y commitear vía b3: `chore(genie): base sveltekit`.
 
 Termina con `B11_RESULT mode=init rungs_done=E1 rungs_blocked= features=<n>`.
 
@@ -167,7 +170,7 @@ Termina con `B11_RESULT mode=init rungs_done=E1 rungs_blocked= features=<n>`.
 - Editar código antes del gate de FASE 2, o continuar la escalera tras un `RUNG_VERIFY fail`.
 - Migrar a remote functions un repo cuya versión de SvelteKit no las soporta (< 2.27): E3 se reporta **bloqueado**, no se intenta (`AUDIT` lo detecta en `=== STACK ===`).
 - Consolidar duplicados sin verificar que el survivor tiene tests que cubren a los borrados: ante duda, INVESTIGATE — nunca CONSOLIDATE automático.
-- Borrar comentarios con contexto útil sin migrarlo antes al `<feature>.md`. `// ponytail:` y TODO/FIXME accionables se preservan.
+- Borrar comentarios con contexto útil sin migrarlo antes al `docs/<feature>.md`. `// ponytail:` y TODO/FIXME accionables se preservan.
 - Copiar los catálogos de b2/b6 dentro de este skill (drift documental).
 - Resolver "rápido" un hallazgo agregando una capa nueva: la salida de cada peldaño es MENOS código, no más.
 - Instalar service worker/PWA por iniciativa propia. Solo si el usuario lo pide, y ahí manda `references/pwa-setup.md`.

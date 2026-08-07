@@ -17,7 +17,7 @@ Regla transversal: cada peldaño **entra** con el repo verde (vs baseline) y **s
 
 Entrada: siempre (es el primer peldaño y es idempotente).
 
-1. **Flags experimentales** en `svelte.config.js` — config exacta en `base-setup.md`. Sin esto E3 no puede existir.
+1. **Flags experimentales** en `vite.config` o `svelte.config.js` — config exacta y regla de ubicación en `base-setup.md`. Sin esto E3 no puede existir.
 1b. **Scripts npm mínimos**: `check` (svelte-check) y `build` presentes en `package.json` — sin ellos `rung-verify.sh` no tiene que verificar (reporta el sentinel 999 y el gate queda ciego; agregado el script, el gate exige limpio desde ese momento).
 2. **Guards faltantes** (SEC-B): toda `query`/`form`/`command` existente llama `requireUser()` o `requirePermission('verbo:sustantivo')` como PRIMERA operación. Si `$lib/server/auth.ts` no existe, crearlo primero (template en `base-setup.md`) — si no, este fix genera BLOCKERs en cascada.
 3. **Loads y endpoints que se quedan** (SEC-A/C): los que E3 migrará no se tocan acá; los que sobreviven (páginas públicas declaradas, webhooks) reciben su check de `locals.user` o API key si corresponde.
@@ -38,11 +38,14 @@ Salida: check/build verdes, cero SEC pendientes fuera del plan.
 
 Entrada: E1 verde. Riesgo: mover archivos rompe imports — **trazar callers antes de cada move** (`codegraph_callers` o `rg -n "from ['\"].*<archivo>"`), actualizar imports en el mismo cambio (REG-1).
 
-1. Feature bajo `src/lib/features/<x>/` → `src/routes/<x>/` (layout canónico: `../../b2-build-feature/references/slice-spec.md`). Con muchos features, migrar solo los del plan aprobado — tolerancia legacy para el resto.
-2. `data.remote.ts` → `<feature>.remote.ts` (nombre genérico prohibido).
-3. `*.remote.ts` bajo `src/lib/server/` → carpeta de la ruta (AP10: el cliente lo importa, SvelteKit lo rechaza bajo `lib/server`).
-4. Subcarpeta `ui/` dentro del slice → componentes hermanos planos PascalCase.
-5. Wrapper `<Feature>Page.svelte` → la UI va directo en `+page.svelte`.
+Layout canónico (fuente única: `../../b2-build-feature/references/slice-spec.md`): `src/routes/<feature>/` con archivos de ruta (`+page.svelte`, `+page.server.ts`, …) + subcarpetas `server/` (`data.remote.ts`), `ui/`, `docs/`, `tests/` — solo las que tengan contenido.
+
+1. Feature bajo `src/lib/features/<x>/` → `src/routes/<x>/`. Con muchos features, migrar solo los del plan aprobado — tolerancia legacy para el resto.
+2. `<feature>.remote.ts` suelto en la raíz de la ruta (o cualquier `*.remote.ts` fuera de `server/`) → `git mv` a `server/data.remote.ts` — TODO el manejo de datos del feature en ese único archivo; debug de una query = un solo path, igual en todo feature.
+3. `*.remote.ts` bajo `src/lib/server/` → `server/` de su feature (AP10: el cliente lo importa, SvelteKit lo rechaza bajo `lib/server`).
+4. Componentes `.svelte` sueltos en la raíz del slice → `ui/` (PascalCase). Wrapper `<Feature>Page.svelte` → la UI va directo en `+page.svelte`.
+5. `<feature>.md` en la raíz del slice → `docs/`; tests del feature → `tests/`.
+6. **Doc del repo**: si `CLAUDE.md` o `README.md` documentan la estructura de carpetas, actualizar esa sección al layout canónico EN ESTE peldaño (template en `base-setup.md`) — doc de estructura stale es peor que ninguna.
 
 Salida: `check-slice.sh` de b2 (`../../b2-build-feature/scripts/check-slice.sh <dir>`) sin violaciones sobre cada feature tocado.
 
@@ -54,7 +57,7 @@ Entrada: E1 verde (flags presentes) + SvelteKit >= 2.27 (si no, el peldaño qued
 
 | Legacy | Destino | Receta |
 |---|---|---|
-| `load()` en `+page(.server).ts` | `query()` en `<feature>.remote.ts` + `$derived(await get_x())` | R1 |
+| `load()` en `+page(.server).ts` | `query()` en `server/data.remote.ts` + `$derived(await get_x())` | R1 |
 | `export const actions` + `use:enhance` | `form()` + `{...upsert_x}` + `fields.x.as()` | R2 |
 | `onMount` + `fetch` | `query()` + `await` en el componente | R3 |
 | `+server.ts` interno (GET) | `query()` | R4 |
@@ -106,8 +109,8 @@ Salida: cada consolidación con su lista de callers actualizados; diff neto nega
 
 Entrada: E5 verde (se documenta el estado FINAL). Política completa en `base-setup.md`.
 
-1. **Podar comentarios**: borrar los que explican el QUE, los que referencian tasks/PRs, y docstrings de párrafo. Contexto ÚTIL (por qué existe un workaround, techo de un atajo) migra al `<feature>.md` ANTES de borrar. Se preservan `// ponytail:` y TODO/FIXME accionables.
-2. **`<feature>.md` colocado** por cada feature tocado, con las 6 secciones de `slice-spec.md`: Propósito, Pantallas y rutas, Remote functions, Datos, Decisiones, Problemas conocidos.
+1. **Podar comentarios**: borrar los que explican el QUE, los que referencian tasks/PRs, y docstrings de párrafo. Contexto ÚTIL (por qué existe un workaround, techo de un atajo) migra al `docs/<feature>.md` ANTES de borrar. Se preservan `// ponytail:` y TODO/FIXME accionables.
+2. **`docs/<feature>.md`** por cada feature tocado, con las 6 secciones de `slice-spec.md`: Propósito, Pantallas y rutas, Remote functions, Datos, Decisiones, Problemas conocidos.
 3. **Doc nivel repo**: `docs/ARCHITECTURE.md` (mapa de slices + stack + decisiones) y `CLAUDE.md` con la doctrina (~10 líneas, template en `base-setup.md`).
 
 Salida: `audit.sh` E6 en cero para los features del plan; regla de oro: si la explicación es más larga que el código, se borra la explicación.

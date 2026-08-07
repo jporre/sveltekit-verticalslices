@@ -4,7 +4,7 @@
 
 Que NO hace este modo: nada especulativo. Cero capas, cero carpetas vacías, cero scaffolding "para después" (YAGNI). Un slice de ejemplo solo si el usuario nombra un feature concreto.
 
-## 1. `svelte.config.js`
+## 1. Flags experimentales
 
 ```js
 const config = {
@@ -21,7 +21,12 @@ const config = {
 };
 ```
 
-Merge sobre la config existente (adapter, preprocess, etc. se respetan). Requiere SvelteKit >= 2.27; si la versión no alcanza, proponer el upgrade al usuario — no forzarlo.
+Van donde la config YA vive — verificar antes de crear nada:
+- `vite.config.{js,ts}` pasa opciones a `sveltekit({...})` → mergear los flags ahí. Desde @sveltejs/kit 2.62.0 la config puede ir inline en el plugin y en ese caso `svelte.config.js` se IGNORA (crearlo sería un no-op silencioso). `sv create` >= 0.16.0 (jun 2026) scaffoldea así, sin `svelte.config.js`.
+- Existe `svelte.config.js` y `sveltekit()` va sin opciones → mergear ahí (adapter, preprocess, etc. se respetan).
+- Ninguno tiene config → flags dentro de `sveltekit({...})` en `vite.config`.
+
+Requiere SvelteKit >= 2.27; si la versión no alcanza, proponer el upgrade al usuario — no forzarlo.
 
 ## 2. `src/lib/server/auth.ts` — guards transversales
 
@@ -48,18 +53,45 @@ export async function requirePermission(permission: string) {
 
 Mapeo operación → permiso y variante `requireAnyPermission`: `../../b6-pr-review/references/security-checklist.md`.
 
-## 3. `CLAUDE.md` del repo — la doctrina en 10 líneas
+## 3. Auth de pruebas del browser — decidir y declarar
+
+El pipeline verifica pantallas en browser (b7-screen-review por PR, walkthrough del epic-review). CÓMO obtiene sesión depende del proyecto — su auth, su base de datos y sus criterios de seguridad — así que se decide UNA vez acá, con el usuario (gate, no adivinar), y queda DECLARADO en el CLAUDE.md del repo. Los skills leen esa sección; sin ella, cada run improvisa el método y las pantallas protegidas quedan sin evaluar.
+
+Analizar el repo y proponer (en este orden de preferencia):
+
+1. **¿Usuario de prueba en seeds?** (grep seeds/fixtures por emails `@test`/`@dev`, tabla users) → `dev-user`: el browser llena el form de login con credenciales de env vars.
+2. **¿Endpoint de login solo-dev?** (ruta guardada por `import.meta.env.DEV` / `NODE_ENV`) → `dev-endpoint`. Si no existe y el equipo lo acepta, crearlo es un slice de infra chico — la mejor opción para apps OAuth-only.
+3. **¿DB dev accesible y tabla de sesiones conocida?** → `session-mint`: `mint-dev-session.sh` inserta la fila de sesión directo (overrides `B7_SESSION_*` si el schema difiere).
+4. **¿Nada de lo anterior / política estricta?** → `manual-cookies`: pedir al usuario UN login manual y reusar las cookies de esa sesión.
+
+Sección a escribir en el CLAUDE.md del repo (los skills la parsean — mantener el formato `clave: valor`):
+
+```markdown
+## Auth de pruebas (browser)
+
+- estrategia: dev-user | dev-endpoint | session-mint | manual-cookies
+- login_url: /login                      # dev-user
+- credenciales: env TEST_USER_EMAIL / TEST_USER_PASSWORD   # dev-user — SOLO nombres de env vars
+- endpoint: /dev/login?as=<email>        # dev-endpoint (404 fuera de dev)
+- email_seed: <email>                    # session-mint (B7_SESSION_EMAIL) + overrides B7_SESSION_* si aplican
+- nota: <lo que un run nuevo necesita saber>
+```
+
+Solo las claves de la estrategia elegida. Reglas de seguridad: NADA de esto puede funcionar en producción (dev-user solo en seeds locales, dev-endpoint guardado por flag de build); secrets SIEMPRE por env var referenciada por NOMBRE — jamás un password en CLAUDE.md.
+
+## 3b. `CLAUDE.md` del repo — la doctrina en 10 líneas
 
 ```markdown
 # Reglas del proyecto
 
-- Cada feature es un vertical slice en `src/routes/<feature>/`: página + `<feature>.remote.ts` + componentes hermanos + `<feature>.md`. La carpeta de ruta ES la carpeta del feature.
-- Datos SOLO via remote functions (`query`/`form`/`command` de `$app/server`): sin `load()`, sin `+server.ts` internos, sin `fetch` manual. Camino más corto: Drizzle -> remote function -> componente; cero capas intermedias.
+- Cada feature es un vertical slice en `src/routes/<feature>/`: archivos de ruta (`+page.svelte`, `+page.server.ts`, …) + `server/data.remote.ts` (TODO el manejo de datos) + `ui/` (componentes) + `docs/` + `tests/` — solo las subcarpetas con contenido. La carpeta de ruta ES la carpeta del feature.
+- Datos SOLO via remote functions (`query`/`form`/`command` de `$app/server`) en `server/data.remote.ts`: sin `+server.ts` internos, sin `fetch` manual; `load()` solo si un mismo dato va a varios componentes de la ruta a la vez (raro). Camino más corto: Drizzle -> remote function -> componente; cero capas intermedias.
+- SQL-first: filtros, group by, agregaciones y aritmética en la query (Drizzle); JavaScript solo lo mínimo justificable. Debug de datos = `server/data.remote.ts`, un solo archivo.
 - Toda remote function: guard (`requireUser`/`requirePermission`) primera línea + schema zod si recibe argumentos. Nombres `snake_case`.
 - Svelte 5 runes siempre: `$state`/`$derived`/`$props`/snippets; `onclick` no `on:click`; `$effect` solo para efectos reales (DOM, timers).
 - Mutación => refresh explícito (`.refresh()` / `.updates()`), nunca datos stale.
 - `$lib` solo para transversales genuinos (ui shadcn, db, auth, helpers de 3+ features).
-- Sin comentarios salvo `// ponytail:` (atajo deliberado, nombra el techo). La documentación vive en `<feature>.md` y `docs/ARCHITECTURE.md`, no en el código.
+- Sin comentarios salvo `// ponytail:` (atajo deliberado, nombra el techo). La documentación vive en `docs/<feature>.md` del slice y `docs/ARCHITECTURE.md`, no en el código.
 - El código más simple que funciona, gana: nada especulativo, abstraer recién con 2+ implementaciones reales.
 ```
 
@@ -76,7 +108,7 @@ SvelteKit (remote functions + async experimental) · Svelte 5 runes · Drizzle +
 ## Mapa de slices
 | Feature | Ruta | Doc |
 |---|---|---|
-| <feature> | `src/routes/<feature>/` | [`<feature>.md`](../src/routes/<feature>/<feature>.md) |
+| <feature> | `src/routes/<feature>/` | [`<feature>.md`](../src/routes/<feature>/docs/<feature>.md) |
 
 ## Transversales ($lib)
 - `$lib/server/db` — cliente Drizzle
@@ -91,15 +123,16 @@ Se actualiza la tabla al agregar slices. Rechazos load-bearing del usuario duran
 
 ## 5. Política documental y de comentarios (E6)
 
-- **Por feature**: `<feature>.md` colocado, 6 secciones (fuente única: `slice-spec.md`): Propósito, Pantallas y rutas, Remote functions, Datos, Decisiones, Problemas conocidos. Primera parada de debug; se actualiza en el mismo PR que cambia contratos o pantallas.
+- **Por feature**: `docs/<feature>.md` dentro del slice, 6 secciones (fuente única: `slice-spec.md`): Propósito, Pantallas y rutas, Remote functions, Datos, Decisiones, Problemas conocidos. Primera parada de debug; se actualiza en el mismo PR que cambia contratos o pantallas.
 - **Nivel repo**: `docs/ARCHITECTURE.md` (mapa) + `CLAUDE.md` (reglas para agentes). Nada más — la doc que nadie mantiene es peor que ninguna.
-- **Comentarios**: default cero. Borrar el QUÉ ("incrementa el contador"), referencias a tasks/PRs, y prosa defensiva. Preservar `// ponytail:` (con techo y upgrade path) y TODO/FIXME accionables. Contexto útil migra al `<feature>.md` antes de borrar. Regla: si la explicación es más larga que el código, se borra la explicación.
+- **Comentarios**: default cero. Borrar el QUÉ ("incrementa el contador"), referencias a tasks/PRs, y prosa defensiva. Preservar `// ponytail:` (con techo y upgrade path) y TODO/FIXME accionables. Contexto útil migra al `docs/<feature>.md` antes de borrar. Regla: si la explicación es más larga que el código, se borra la explicación.
 
 ## 6. Checklist de base instalada
 
-- [ ] flags `remoteFunctions` + `async` en `svelte.config.js`
+- [ ] flags `remoteFunctions` + `async` donde viva la config (`vite.config` o `svelte.config.js`)
 - [ ] scripts `check` y `build` presentes en `package.json`
 - [ ] guards en `$lib/server/auth.ts` (o decisión explícita de no tenerlos)
+- [ ] `## Auth de pruebas (browser)` declarada en `CLAUDE.md` (estrategia decidida con el usuario)
 - [ ] `CLAUDE.md` con la doctrina
 - [ ] `docs/ARCHITECTURE.md` semilla
 - [ ] `rung-verify.sh E1` → `RUNG_VERIFY ok`

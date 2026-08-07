@@ -35,14 +35,17 @@ trap 'rm -f /tmp/b-setup-or-fix-audit-counts.$$' EXIT
 echo "=== STACK ==="
 KIT_VERSION=$(node -e "try{console.log(require('./node_modules/@sveltejs/kit/package.json').version)}catch(e){console.log('unknown')}" 2>/dev/null || echo unknown)
 echo "sveltekit=$KIT_VERSION"
-grep -qE 'remoteFunctions[[:space:]]*:[[:space:]]*true' svelte.config.js 2>/dev/null && echo "remote_functions_flag=yes" || echo "remote_functions_flag=no"
-grep -qE 'async[[:space:]]*:[[:space:]]*true' svelte.config.js 2>/dev/null && echo "async_flag=yes" || echo "async_flag=no"
+# kit >= 2.62 acepta config inline en sveltekit() dentro de vite.config; sv >= 0.16 ya no genera svelte.config.js
+CFG="svelte.config.js vite.config.js vite.config.ts"
+grep -qE 'remoteFunctions[[:space:]]*:[[:space:]]*true' $CFG 2>/dev/null && echo "remote_functions_flag=yes" || echo "remote_functions_flag=no"
+grep -qE 'async[[:space:]]*:[[:space:]]*true' $CFG 2>/dev/null && echo "async_flag=yes" || echo "async_flag=no"
 FEATURES=$(find "$SRC/routes" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
 echo "features=$FEATURES"
 
 echo "=== E1 === base y seguridad"
-grep -qE 'remoteFunctions[[:space:]]*:[[:space:]]*true' svelte.config.js 2>/dev/null || { echo "-- falta kit.experimental.remoteFunctions en svelte.config.js"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
-grep -qE 'async[[:space:]]*:[[:space:]]*true' svelte.config.js 2>/dev/null || { echo "-- falta compilerOptions.experimental.async en svelte.config.js"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
+grep -qE 'remoteFunctions[[:space:]]*:[[:space:]]*true' $CFG 2>/dev/null || { echo "-- falta kit.experimental.remoteFunctions (svelte.config.js o vite.config)"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
+grep -qE 'async[[:space:]]*:[[:space:]]*true' $CFG 2>/dev/null || { echo "-- falta compilerOptions.experimental.async (svelte.config.js o vite.config)"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
+grep -q '## Auth de pruebas' CLAUDE.md 2>/dev/null || { echo "-- CLAUDE.md sin seccion '## Auth de pruebas (browser)' — b7/epic-review no saben como obtener sesion (declararla: base-setup.md § 3)"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
 h=""
 while IFS= read -r f; do
   [ -n "$f" ] || continue
@@ -59,12 +62,14 @@ rung E1
 echo "=== E2 === estructura / colocación"
 h="$(find "$SRC/lib/features" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)"
 show "features bajo src/lib/features (CAL-5)" "$h"
-h="$(find "$SRC" \( -name 'data.remote.ts' -o -name 'data.remote.js' \) 2>/dev/null)"
-show "data.remote.ts genérico" "$h"
+h="$(find "$SRC/routes" -name '*.remote.*' 2>/dev/null | grep -v '/server/' || true)"
+show "*.remote.ts fuera de server/ (canónico: <feature>/server/data.remote.ts)" "$h"
 h="$(find "$SRC/lib/server" -name '*.remote.*' 2>/dev/null)"
 show "*.remote.ts bajo src/lib/server (AP10)" "$h"
-h="$(find "$SRC/routes" -type d -name 'ui' 2>/dev/null)"
-show "subcarpetas ui/ dentro de rutas" "$h"
+h="$(find "$SRC/routes" -name '*.svelte' ! -name '+*' 2>/dev/null | grep -v '/ui/' || true)"
+show "componentes sueltos fuera de ui/ (mover a <feature>/ui/)" "$h"
+h="$(find "$SRC/routes" -name '*.md' 2>/dev/null | grep -v '/docs/' || true)"
+show "docs de feature fuera de docs/ (mover a <feature>/docs/)" "$h"
 h="$(find "$SRC/routes" -name '*Page.svelte' 2>/dev/null)"
 show "wrappers <Feature>Page.svelte" "$h"
 rung E2
@@ -122,10 +127,10 @@ echo "-- líneas de comentario (sin ponytail): $COMMENT_LINES"
 h=""
 while IFS= read -r d; do
   [ -n "$d" ] || continue
-  ls "$d"/*.md >/dev/null 2>&1 || h="$h$d
+  ls "$d"/docs/*.md >/dev/null 2>&1 || ls "$d"/*.md >/dev/null 2>&1 || h="$h$d
 "
 done < <(find "$SRC/routes" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
-show "features sin <feature>.md colocado (CAL-6)" "$h"
+show "features sin doc colocado (docs/<feature>.md) (CAL-6)" "$h"
 [ -f docs/ARCHITECTURE.md ] || [ -f ARCHITECTURE.md ] || { echo "-- falta doc nivel repo (ARCHITECTURE.md)"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
 rung E6
 

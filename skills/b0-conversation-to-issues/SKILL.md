@@ -1,6 +1,6 @@
 ---
 name: b0-conversation-to-issues
-description: 'Convierte la conversación actual (o un plan/PRD/doc) en issues de GitHub sliceados en vertical (tracer-bullet), con dependencias y epic de tracking, listos para drenar con b10-ship --epic. Usar cuando el usuario pida convertir lo conversado o un plan en issues/tareas/tickets ("crea los issues de esto", "turn this into issues"), pida partir trabajo en vertical slices, o cuando una sesión de diseño/brainstorm converge en trabajo por registrar. TAMBIÉN al INICIO: con una idea cruda ("quiero conversar una idea", "ayúdame a pensar X antes de codear") entra en modo diseño — entrevista 1x1 que madura la idea hasta un plan sliceable y recién ahí crea los issues. Paso génesis, antes de b1-triage: no implementa, no triagea, no abre PRs.'
+description: 'Convierte la conversación actual (o un plan/PRD/doc, o un issue grande existente) en issues de GitHub sliceados en vertical (tracer-bullet), con dependencias y epic de tracking, listos para drenar con b10-ship --epic. Usar cuando el usuario pida convertir lo conversado o un plan en issues/tareas/tickets ("crea los issues de esto", "turn this into issues"), pida desglosar un issue/epic existente en sub-issues ("desglosa el issue #42"), pida partir trabajo en vertical slices, o cuando una sesión de diseño/brainstorm converge en trabajo por registrar. TAMBIÉN al INICIO: con una idea cruda ("quiero conversar una idea", "ayúdame a pensar X antes de codear") entra en modo diseño — entrevista 1x1 que madura la idea hasta un plan sliceable y recién ahí crea los issues. Paso génesis, antes de b1-triage: no implementa, no triagea, no abre PRs.'
 allowed-tools: Bash, Read, Write, AskUserQuestion, Agent, Workflow
 model: opus
 ---
@@ -19,7 +19,7 @@ Fuente de verdad = historial de esta sesión; usuario presente para el gate (`As
 
 ```
 [--design]             forzar modo diseño (entrevista) aunque la conversación parezca madura
-[--from=<archivo>]     leer ADEMÁS un plan/PRD/spec/doc como fuente (se combina con la conversación)
+[--from=<archivo|issue>] leer ADEMÁS un plan/PRD/spec/doc (path) o un issue de GitHub (#N o URL) como fuente
 [--scope=<area>]       hint de scope para labels y rama (ej. productos, ventas, auth)
 [--epic-title="..."]   título explícito del epic; si falta, se deriva del tema
 [--no-epic]            no crear epic de tracking (issues sueltos; usar solo con 1-2 issues independientes)
@@ -79,7 +79,7 @@ Evaluar si la conversación aguanta el slicing: objetivo claro, entidades y oper
 
 ### Paso 1 — Sintetizar la necesidad (de la conversación)
 
-Releer la conversación de esta sesión (y `--from=<archivo>` si se pasó) y destilar:
+Releer la conversación de esta sesión (y la fuente `--from` si se pasó) y destilar:
 
 - **Objetivo real** — el "para qué", no la frase literal. 1-2 líneas.
 - **Entidades / datos** — los sustantivos del dominio (productos, ventas, usuarios…).
@@ -89,9 +89,13 @@ Releer la conversación de esta sesión (y `--from=<archivo>` si se pasó) y des
 
 Regla dura: **no agregar requisitos que no estén en la conversación o el doc.** Si algo falta para slicear bien, es material del gate (preguntarlo), no para rellenar de oficio.
 
+**`--from` = issue de GitHub** (`#N`, número o URL): leer body Y comentarios — `gh issue view <N> --comments` — los comentarios suelen corregir el scope del body. Ese issue pasa a ser el **epic padre**: `epic: { "number": N }` en el plan (Paso 6); no se crea epic nuevo, no se edita ni se cierra el origen.
+
 ### Paso 2 — Aterrizar en el codebase (acotado)
 
 Para que los issues nombren rutas/entidades REALES (no inventadas), un grounding breve — mismo espíritu acotado que b1-triage (grounding, no exploración exhaustiva).
+
+Incluye la doc viva del repo: `docs/ARCHITECTURE.md` (mapa de slices + Decisiones) y el `<feature>.md` colocado de cada feature que un slice toque. Títulos y bodies usan el vocabulario real del dominio, y ningún slice re-propone algo rechazado en Decisiones.
 
 **Primero, un probe FUNCIONAL de codegraph** (no confiar en "existe `.codegraph/`": la db puede estar rota o stale). Correr el probe compartido y, si dice `ok`, confirmar con una query real de la **entidad 1**:
 
@@ -135,6 +139,11 @@ Aplicar el principio de arriba. Para CADA slice definir:
 - **alcance**: qué entra en ESTE slice y qué queda explícitamente para otro.
 - **labels**: `feature|bug|enhancement` + `scope:<area>` (+ `simple|medium` como hint; b1-triage reconfirma).
 
+Dos excepciones al corte estándar (detalle en `references/slicing-guide.md`):
+
+- **Prefactor**: si el grounding muestra código que pelea contra los slices, UN slice `refactor(scope)` chico antes del tracer — *make the change easy, then make the easy change*. Solo si desbloquea slices de ESTE epic; limpieza general del repo es b-setup-or-fix, no un issue acá.
+- **Refactor ancho** (rename de columna / retipado de símbolo compartido, blast radius repo-wide): no forzarlo a tracer-bullet — cortarlo expand–contract (§ Refactor ancho de la guía).
+
 ### Paso 4 — Ordenar en olas (dependencias)
 
 Asignar `blocked_by` (lista de slice-ids) a cada slice:
@@ -148,22 +157,27 @@ Esto se materializa como la sección `## Blocked by` en cada body (el script la 
 
 **Cluster (opcional):** si ≥2 slices son secuenciales, del **mismo scope**, `simple|medium`, y conviene un PR combinado, marcarlo como cluster (con `--cluster-hint`) para sugerir luego `b10-ship --epic --cluster` (que invoca b8-swarm). Slices de scopes distintos NUNCA van al mismo cluster.
 
+**Consolidación (vertical, pero inteligente):** con las olas asignadas, cruzar los `## Archivos previstos` de todos los slices (matriz archivo × slice) y aplicar `references/slicing-guide.md` § Consolidación: overlap en la misma ola → cluster o merge (wave-build exige disjuntos); overlap entre olas solo si es append-only (si un slice reescribe lo de otro, mergear); y la cola transversal — tests y docs que 3+ slices tocarían — se extrae a UN slice de cierre `blocked_by` todos: se escribe una vez contra el estado final, no N veces contra estados intermedios. Los criterios visuales se quedan en su slice (b7 los verifica por pantalla). El resultado se muestra en el gate.
+
 ### Paso 5 — GATE de verificación (humano)
 
-Presentar al usuario, en texto:
+Presentar el plan al usuario, en texto simple, pero claro:
 
 1. **Entendimiento**: objetivo real + entidades + operaciones (1 párrafo).
 2. **Supuestos/ambigüedades** detectados.
-3. **Breakdown**: epic + lista de slices con su ola y deps (mostrar como árbol de olas).
-4. **Plan de ejecución**: que corre junto por ola (cluster mismo scope / wave-build scopes disjuntos / secuencial y por qué), dónde caerán los gates humanos (complex, waivers, epic-review).
+3. **Breakdown**: epic + lista de slices con su ola y deps (mostrar como árbol de olas). Si la fuente enumera user stories o requisitos (PRD, design doc, issue origen), mapear cuáles cubre cada slice y listar los NO cubiertos — se resuelven en el gate (scope out explícito o slice nuevo), no se pierden en silencio.
+4. **Criterios de éxito por slice**: 1-3 criterios de aceptación por slice (qué se verá/podrá hacer cuando esté logrado — los mismos que b7-screen-review y el epic-review verificarán después). Esto es LO QUE el gate aprueba: los bodies del Paso 6 elaboran estos criterios, no inventan otros.
+5. **Plan de ejecución**: que corre junto por ola (cluster mismo scope / wave-build scopes disjuntos / secuencial y por qué), dónde caerán los gates humanos (complex, waivers, epic-review).
+
+**Regla dura del gate: la pregunta va DESPUÉS del plan, en el mismo mensaje.** Preguntar "¿de acuerdo?" sin haber mostrado los puntos 1-5 no es un gate, es un trámite — el usuario no puede aprobar lo que no vio.
 
 Luego `AskUserQuestion` con DOS preguntas:
 
-**Pregunta 1 — el breakdown:**
+**Pregunta 1 — breakdown y criterios** (la aprobación versa sobre los CRITERIOS de éxito — qué determina que cada slice se logró — no sobre un "de acuerdo" genérico):
 
-- "Crear estos issues tal cual" (recomendado si refleja lo pedido)
-- "Ajustar el slicing" (más/menos granular)
-- "Cambiar el scope / falta o sobra algo"
+- "Crear tal cual: slices y criterios reflejan lo pedido" (recomendado si es así)
+- "Ajustar criterios de aceptación" (falta o sobra un check de éxito)
+- "Ajustar el slicing" (más/menos granular, scope)
 - "No es lo que pedí"
 
 **Pregunta 2 — modo de ejecución:**
@@ -192,6 +206,7 @@ Escribir el plan JSON a un scratch (ej. `"$(mktemp -t b0-plan.XXXX).json"`) con 
 
 > Las deps van SOLO en `blocked_by` (ids), **no** escribir `## Blocked by` ni `#numeros` en el `body` — esos issues aún no existen; el script inyecta la sección resolviendo ids → números reales.
 > `closing_slice: "epic"` hace que el epic dependa de TODOS los subs y se vuelva el slice de cierre de b10 (build último, tras epic-review). Útil cuando el cierre del epic incluye limpieza/swap. Si no aplica, `null`.
+> Con `--from=<issue>`: `"epic": { "number": <N>, "closing_slice": null }` — el script reusa ese issue como epic (linkea subs nativos) y NO toca su body ni labels; por eso `closing_slice` debe ser `null`.
 > Con `--no-epic`: omitir la clave `epic` (issues sueltos, sin linkeo).
 
 #### Redacción de bodies — inline o en paralelo
@@ -201,7 +216,7 @@ El cuerpo de cada slice es independiente: distinto archivo, distinta pantalla. E
 - **Breakdown chico (≤5 slices):** redactar los bodies inline. Es rápido y mantiene un solo tono.
 - **Breakdown grande (≥6 slices):** **paralelizar la redacción** vía `Workflow` — un `agent()` (haiku/sonnet) por slice. Cada agente recibe lo MISMO para no divergir: (a) el template del slicing-guide, (b) la **lista completa de slices** (título + alcance de cada uno) para que su sección `## Alcance` referencie bien lo que queda para OTROS slices, (c) los grounding facts (rutas/tablas reales del Paso 2), (d) el idioma, (e) el path del design doc si existe (`docs/plans/<tema>.md`) — cada body lo linkea en vez de repetir las reglas globales. Devuelve `{id, body}`. El main loop ensambla los bodies devueltos en el array `issues` del plan JSON. Cap de paralelismo razonable: ~8.
 
-Script del Workflow: cargar (Read) `scripts/draft-bodies.workflow.js` e invocar `Workflow({ script:<contenido>, args:{ slices:[{id,title,scope}], lang:'es', grounding:'<resumen Paso 2>' } })`. Tras recibir `{bodies}`, mapear `id → body` y completar cada issue del plan. **El slicing NO se delega** — los agentes solo escriben prosa de slices que tú ya decidiste; no inventan slices nuevos ni cambian deps.
+Script del Workflow: cargar (Read) `scripts/draft-bodies.workflow.js` e invocar `Workflow({ script:<contenido>, args:{ slices:[{id,title,scope,criterios:[...]}], lang:'es', grounding:'<resumen Paso 2>' } })` — `criterios` son los aprobados en el gate del Paso 5; los agentes los elaboran, no inventan otros. Tras recibir `{bodies}`, mapear `id → body` y completar cada issue del plan. **El slicing NO se delega** — los agentes solo escriben prosa de slices que tú ya decidiste; no inventan slices nuevos ni cambian deps.
 
 Correr el preview (no toca GitHub):
 
@@ -254,11 +269,12 @@ B0_DONE epic=<N|none> issues=<csv> waves=<k> mode=<created|dry-run>
 ## Qué NO hacer
 
 - **No usar `gh issue create` a mano** para esto — usar `create-epic.sh` (resuelve deps, linkea el epic, evita duplicados).
+- **No cerrar ni editar el issue origen** (`--from=<issue>`): es el epic padre; solo recibe el linkeo nativo de sub-issues.
 
 ## Referencias
 
 - `references/design-interview.md` — protocolo del modo diseño: entrevista 1x1, checklist de convergencia, template del design doc. Leer al entrar en modo diseño (Paso 0).
-- `references/slicing-guide.md` — vertical vs horizontal, método tracer-bullet, ejemplo completo con grafo de deps y plan JSON, y el template de cuerpo de issue. Leer al redactar los bodies.
+- `references/slicing-guide.md` — vertical vs horizontal, método tracer-bullet, excepciones (prefactor, refactor ancho expand–contract), ejemplo completo con grafo de deps y plan JSON, y el template de cuerpo de issue. Leer al redactar los bodies.
 - `scripts/draft-bodies.workflow.js` — script Workflow para redacción paralela de bodies (breakdown >=6 slices).
 - `scripts/create-epic.sh` — creación determinística: labels + sub-issues + deps + epic + linkeo nativo. Soporta `--dry-run`.
 - `../b10-ship/scripts/epic-graph.sh` — lo que b10 usa para leer este grafo (referencia del contrato de deps/olas).

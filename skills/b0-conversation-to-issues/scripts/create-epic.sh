@@ -21,6 +21,9 @@ set -euo pipefail
 #   {
 #     "lang": "es",
 #     "epic": {                       // omitir o null => no se crea epic (issues sueltos)
+#       "number": 42,                 // opcional: issue EXISTENTE a reusar como epic
+#                                     // (--from=<issue>); solo linkeo nativo, no se
+#                                     // crea ni se edita — exige closing_slice null
 #       "title": "...",
 #       "body": "...",                // opcional; si falta se genera un rollup
 #       "labels": ["scope:x"],
@@ -73,6 +76,8 @@ epic = plan.get("epic")
 lang = plan.get("lang", "es")
 if not issues:
     sys.stderr.write("ERROR: el plan no tiene issues\n"); sys.exit(3)
+if epic and epic.get("number") and epic.get("closing_slice") == "epic":
+    sys.stderr.write("ERROR: closing_slice='epic' edita el body del epic — incompatible con epic.number (issue existente)\n"); sys.exit(3)
 
 # --- validación: ids únicos, deps conocidas y topológicamente anteriores ---
 ids = [it.get("id") for it in issues]
@@ -106,8 +111,11 @@ n_waves = (max(wave.values()) + 1) if wave else 0
 if dry:
     print(f"PLAN (dry-run) — {len(issues)} issues, {n_waves} olas")
     if epic:
-        cs = " [closing_slice]" if epic.get("closing_slice") == "epic" else ""
-        print(f"  epic: {epic.get('title','(rollup auto)')}{cs}")
+        if epic.get("number"):
+            print(f"  epic: #{epic['number']} (existente, --from — no se modifica)")
+        else:
+            cs = " [closing_slice]" if epic.get("closing_slice") == "epic" else ""
+            print(f"  epic: {epic.get('title','(rollup auto)')}{cs}")
     for w in range(n_waves):
         print(f"  ola {w}:")
         for it in issues:
@@ -116,7 +124,8 @@ if dry:
                 dtxt = f"  (blocked_by: {', '.join(deps)})" if deps else ""
                 labs = ",".join(it.get("labels", []))
                 print(f"    - [{it['id']}] {it['title']}  <{labs}>{dtxt}")
-    print(f"B0_DONE epic={'(auto)' if epic else 'none'} issues={len(issues)} waves={n_waves} mode=dry-run")
+    epic_tag = "none" if not epic else (str(epic["number"]) if epic.get("number") else "(auto)")
+    print(f"B0_DONE epic={epic_tag} issues={len(issues)} waves={n_waves} mode=dry-run")
     sys.exit(0)
 
 def sh(cmd):
@@ -129,7 +138,7 @@ def sh(cmd):
 want = {"ready"}
 for it in issues:
     want |= set(it.get("labels", []))
-if epic:
+if epic and not epic.get("number"):  # epic existente: no se le tocan labels
     want |= set(epic.get("labels", []))
     want.add("epic")
 r = sh(["gh", "label", "list", "--limit", "200", "--json", "name"])
@@ -178,11 +187,17 @@ for it in issues:
 
 # --- epic de tracking (opcional) ---
 epic_n = None
-if epic:
+if epic and epic.get("number"):
+    # epic existente (--from=<issue>): reusar tal cual — ni body, ni labels, ni cierre
+    epic_n = int(epic["number"])
+    print(f"ok:   epic existente #{epic_n} (solo linkeo nativo)")
+elif epic:
     body = epic.get("body")
     if not body:
+        # Lista plana, NO checklist: nadie tickea esos boxes (el progreso real es el
+        # sub_issues_summary nativo); el body es solo fallback de epic-graph.sh.
         head = "Epic de seguimiento. Sub-issues:" if lang == "es" else "Tracking epic. Sub-issues:"
-        rows = "\n".join(f"- [ ] #{num[it['id']]} {it['title']}" for it in issues)
+        rows = "\n".join(f"- #{num[it['id']]} {it['title']}" for it in issues)
         foot = ("\n\nProcesar con `/b-pipeline:b10-ship --epic=<N>` (reemplazar N por el número de este epic)."
                 if lang == "es" else
                 "\n\nDrain with `/b-pipeline:b10-ship --epic=<N>` (replace N with this epic's number).")

@@ -33,6 +33,30 @@ El primer slice atraviesa **todo el stack** por el camino más delgado posible �
 
 > **Lo transversal NO es un slice.** auth, db, storage, notificaciones y audit son infra genuinamente cross-cutting (viven en `$lib`, no en una ruta). No generan un issue "feature" por sí solos: o son parte del alcance de un slice de pantalla (ej. el slice exige sesión), o son un issue de infra puntual (backend puro, sin `## Pantalla(s)`). No cortes "el módulo de auth" como si fuera una pantalla.
 
+## Prefactor — make the change easy, then make the easy change
+
+Si el grounding muestra que el código actual pelea contra los slices (helper duplicado que el epic necesita tocar, patrón degradado en el área), UN slice `refactor(scope): …` chico ANTES del tracer: backend puro, verificable con check/build/tests verdes. Condición dura: debe hacer más fácil un slice concreto de ESTE epic — limpieza especulativa o rescate general del repo es b-setup-or-fix, no un issue de b0.
+
+## Refactor ancho — expand–contract (la excepción al tracer bullet)
+
+Un refactor ancho es UN cambio mecánico — renombrar una columna, retipar un símbolo compartido — cuyo blast radius cruza todo el codebase: un solo edit rompe cientos de call sites y ningún slice vertical queda verde solo. No forzarlo a tracer-bullet; secuenciarlo con la misma maquinaria de deps/olas:
+
+- **s1-expand** (ola 0): agregar la forma nueva JUNTO a la vieja — nada se rompe.
+- **s2..sN-migrate** (ola 1, ancha): migrar call sites en lotes por blast radius (por scope o directorio), cada lote su issue con `blocked_by: [s1-expand]`. CI verde lote a lote porque la forma vieja sigue viva — y la ola ancha es exactamente lo que wave-build paraleliza.
+- **sZ-contract** (ola final): borrar la forma vieja, `blocked_by` TODOS los migrate — cierre natural del epic.
+
+Todos son slices backend puro (sin `## Pantalla(s)`, criterios no visuales). Si ni los lotes pueden quedar verdes solos, mantener la secuencia pero declarar el epic como `closing_slice: "epic"` — verde se promete recién en el cierre.
+
+## Consolidación — vertical slices, pero inteligente
+
+Corre DESPUÉS de asignar olas y ANTES del gate. Cruzar los `## Archivos previstos` de todos los slices (matriz archivo × slice) y resolver cada overlap:
+
+1. **Mismo archivo, misma ola** → wave-build lo prohíbe: cluster (mismo scope, un PR vía b8) o merge de los slices.
+2. **Mismo archivo, olas distintas** → aceptable solo si es **append-only** (cada slice AGREGA una remote function o un bloque a la pantalla existente). Si un slice REESCRIBE lo que otro creó (rehace el layout, cambia la firma de la query), mergearlos: dos pasadas sobre lo mismo son roce puro, no dos slices.
+3. **Cola transversal** — tests automatizados y docs (`docs/<feature>.md`, mapa de ARCHITECTURE) que 3+ slices tocarían: extraer a UN slice de cierre `chore(scope): tests y docs del epic`, `blocked_by` todos los slices que cubre — o el epic mismo como `closing_slice: "epic"` si el cierre además incluye limpieza/swap. Se escriben UNA vez contra el estado final, no N veces contra estados intermedios que el siguiente slice invalida.
+
+Qué NO se consolida: los **criterios de aceptación visuales** se quedan en su slice — b7-screen-review verifica cada pantalla en el browser al mergear; eso es lo que mantiene cada slice demoable por sí solo. Lo que se concentra al final es la redacción (docs) y la automatización (tests), no la verificación.
+
 ## Ejemplo completo: "necesito gestionar los productos"
 
 Conversación → objetivo real: **CRUD de productos con búsqueda**. Grounding: no existe `src/routes/productos/` → feature nueva, scope `productos`.
@@ -71,7 +95,7 @@ Plan JSON resultante (ordenado topologicamente):
       "title": "feat(productos): listar productos (tracer bullet)",
       "labels": ["feature", "scope:productos", "simple"],
       "blocked_by": [],
-      "body": "## Objetivo\nVer el listado de productos para empezar a gestionarlos. Tracer bullet: prueba el stack completo (Drizzle -> remote function -> pantalla) en read-only.\n\n## Entidad / datos\n`taProductos` (id, nombre, precio, categoria, createdAt). Si la tabla no existe, crearla con Drizzle.\n\n## Pantalla\n- **Ruta**: `/productos`\n  - **Journey**: el usuario entra a /productos y ve la tabla de productos existentes.\n  - **Criterios de aceptacion (visuales)**:\n    - [ ] La tabla lista nombre, precio y categoria.\n    - [ ] Estado vacio claro cuando no hay productos.\n    - [ ] La ruta exige sesion (redirect a login si no hay).\n\n## Alcance (slice vertical)\nSolo lectura: `get_productos` + tabla. NO incluye alta/edicion/borrado/filtros (otros slices).\n\n## Complejidad estimada\nsimple (schema?, `productos.remote.ts`, `+page.svelte`, `+page.server.ts`)."
+      "body": "## Objetivo\nVer el listado de productos para empezar a gestionarlos. Tracer bullet: prueba el stack completo (Drizzle -> remote function -> pantalla) en read-only.\n\n## Entidad / datos\n`taProductos` (id, nombre, precio, categoria, createdAt). Si la tabla no existe, crearla con Drizzle.\n\n## Pantalla\n- **Ruta**: `/productos`\n  - **Journey**: el usuario entra a /productos y ve la tabla de productos existentes.\n  - **Criterios de aceptacion (visuales)**:\n    - [ ] La tabla lista nombre, precio y categoria.\n    - [ ] Estado vacio claro cuando no hay productos.\n    - [ ] La ruta exige sesion (redirect a login si no hay).\n\n## Alcance (slice vertical)\nSolo lectura: `get_productos` + tabla. NO incluye alta/edicion/borrado/filtros (otros slices).\n\n## Complejidad estimada\nsimple (schema?, `server/data.remote.ts`, `+page.svelte`, `+page.server.ts`)."
     },
     {
       "id": "s2-upsert",
@@ -120,7 +144,7 @@ Estructura minima que satisface a b1-triage (entidad, operacion, scope, criterio
 <que valida ESTE slice: sesion requerida, roles, ownership de los datos. "Solo exige sesion" tambien se declara explicito.>
 
 ## Archivos previstos
-<paths EXACTOS del grounding donde vive cada pieza (schema, `.remote.ts`, `+page.svelte`). Fija la estructura de carpetas y habilita builds paralelos: wave-build exige archivos sin interseccion entre slices de la ola.>
+<paths EXACTOS del grounding donde vive cada pieza (schema, `server/data.remote.ts`, `+page.svelte`). Fija la estructura de carpetas y habilita builds paralelos: wave-build exige archivos sin interseccion entre slices de la ola.>
 
 ## Alcance (slice vertical)
 <que entra en ESTE slice y que queda explicitamente para otro>
@@ -132,6 +156,7 @@ simple | medium  (simple = 3-5 archivos, medium = 5-8)
 Reglas del body:
 
 - Si existe design doc (`docs/plans/<tema>.md`), linkearlo al final del body (`> Diseño: docs/plans/<tema>.md`) — las reglas globales de ejecución (sin comentarios, simplicidad, browser-first) viven UNA vez ahí, no se repiten por issue.
+- Si el plan tiene slice de cierre (tests + docs consolidados), el `## Alcance` de cada slice lo declara explícito: "tests y `docs/<feature>.md` van en <id-del-cierre>" — no se escriben por slice.
 
 - **No** escribir `## Blocked by` ni `#numeros` aquí — las deps van en `blocked_by` (slice-ids) del plan; el script las inyecta resolviendo a números reales.
 - Slice **backend puro** (sin pantalla): reemplazar `## Pantalla(s)` por `## Remote functions / endpoints` con los criterios de aceptación no-visuales. b7 corre igual con `screens: []`.

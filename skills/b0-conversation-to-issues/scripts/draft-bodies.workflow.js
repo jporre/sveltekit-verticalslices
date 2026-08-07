@@ -12,6 +12,8 @@ const bodies = (await parallel(A.slices.map(s => () =>
   agent(
     `Redacta SOLO el body markdown del slice "${s.id}" (${s.title}). ` +
     `Sigue EXACTO el template de references/slicing-guide.md. Idioma: ${A.lang}. ` +
+    `Criterios de aceptación APROBADOS en el gate: ${JSON.stringify(s.criterios || [])} — ` +
+    `elabóralos en los checks visuales del body; PROHIBIDO inventar criterios nuevos. ` +
     `Grounding (rutas/tablas reales): ${A.grounding}. ` +
     `Para la sección "## Alcance (slice vertical)", estos son los OTROS slices del epic ` +
     `(lo que queda para cada uno): ${JSON.stringify(A.slices)}. ` +

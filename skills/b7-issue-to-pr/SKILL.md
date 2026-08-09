@@ -3,7 +3,11 @@ name: b7-issue-to-pr
 description: 'Pipeline autónomo issue -> PR DRAFT centrado en pantallas; se detiene en el PR draft, NO mergea. Entrada directa SOLO cuando el usuario quiere parar en el PR: "issue N hasta PR", "abre PR del issue N", "sin merge". NO es la entrada default de "resuelve/trabaja/arregla el issue N" — eso rutea a b10-ship (que invoca este skill como fase de build); un cluster de issues relacionadas en un solo PR es b8-swarm.'
 allowed-tools: Bash, Read, Edit, Write, Skill, Agent
 context: fork
-model: opus
+# model: sonnet a proposito — este skill es GLUE (lee JSON, corre scripts, encadena skills).
+# El trabajo que necesita capacidad vive en los sub-agentes: b7-impl (sonnet en M, opus en L),
+# b2-build-feature y b6-pr-review, cada uno con su propio modelo. Los 5 pasos y el DoD estan
+# anclados a exit codes de scripts, no a juicio del modelo. Revertir a opus es esta linea.
+model: sonnet
 effort: medium
 ---
 
@@ -206,7 +210,7 @@ Si `estimated_complexity == "complex"` y NO se pasó `--force-complex`: comentar
 
 #### 1b. Clasificar el carril del run (lane S/M/L)
 
-Tras el gate de complejidad (y solo si el run continúa), asignar el **carril** que gobierna cuánto paga el run — un fix de 1 línea no debe pagar el pipeline completo (esqueletos LLM, opus, 6 iteraciones, b6 full):
+Tras el gate de complejidad (y solo si el run continúa), asignar el **carril** que gobierna cuánto paga el run — un fix de 1 línea no debe pagar el pipeline completo (esqueletos LLM, `b7-impl` en opus, 6 iteraciones, b6 full):
 
 ```bash
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" \

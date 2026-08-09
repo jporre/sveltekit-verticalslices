@@ -1,6 +1,7 @@
 ---
 name: b6-pr-review
 description: 'Review de un PR existente en GitHub: calidad, seguridad y anti-patrones SvelteKit; publica el veredicto (marker b6). Usar cuando pidan revisar un PR ("revisar PR", "review PR", número/URL de PR) o cuando b7/b8/b9/b10 encadenen la fase review (--auto, --light).'
+context: fork
 ---
 
 ## User Input
@@ -8,6 +9,10 @@ description: 'Review de un PR existente en GitHub: calidad, seguridad y anti-pat
 ```text
 $ARGUMENTS
 ```
+
+> Skill `context: fork`: el subagente solo ve el cuerpo de este `SKILL.md`. El placeholder `$ARGUMENTS` de arriba es la ÚNICA vía por la que el número/URL de PR y los flags (`--auto`, `--light`) llegan al fork — el harness lo sustituye. Si aparece vacío o sin sustituir, derivar el PR de la branch actual (Paso 0).
+>
+> **Por qué fork:** el diff completo, los archivos leídos enteros y el contexto de `pr-context.sh` son 10-40 KB que, sin fork, se quedan en el contexto de la sesión y se re-leen en cada request hasta el final. El fork los quema al terminar y devuelve solo el handoff del Paso 5. El contrato con los orquestadores no cambia: viaja por el marker `<!-- b6:verdict -->` en el PR y la línea `B6_VERDICT`, no por el contexto.
 
 **Flag `--auto`** (para orquestadores como b7/b10 — modo desatendido): no ofrecer acciones interactivas en el Paso 5; publicar el reporte directo como comentario del PR (con el marker de veredicto) y terminar con la línea `B6_VERDICT`.
 
@@ -368,11 +373,19 @@ Ningún otro paso escribe `/tmp/pr-review-<repo>-<PR>.md`: este skill es el úni
 
 > IMPORTANTE: usar `gh pr comment`, NO `gh pr review --comment` — un review COMMENTED aparece en `--json reviews` y NO en `--json comments`, y los parsers del pipeline (b9-close PASO 2, b10 `b6_marker`) leen ambos pero el canal canónico es el comentario. Además `--approve`/`--request-changes` NO funcionan sobre PRs propios (GitHub bloquea self-review) y los PRs del flujo b se crean con el token del usuario. El veredicto viaja en el marker `<!-- b6:verdict=... -->`, no en el review state de GitHub.
 
-**Modo interactivo:** después del reporte, ofrece al usuario:
+**Modo interactivo:** `AskUserQuestion` con dos opciones — publicar el reporte en el PR (`gh pr comment <N> --body-file /tmp/pr-review-<repo>-<PR>.md`, incluye el marker) o dejarlo solo local. Resuelta esa, terminar.
 
-1. **Publicar en GitHub**: `gh pr comment <N> --body-file /tmp/pr-review-<repo>-<PR>.md` (incluye el marker de veredicto)
-2. **Corregir los issues**: Si hay blockers o warnings, ofrecer crear un branch para corregirlos
-3. **Revisar archivos específicos**: Si el usuario quiere profundizar en algún archivo
+**Handoff obligatorio al cerrar (ambos modos).** Este skill corre en fork: su contexto muere acá, así que el retorno tiene que bastarse solo. Devolver, y nada más que esto:
+
+```
+B6_VERDICT ...            (la línea del Paso 4, verbatim)
+reporte: /tmp/pr-review-<repo>-<PR>.md
+blockers: <n> · warnings: <n>   + una línea por blocker: <archivo>:<línea> — <qué>
+```
+
+**NO pegar el reporte completo ni el diff en el retorno** — eso reintroduce en la sesión principal justo lo que el fork existe para aislar. Quien quiera profundizar lee el archivo del reporte, que ya tiene todo.
+
+Los follow-ups NO van acá, son invocaciones nuevas desde la sesión principal (y arrancan con el contexto limpio, que es lo que se quiere para corregir): arreglar blockers → `b7-issue-to-pr` o edición directa sobre el worktree; mergear → `b9-close`.
 
 ## Notas
 

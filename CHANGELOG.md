@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.2] — 2026-08-09
+
+### perf — b6 a `context: fork` y orquestadores a sonnet
+
+Segunda tanda del trabajo de 1.9.1, mismo criterio: el costo es prefijo re-leído.
+
+- **b6-pr-review pasa a `context: fork`.** Sin fork, el diff completo + los archivos leídos enteros + el output de `pr-context.sh` (10-40 KB) se quedaban en la sesión y se re-leían en cada request hasta el final. El contrato con b7/b9/b10 no cambia: viaja por el marker `<!-- b6:verdict -->` en el PR y la línea `B6_VERDICT`, no por el contexto. El Paso 5 ahora define un **handoff acotado** (verdict + path del reporte + blockers con `archivo:línea`) y prohíbe explícitamente devolver el reporte o el diff. Los follow-ups pasan a ser invocaciones nuevas, que además arrancan limpias — mejor para corregir. Precedente de forks anidados ya en producción: b7 (fork) invoca b1-triage y b4-pull-request, ambos fork.
+- **b7 y b8 pasan de opus a sonnet.** Los dos son glue: leen JSON, corren scripts, encadenan skills. La capacidad ya vive en los sub-agentes con su propio modelo (`b7-impl` sonnet en M / opus en L, `b2-build-feature`, `b6-pr-review`), y los 5 pasos + el DoD están anclados a exit codes de scripts, no a juicio del modelo. Revertir es una línea de frontmatter, comentada en el propio archivo.
+- Corrige dos menciones de modelo desactualizadas en la doc (`b1-triage-issue` es sonnet desde antes, no opus; el opus del carril L es el de `b7-impl`).
+
 ## [1.9.1] — 2026-08-09
 
 ### perf — reducción de tokens: reset de contexto por ola, agente de impl acotado y b7 más liviano

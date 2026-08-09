@@ -40,8 +40,29 @@ Con el snapshot en mano, despachar fases — **leer una vez, actuar en paralelo 
    - Ola con 1 issue, o issues `complex` → cadena single-issue por issue, **secuencial** (ver "Paralelismo").
    - Ola con ≥2 issues independientes `simple|medium`, **del mismo `scope`** (b8 exige cohesión temática — issues de scopes distintos NUNCA van al mismo PR) y (flag `--cluster` O modo rápido vigente) → `Skill b-pipeline:b8-swarm "--issues=<csv> --theme=<scope>"` (1 worktree, 1 PR combinado, commits por issue; el b9 multi-Closes limpia todo al mergear). Issues de la ola con scope distinto van por la cadena single-issue.
    - Ola con ≥2 issues elegibles de scopes DISTINTOS y sharding de lock disponible (modo rápido vigente O `B7_PARALLEL=1` explícito) → builds en paralelo (ver "Wave-build (Workflow, opt-in)"). Sin esa precondición: secuencial como arriba.
-5. **Fin de ola:** los `needs-human-review` acumulados de la ola se resuelven en UNA pasada (ver "Batch de aprobaciones por ola", momento 2). Repetir mientras haya issues desbloqueados y el backpressure lo permita. Un issue frenado (needs-info, complex, zombie) NO bloquea a sus hermanos independientes. **Re-correr `epic-state.sh` al inicio de cada iteración del loop** (tras drenar o construir algo cambia el grafo) — es barato (paralelo) y mantiene las decisiones sobre estado fresco.
+5. **Fin de ola:** los `needs-human-review` acumulados de la ola se resuelven en UNA pasada (ver "Batch de aprobaciones por ola", momento 2). Un issue frenado (needs-info, complex, zombie) NO bloquea a sus hermanos independientes. Cerrada la ola, aplicar el **reset de contexto** (sección abajo) antes de seguir. **Re-correr `epic-state.sh` al inicio de cada iteración del loop** (tras drenar o construir algo cambia el grafo) — es barato (paralelo) y mantiene las decisiones sobre estado fresco.
 6. Al final, reportar el estado del grafo completo: cerrados / en PR / frenados (con razón) / bloqueados.
+
+### Reset de contexto entre olas — obligatorio
+
+Un epic drenado de corrido en una sola sesión llega a 300k+ de contexto, y **cada request re-lee ese contexto entero** (cache read). El costo del epic crece cuadrático con el número de olas, sin que ninguna decisión mejore: el contexto acumulado es historial de olas ya cerradas.
+
+Esto es seguro de tirar porque **el estado del epic no vive en el contexto**: vive en `.b7/state.json`, los sticky comments, las labels y los markers de GitHub. `epic-state.sh` reconstruye el snapshot completo desde cero, y b10 es idempotente por diseño — re-correr el mismo comando retoma donde quedó.
+
+**Regla:** al cerrar una ola, si construyó **≥2 issues** o corrió screen-review, NO seguir a la ola siguiente en la misma sesión. Cerrar el turno con:
+
+```
+B10_WAVE_DONE epic=<N> wave=<K> closed=<csv> open_prs=<csv> next=/b-pipeline:b10-ship --epic=<N>
+```
+
+y una línea al usuario: *"Ola \<K\> cerrada. Estado persistido en GitHub. Corre `/clear` y re-invoca `/b-pipeline:b10-ship --epic=\<N\>` para la ola siguiente."*
+
+- **Por qué `/clear` y no `/compact`:** `/compact` cuesta un pase de output completo (resumir 150k+) **más** un cache write del prefijo nuevo, y conserva contexto que ya no decide nada. Con estado durable en disco, `/clear` cuesta cero y arranca la ola siguiente en ~30k. Nunca proponer `/compact` acá.
+- **Sin fricción nueva:** el corte cae exactamente en el gate de aprobaciones de fin de ola (momento 2), donde el humano ya estaba presente. No agrega una parada — reusa la que existe.
+- **Excepción:** ola de 1 issue `simple` sin screens → seguir de corrido; parar ahí sería fricción sin ahorro.
+- **Desatendido** (`epic-auto-merge` vigente, sin humano): igual cortar por ola, pero emitir `PushNotification` con la línea `B10_WAVE_DONE` en vez de esperar respuesta — el resume queda listo para la próxima sesión.
+
+Esta regla es la única defensa contra el modo de falla dominante del pipeline: sesiones largas donde el 68% del gasto ocurre sobre >150k de contexto.
 
 ### Drain-first — ruteo con el snapshot
 

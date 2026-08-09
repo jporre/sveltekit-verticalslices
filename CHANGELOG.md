@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.9.1] — 2026-08-09
+
+### perf — reducción de tokens: reset de contexto por ola, agente de impl acotado y b7 más liviano
+
+Diagnóstico sobre el consumo real (cache read 2.1B = 58% del costo, cache write 77.6M = 27%): el gasto es prefijo re-leído, no trabajo. Cuatro cortes:
+
+- **b10 corta por ola.** Cerrada una ola de ≥2 issues (o con screen-review), el epic no sigue en la misma sesión: emite `B10_WAVE_DONE epic=N wave=K ... next=<comando>` y pide `/clear` + re-invocación. Seguro porque el estado vive en `.b7/state.json` + labels/markers de GitHub, no en el contexto, y `epic-state.sh` lo reconstruye entero. El corte cae en el gate de aprobaciones de fin de ola que ya existía → cero fricción nueva. Documentado por qué `/clear` gana a `/compact` acá (compact paga output de resumen + cache write del prefijo nuevo).
+- **`Agent(b-pipeline:b7-impl)` reemplaza a `general-purpose`** en el paso 4 de b7 (carriles M/L). `tools` acotado a `Bash, Read, Edit, Write, Grep, Glob, Skill` en vez del `*` que arrastraba todos los schemas MCP al prompt del sub-agente, en cada turno del loop. Invoca `b2-build-feature` por dentro: misma profundidad de build. Modelo por carril vía el param `model` del Agent call (sonnet en M, opus en L).
+- **b7 `SKILL.md` 52.2 KB → 41.9 KB (−20%).** Corre en `context: fork`, donde el skill va en el prefijo cacheado y se re-lee en cada turno del run. Salieron a `references/` los bloques de lectura única o condicional: `runbook.md` (bash del DoD, frases prohibidas, routing, headless — se lee al cerrar) y `screens-step.md` (detalle 5.0–5.9 del review visual — no se lee con `--no-screens`, o sea nunca en modo rápido de epic). `B7_DONE` y los contratos que parsean otros skills quedan inline.
+- **Browser fuera del contexto principal.** Regla explícita en b10 y b2: verificación visual solo vía `Agent(b7-screen-review)` / `agent-browser` CLI, que dejan los PNG en disco. Un screenshot por MCP entra al contexto y se re-lee en cada request hasta el fin del epic.
+
+**Archivos clave**: `agents/b7-impl.md` (nuevo), `skills/b7-issue-to-pr/references/runbook.md` + `screens-step.md` (nuevas), `skills/b10-ship/references/epic-mode.md`, `skills/b10-ship/SKILL.md`, `skills/b7-issue-to-pr/SKILL.md`, `skills/b2-build-feature/SKILL.md`.
+
 ## [1.9.0] — 2026-08-07
 
 ### feat — doctrina slice v2: docs/readme.md, data/, frontera entre features, sufijo .server.ts, sin load()

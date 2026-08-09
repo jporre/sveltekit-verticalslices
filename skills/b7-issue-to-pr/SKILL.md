@@ -27,44 +27,11 @@ Verificación observable de cada paso: ver DEFINITION OF DONE. Si alguno no se c
 
 ## DEFINITION OF DONE — checklist verificable
 
-Antes de devolver el resumen final al usuario, el orquestador **debe** correr estos checks observables y exhibir el resultado de cada uno. Si alguno falla, el run no terminó:
+Al CERRAR el run (no antes), **leer y correr `references/runbook.md`** — trae el bloque bash verificable de los 9 checks y las frases prohibidas. Los checks, en una línea cada uno:
 
-```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
-. "$PLUGIN_ROOT/scripts/lib.sh"
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-$(bp_default_branch)}"   # rama base real — nunca asumir master
-# 1. Worktree existe, fue creado por setup-worktree.sh, y la rama está sobre la rama default
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-worktree "$WORKTREE"
-git -C "$WORKTREE" rev-parse --abbrev-ref HEAD       # feat/<N>-... o fix/<N>-...
-# 2. Comentario sticky en el issue
-gh issue view <N> --json comments -q '.comments[].body' | grep -q '<!-- b7:status -->'
-# 3. Commits existen (al menos uno) y la rama default no se tocó
-git -C "$WORKTREE" log "$DEFAULT_BRANCH"..HEAD --oneline | wc -l   # >= 1
-git -C "$REPO_MAIN" status --porcelain                  # vacío
-# 4. PR draft abierto y labels del issue sincronizadas
-gh pr list --head "$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD)" --json number,isDraft,url
-gh issue view <N> --json labels -q '.labels[].name'     # contiene "in-review", no "ready"/"auto-pr"
-# 5. b6-pr-review ejecutado, veredicto publicado en el PR (lector unico del marker)
-bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR>   # exit 0 obligatorio (exit 3 = sin review)
-# 6. Plan estructurado completo (todos los items done o plan vacío)
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh" plan-check --worktree "$WORKTREE"   # exit 0 obligatorio
-# 7. Worktree limpio post-commit (NADA fuera del commit — exit 0 obligatorio)
-bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
-# 8. Gate de regresion: un fix cuyo diff no toca ningun test degrada a needs-human-review (NO aborta)
-if [ "$(jq -r '.type' "$WORKTREE/.b7/triage.json")" = "fix" ] \
-   && ! git -C "$WORKTREE" diff --name-only "$DEFAULT_BRANCH"..HEAD | grep -qE '\.(test|spec)\.'; then
-  echo "FIX_SIN_TEST — fix sin test de regresion; status=needs-human-review"
-fi
-# 9. Screen-review verificable: JSON de review por cada pantalla del triage, o SKIPPED.json con
-#    reason valido (exit 8 = run invalido: falta review sin skip valido, o algun verdict=fail)
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" screens-check "$WORKTREE"
-```
+1. Worktree creado por `setup-worktree.sh`, rama sobre la default · 2. Sticky `<!-- b7:status -->` en el issue · 3. ≥1 commit y rama default intacta · 4. PR draft abierto + labels sincronizadas (`in-review`, sin `ready`/`auto-pr`) · 5. `b6-pr-review` con veredicto publicado (`verdict.sh read` exit 0) · 6. `plan-check` exit 0 · 7. `assert-clean.sh --fix` exit 0 · 8. gate de regresión (fix sin test → `needs-human-review`, no aborta) · 9. `screens-check` exit 0.
 
-Si el check 7 sale 6 (código sin commitear), volver a invocar `b3-git-commit` en el worktree y pushear — el run NO está terminado con trabajo fuera del commit. Si sale 7 (artefactos persistentes que `--fix` no pudo excluir), listarlos en el run-report como warning y continuar — mismo criterio que b9 PASO 1.5: los artefactos no invalidan el run.
-
-Si el check 8 imprime `FIX_SIN_TEST`, el run no aborta pero su status final es `needs-human-review` (no `ok`): un fix que no toca tests necesita que un humano confirme que la ausencia de regresión es aceptable. Si hubo waiver explícito, la degradación es la misma (ver "Waiver explícito" en el paso 1).
-
-Si el check 9 sale 8, el run NO está terminado: falta el JSON de review de alguna pantalla sin skip válido, o hay un `verdict: fail` sin resolver — volver al paso 5 (o al loop del paso 4 si el fail es de criterio visual) antes de cerrar. Exit 3 = rama base irresoluble en el cross-check (problema de entorno, no del run): también bloquea — parar con diagnóstico, no adivinar. `not-evaluated` NO es fail (pass-through con nota). Con `triage.screens[]` vacío o ausente, `screens-check` sale 0 directo sin exigir artefactos.
+Si **cualquiera** no devuelve lo esperado, NO cerrar: completar el paso faltante y re-verificar.
 
 **Última línea OBLIGATORIA del run** (la parsean orquestadores como b10-ship; fallback de ellos: `gh pr list --search "Closes #N"` + labels del issue):
 
@@ -80,13 +47,7 @@ Si **cualquiera** de estos comandos no devuelve lo esperado, NO usar las frases 
 
 ### Frases prohibidas al cerrar el run
 
-Estas frases significan "abandoné a mitad de camino" y son síntoma del bug que este skill busca evitar. Si estás por escribirlas, el run no está terminado — ejecuta el paso pendiente:
-
-- "Ready for b3-git-commit + b4-pull-request"
-- "Listo para commit / Listo para PR"
-- "Pendiente: abrir PR / correr review"
-- "Próximos pasos: <algo del pipeline>"
-- "Worktree con cambios sin commitear" (excepto en `--dry-run` explícito)
+Enumeradas en `references/runbook.md`. Regla: si estás por escribir "listo para commit/PR", "pendiente: abrir PR" o "próximos pasos: <algo del pipeline>", el run NO terminó — ejecuta el paso pendiente.
 
 En `--wet` el cierre válido es: branch + commits + PR URL + review adjunto + labels actualizadas. En `--dry-run` el cierre válido es: branch + commits opcionales + worktree listo para inspección + label `in-progress` + comentario sticky.
 
@@ -337,7 +298,7 @@ Esto es entrada para b2 y para la revisión visual posterior. **Texto plano, no 
 
 **Carril S:** invocar el agente `agents/b7-impl-s.md` (`model: sonnet`) en vez de `b2-build-feature`, con hard stop de iterations en 3 — detalle en `references/lane-s.md`.
 
-**Carriles M y L:** invocar `b2-build-feature` **vía sub-agente** (`Agent(subagent_type=general-purpose)`) y 6 iteraciones (sin cambios). En cualquier carril, pasar al agente de implementación:
+**Carriles M y L:** invocar el agente del plugin `Agent(subagent_type="b-pipeline:b7-impl", model="sonnet"|"opus")` — `sonnet` en carril M, `opus` en L — y 6 iteraciones. Ese agente invoca `b2-build-feature` por dentro. **PROHIBIDO `general-purpose` acá:** su toolset `*` mete todos los schemas MCP en el prompt del sub-agente y se pagan en cada turno del loop; el toolset acotado de `b7-impl` da el mismo resultado más barato. En cualquier carril, pasar al agente de implementación:
 
 - Ruta a `.b7/triage.json`
 - Ruta a `.b7/screens/`
@@ -409,119 +370,13 @@ printf '{"reason": "%s"}\n' "<r>" > "$WORKTREE/.b7/review/SKIPPED.json"
 3. Modo `--dry-run` → escribir `SKIPPED.json` con `reason=dry-run` y saltar a 5.9.
 4. **Carril S:** el skip lo decide ÚNICAMENTE el script de `references/lane-s.md` — correr ese script; si imprime su mensaje de skip (diff sin `*.svelte`, `*.remote.ts` ni `src/routes/`), escribir `SKIPPED.json` con `reason=lane-s-no-ui` y saltar a 5.9. Sin ese output, la revisión corre — NO es juicio del modelo. En carriles M y L nunca se salta por este criterio.
 
-Sin skip de la rampa, continuar con 5.0.
+Sin skip de la rampa: **leer y seguir `references/screens-step.md`** — trae el detalle completo de 5.0 a 5.9:
 
-#### 5.0 Levantar el dev server del worktree (OBLIGATORIO antes del review)
+- **5.0** dev server del worktree + `verify-port` (gate DURO: el puerto debe servir ESTE worktree, no la rama default). Exit 40 = un solo reintento; exit 41 = ni reintentar ni matar el listener. Ambos sin recuperación → `SKIPPED.json` `reason=no-port` y saltar a 5.9, sin abortar el run.
+- **5.1** auth: leer la sección `## Auth de pruebas (browser)` del CLAUDE.md del repo y despachar por `estrategia:` (`dev-user` | `dev-endpoint` | `session-mint` | `manual-cookies`). Sin sección declarada, flujo mint→sin-cookie. NUNCA imprimir credenciales.
+- **5.2** un `Agent(b-pipeline:b7-screen-review)` por pantalla, TODOS en el mismo turno (paralelo). Un `verdict: fail` (criterio visual incumplido con sesión válida) vuelve al loop del paso 4 y rebudgetea; `warn` con `"infra_fail": true` y `auth-required` NO rebudgetean — nota en run-report y sticky.
+- **5.9** cleanup idempotente SIEMPRE: borrar la sesión minteada y apagar el dev server.
 
-**Causa histórica de que las pantallas nunca se revisaran:** nadie levantaba el dev server del worktree, así que `b7-screen-review` hacía `curl localhost:<port>` → sin respuesta → abortaba `fail`. Levantarlo acá:
-
-```bash
-# start: nohup ./dev.sh (log y pid en .b7/dev-server.*), poll del puerto hasta
-# B7_DEV_SERVER_WAIT_SECS (default 120, deadline por tiempo transcurrido — lo implementa guardrails.sh).
-# Si no responde: WARN sin abortar — verify-port abajo decide si se omiten screens.
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server start "$WORKTREE"
-# Gate DURO: no basta con que algo responda en el puerto — tiene que ser ESTE
-# worktree. verify-port compara el cwd del proceso listener con $WORKTREE
-# (exit 40 = nadie escucha, exit 41 = lo sirve otro checkout, p.ej. la rama default).
-RC=0
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "$PORT" "$WORKTREE" || RC=$?
-if [ "$RC" = 40 ]; then
-  # exit 40: UN reintento (dev-server start + verify-port). Nunca mas de uno.
-  bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server start "$WORKTREE"
-  RC=0
-  bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "$PORT" "$WORKTREE" || RC=$?
-fi
-if [ "$RC" != 0 ]; then
-  mkdir -p "$WORKTREE/.b7/review"
-  printf '{"reason": "no-port"}\n' > "$WORKTREE/.b7/review/SKIPPED.json"
-  echo "WARN: verify-port fallo (:${PORT} no sirve el worktree, exit $RC) — screens se omiten; SKIPPED.json reason=no-port"
-fi
-```
-
-Reglas por exit code:
-
-- **Exit 40** (nadie escucha): UN reintento como en el bloque de arriba — `dev-server start` + `verify-port`, nunca más de uno. Si persiste, escribir `SKIPPED.json` con `reason=no-port`, dejar nota explícita en el run-report y saltar a 5.9 (no abortar el run completo).
-- **Exit 41** (el puerto lo sirve otro checkout): NO reintentar y NO matar el listener — puede ser el dev server legítimo de otra sesión b7/b8/b10 paralela; resolverlo queda manual, como hoy. Escribir `SKIPPED.json` con `reason=no-port`, nota en el run-report y saltar a 5.9.
-
-**No revisar pantallas contra un server que no sea el del worktree** — ese fue el incidente que este gate previene (screen-review contra la rama default).
-
-#### 5.1 Auth: estrategia declarada del repo, con fallback
-
-**Primero, leer la estrategia que el repo declara** — sección `## Auth de pruebas (browser)` de su CLAUDE.md (la instala b-setup-or-fix; formato `clave: valor`). El método de auth depende del proyecto, su DB y sus criterios de seguridad — NO asumir uno:
-
-```bash
-sed -n '/^## Auth de pruebas/,/^## /p' "$WORKTREE/CLAUDE.md"
-```
-
-Dispatch por `estrategia:`:
-
-- **`dev-user`** → el primer agente navega `login_url:` y llena el form con los VALORES de las env vars que `credenciales:` nombra (leerlas del entorno; NUNCA imprimirlas ni pegarlas en logs). Las cookies de esa sesión sirven para el resto del run.
-- **`dev-endpoint`** → `curl -si "http://localhost:${PORT}<endpoint>"` captura el `Set-Cookie` → esa es `AUTH_COOKIE`. El endpoint solo existe en dev (404 en prod por diseño).
-- **`session-mint`** → flujo A de abajo (`email_seed:` alimenta `B7_SESSION_EMAIL` si el entorno no lo trae).
-- **`manual-cookies`** → en sesión interactiva: pedir al usuario UN login manual en el browser y reusar las cookies de esa sesión. Headless: pantallas protegidas → `not-evaluated (auth-required)` + nota en el run-report (no es `fail`).
-
-Sin sección declarada: flujo A→B histórico de abajo, y dejar en el run-report: "declara `## Auth de pruebas (browser)` en CLAUDE.md (b-setup-or-fix modo base) para que los runs no improvisen el método".
-
-**A. Intentar sesión scriptada (`mint-dev-session.sh`).** Inserta una fila de sesión válida en la DB del worktree y devuelve la cookie — sin ritual manual. Requiere `B7_SESSION_USER_ID` o `B7_SESSION_EMAIL` en el entorno del run:
-
-```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
-MINT="$PLUGIN_ROOT/skills/b7-screen-review/scripts/mint-dev-session.sh"
-AUTH_COOKIE=""
-if COOKIE_LINE=$(bash "$MINT" mint "$WORKTREE" 2>>"$WORKTREE/.b7/dev-server.log"); then
-  AUTH_COOKIE="${COOKIE_LINE#B7_SESSION_COOKIE=}"   # -> auth-session=<token>
-  # Verificar contra una ruta protegida real del feature (usar la route de la 1a pantalla):
-  if B7_SESSION_COOKIE="$AUTH_COOKIE" bash "$MINT" verify "http://localhost:${PORT}<primera-route>"; then
-    echo "auth scriptada OK — se pasa auth_cookie a los sub-agentes"
-  else
-    echo "verify no dio 200 — descarto la cookie, sigo con flujo B (sin cookie)"
-    AUTH_COOKIE=""
-  fi
-else
-  echo "mint no disponible (sin B7_SESSION_USER_ID/EMAIL o DATABASE_URL) — flujo B (sin cookie)"
-fi
-```
-
-`mint` sale 3 (fallback limpio) si faltan `B7_SESSION_USER_ID`/`B7_SESSION_EMAIL` o `DATABASE_URL` — **no** es error; simplemente no hay cookie y se sigue con el flujo B.
-
-**B. Fallback: correr sin cookie.** Si no hubo cookie, el agente abre la ruta igual (browser propio vía `agent-browser`; no reusa la sesión del Chrome real). Dejar UNA línea en el run-report y en el sticky comment del issue:
-
-> Pantallas protegidas quedaron `not-evaluated`: configura `B7_SESSION_USER_ID`/`B7_SESSION_EMAIL` + `DATABASE_URL` y re-corre para evaluarlas con sesión scriptada.
-
-Si una pantalla vuelve `auth-required` (redirección a login, sin cookie), **no** es `fail` del feature: marcar la pantalla como `not-evaluated (auth-required)` en el run-report y seguir. Solo cuenta como `fail` un criterio visual incumplido con sesión válida.
-
-> Restricción conocida (fuera de alcance de #14): la cookie es host-scoped (`localhost`). Si b7 y b8-swarm mintean en paralelo contra el mismo host, la última cookie pisa a las demás. Wiring de mint en b8-swarm es follow-up.
-
-#### 5.2 Lanzar un sub-agente por pantalla
-
-Para cada pantalla, lanzar **un agente del plugin** `b-pipeline:b7-screen-review` en paralelo (un Agent call por pantalla en el mismo turno):
-
-```
-Agent(
-  subagent_type="b-pipeline:b7-screen-review",
-  description="Visual review <ScreenName>",
-  prompt="screen=<Name> route=<route> port=<PORT> worktree=$WORKTREE criteria_file=.b7/screens/<Name>.md out_dir=.b7/review states=<states_required de la pantalla, join por coma; fallback golden> auth_cookie=<AUTH_COOKIE>. Output: .b7/review/<Name>.json + .b7/review/<Name>-*.png"
-)
-```
-
-Pasar `auth_cookie=<AUTH_COOKIE>` solo si 5.1-A dio una cookie válida (verify=200); si `AUTH_COOKIE` quedó vacío, omitir el param y las pantallas protegidas vuelven `auth-required` → `not-evaluated`.
-
-`b7-screen-review` produce por pantalla:
-- `<Name>.json`: `{verdict: pass|fail|warn, findings: [...], screenshots: [...]}` — campo aditivo `"infra_fail": true` cuando el review no corrió por falla de infra pura (ver agente)
-- Una o más PNGs (golden path + edge cases)
-
-Si alguna pantalla retorna `fail` (criterio visual incumplido con sesión válida), devolver findings al loop de implementación (paso 4) y rebudgetear iteración. Si retorna `warn` o `not-evaluated`, agregar al PR como nota pero seguir. `warn` con `"infra_fail": true` NO rebudgetea el paso 4: tratar la pantalla como `not-evaluated` con nota explícita en el run-report Y en el sticky comment del issue — mismo trato que el fallo de verify-port en 5.0 (el problema es de infra, no del código).
-
-#### 5.9 Apagar el dev server y borrar la sesión scriptada
-
-Pase lo que pase con el review, apagar el server que se levantó en 5.0 **y** borrar SIEMPRE la sesión que se minteó en 5.1-A (si la hubo). Ambos cleanups son idempotentes:
-
-```bash
-# Borrar la sesión scriptada (no falla si no se minteó ninguna).
-bash "$PLUGIN_ROOT/skills/b7-screen-review/scripts/mint-dev-session.sh" cleanup "$WORKTREE" || true
-# Apagar el dev server (silencioso si no hay pid file).
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dev-server stop "$WORKTREE"
-```
 
 ### 6. Commit — PASO OBLIGATORIO #3
 
@@ -647,31 +502,19 @@ Solo en `--dry-run`: leer y seguir `references/dry-run.md` (qué se mantiene, qu
 
 ## Sub-agentes y routing de modelo
 
-| Paso | Sub-agente | Modelo | Razón |
-|------|-----------|--------|-------|
-| 4 Implementación | `Agent(general-purpose)` | opus (sonnet en carril S) | Aislar contexto de exploración + tool calls verbosos. Orquestador solo recibe resumen. |
-| 5 Revisión visual | `Agent(b-pipeline:b7-screen-review)` — agente del plugin | sonnet (multimodal, no necesita opus) | Toolset de browser (`agent-browser`) es independiente. Paralelizar por pantalla. Output binario (PNG) no contamina contexto. |
-| Triage (`b1-triage-issue`) | Skill directo | opus (decisión de scope) | Determinístico y rápido; sub-agente sería overkill. |
-| Commit / PR / log summarizers | Skill directo | haiku cuando sea posible | Idem. |
+| Paso | Sub-agente | Modelo |
+|------|-----------|--------|
+| 4 Implementación | `Agent(b-pipeline:b7-impl)` (carriles M/L) · `agents/b7-impl-s.md` (carril S) | sonnet en S y M, opus en L (override por `model` del Agent call) |
+| 5 Revisión visual | `Agent(b-pipeline:b7-screen-review)` | sonnet — un Agent call por pantalla, en paralelo |
+| Triage / commit / PR | Skill directo (`b1-triage-issue`, `b3-git-commit`, `b4-pull-request`) | el del propio skill |
+
+Razones y detalle de la invocación headless: `references/runbook.md`.
 
 ## Manejo de errores
 
 - Toda ruta de abort debe (a) `publish-docs.sh aborted` (que actualiza el comentario del issue + entry en CHANGELOG con `[Aborted]`), (b) escribir el run report, (c) liberar el lock con `guardrails.sh release-lock "$(jq -r '.lock_file // empty' .b7/state.json)"`.
 - **El lock NO se libera solo.** `run.sh` lo deja retenido a propósito para la fase LLM (y persiste su path en `state.json.lock_file`); toda ruta terminal (éxito, abort, bail) debe invocar `guardrails.sh release-lock "$(jq -r '.lock_file // empty' .b7/state.json)"` — libera SOLO el shard de este run. Si `lock_file` está vacío o `state.json` no existe todavía, `release-lock` sin arg (legacy `b7.lock`). Fallback: un lock sin tocar por 2h (`B7_LOCK_STALE_SECS`) se recupera en el próximo preflight — el heartbeat de cada iteración lo mantiene fresco en runs vivos.
 - Si `publish-docs.sh` falla (p.ej. `gh` cae), no bloquear el resto del cierre — log a stderr y continuar.
-
-## Invocación headless
-
-```bash
-# Default (wet) — corre los 5 pasos completos: worktree, sticky, commits, PR+labels, review
-claude -p --permission-mode acceptEdits "Use skill b7-issue-to-pr with arguments: 142"
-# Flags combinables con el numero de issue:
-#   --directives='agregale columna rut'   directivas inline del usuario
-#   --dry-run                             inspeccionar antes de PR
-#   --no-screens                          issue puramente backend
-```
-
-Cuando el usuario invoca de forma interactiva con texto pegado (`/b7-issue-to-pr #121 hola agrega el campo X`), el skill interpreta `121` como issue y el resto como `--directives`. El pipeline corre los 5 pasos igual que en headless.
 
 ## Qué NO hacer
 
@@ -686,4 +529,7 @@ Cuando el usuario invoca de forma interactiva con texto pegado (`/b7-issue-to-pr
 
 - `templates/` — triage-output.schema.json (schema de `.b7/triage.json`), issue-comment.md, pr-release-notes.md, changelog-entry.md, run-report.md
 - `scripts/` — guardrails.sh, publish-docs.sh, log-filter.sh, error-hash.sh, diff-summary.sh (produce `.b7/diff-stat.txt`), render-report.sh (usos en los pasos del workflow)
-- `references/` — lane-s.md (optimizaciones del carril S), dry-run.md (cierre de un dry-run)
+- `references/` — **carga bajo demanda, NO leer de entrada** (este `SKILL.md` va en el prefijo cacheado del fork y se re-lee en cada turno; una reference se lee una vez):
+  - `runbook.md` — DoD verificable, frases prohibidas, routing de sub-agentes, invocación headless. Leer AL CERRAR el run.
+  - `screens-step.md` — detalle 5.0–5.9 del review visual. Leer solo si la rampa del paso 5 no dio skip.
+  - `lane-s.md` — optimizaciones del carril S. `dry-run.md` — cierre de un dry-run.

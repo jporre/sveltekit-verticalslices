@@ -216,7 +216,9 @@ Code that compiles but hasn't been tested in a browser is NOT done.
    al paso 1 (verify.sh de nuevo — el fix puede romper types o formato).
 3. **Browser test con `agent-browser`** — SOLO si `VERIFY_RESULT` dice `browser=required`
    (el diff toca `src/routes/**`, `*.svelte` o `*.remote.ts`). Con `browser=not-needed`
-   se omite dejando nota en el reporte. El walkthrough NO es opcional cuando es required:
+   se omite dejando nota en el reporte. El walkthrough NO es opcional cuando es required.
+   **`agent-browser` CLI, nunca las tools MCP de Chrome:** el CLI deja los PNG en disco;
+   un screenshot vía MCP entra al contexto y se re-lee en cada request de la sesión.
    - Open the page, take a screenshot — does it render?
    - Check server terminal for errors (`grep -i error` on dev server output)
    - Test each operation: list loads, create works, edit pre-populates, delete removes

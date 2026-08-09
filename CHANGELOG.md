@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.9.4] — 2026-08-09
+
+### fix — b10-ship a opus
+
+Cierra el criterio de 1.9.3 sobre el último orquestador que quedaba en sonnet (de antes de 1.9.2, no era parte de aquel cambio).
+
+- **`b10-ship` pasa de sonnet a opus.** Decidir la composición de las olas, gatear el auto-merge e interpretar veredictos de screen-review es juicio, no lectura de exit codes. Y a diferencia de b7 y b8, b10 corre **en el main loop** (necesita `Workflow` y `AskUserQuestion`), así que una mala decisión suya arrastra al epic entero, no a un run. El costo de b10 se ataca por contexto y turnos — el reset por ola de 1.9.1 —, no por modelo.
+- Los tres orquestadores (b7, b8, b10) quedan en opus con el razonamiento comentado en cada frontmatter. El routing de modelo hacia abajo sigue vigente donde el trabajo sí es acotado: `b7-impl` sonnet en carril M, `b7-impl-s` sonnet en carril S, `b7-screen-review` sonnet, `b1-triage-issue` sonnet, `b4-pull-request` y `b3-git-commit` haiku.
+
+**Archivos clave**: `skills/b10-ship/SKILL.md`.
+
 ## [1.9.3] — 2026-08-09
 
 ### revert — b7 y b8 vuelven a opus

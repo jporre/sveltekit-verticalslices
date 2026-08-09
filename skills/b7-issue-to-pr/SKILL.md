@@ -3,11 +3,13 @@ name: b7-issue-to-pr
 description: 'Pipeline autónomo issue -> PR DRAFT centrado en pantallas; se detiene en el PR draft, NO mergea. Entrada directa SOLO cuando el usuario quiere parar en el PR: "issue N hasta PR", "abre PR del issue N", "sin merge". NO es la entrada default de "resuelve/trabaja/arregla el issue N" — eso rutea a b10-ship (que invoca este skill como fase de build); un cluster de issues relacionadas en un solo PR es b8-swarm.'
 allowed-tools: Bash, Read, Edit, Write, Skill, Agent
 context: fork
-# model: sonnet a proposito — este skill es GLUE (lee JSON, corre scripts, encadena skills).
-# El trabajo que necesita capacidad vive en los sub-agentes: b7-impl (sonnet en M, opus en L),
-# b2-build-feature y b6-pr-review, cada uno con su propio modelo. Los 5 pasos y el DoD estan
-# anclados a exit codes de scripts, no a juicio del modelo. Revertir a opus es esta linea.
-model: sonnet
+# model: opus a proposito. Se probo sonnet (v1.9.2) y se revirtio: aunque preflight, carril,
+# triage y DoD estan anclados a scripts, el paso 3 (diseno de los esqueletos de pantalla) y las
+# decisiones de re-iterar/abortar/escalar de los pasos 4-5 SI son juicio, y sus errores se pagan
+# rio abajo — un esqueleto pobre contamina la implementacion Y los criterios del review visual.
+# El costo del orquestador se ataca por contexto y turnos (SKILL.md liviano + references bajo
+# demanda + reset por ola), NO bajando el modelo: un run mal ruteado cuesta mas que el ahorro.
+model: opus
 effort: medium
 ---
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.3] — 2026-08-09
+
+### revert — b7 y b8 vuelven a opus
+
+Revierte la mitad "orquestadores a sonnet" de 1.9.2. El resto de 1.9.1 y 1.9.2 queda intacto: ahí está el ahorro real.
+
+- El routing de modelo era la palanca **más chica** del paquete (~2-3%) y la de mayor riesgo de comportamiento. Un run mal ruteado o abortado cuesta el run completo — agente de impl + b6 + un screen-review por pantalla — y se come varias veces lo ahorrado.
+- La justificación de 1.9.2 ("todo está anclado a exit codes") era parcial. Cierto para preflight, carril, triage y DoD; falso para el **paso 3** (diseño de los esqueletos de pantalla, que son el input de la implementación *y* los criterios de aceptación del review visual) y para las decisiones de re-iterar / abortar / escalar de los pasos 4-5. Ahí el error se paga río abajo. Mismo argumento en b8: el clustering y la agrupación de commits entre issues es juicio, y equivocarse cuesta el PR combinado entero.
+- El costo del orquestador se ataca por **contexto y turnos** — `SKILL.md` liviano, `references/` bajo demanda, reset por ola —, no bajando el modelo. Esas tres siguen puestas.
+
+**Archivos clave**: `skills/b7-issue-to-pr/SKILL.md`, `skills/b8-swarm/SKILL.md` (una línea de frontmatter cada uno, con el razonamiento comentado en el propio archivo).
+
 ## [1.9.2] — 2026-08-09
 
 ### perf — b6 a `context: fork` y orquestadores a sonnet

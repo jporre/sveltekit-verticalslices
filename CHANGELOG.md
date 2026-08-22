@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.9.5] — 2026-08-22
 
 ### Fix — symlinks .env* se mueven a un hook PostToolUse (#54 follow-up)
 

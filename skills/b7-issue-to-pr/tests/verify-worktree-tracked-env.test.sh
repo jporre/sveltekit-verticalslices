@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Regresion issue #54: verify-worktree contaba TODOS los archivos de config local del
-# repo padre para exigir symlinks, incluidos los trackeados que setup-worktree.sh salta
-# a proposito -> false-fail exit 31 en cualquier repo cuyo unico archivo del patron sea
-# un ejemplo versionado.
+# Regresion issue #54 y su follow-up: verify-worktree vs symlinks de config local.
+#
+# #54: el gate contaba TODOS los archivos de config local del repo padre para exigir
+# symlinks, incluidos los trackeados que nunca se symlinkean -> false-fail exit 31.
+# Follow-up: los symlinks ahora los crea el hook PostToolUse link-worktree-env.sh
+# (no setup-worktree.sh), que puede no haber corrido; el gate 3 degrada a WARN y
+# nunca puede fallar por symlinks faltantes.
 #
 # Uso: bash skills/b7-issue-to-pr/tests/verify-worktree-tracked-env.test.sh
 set -uo pipefail
@@ -45,15 +48,28 @@ chmod +x "$wt/dev.sh"
 rc=0; bash "$GUARDRAILS" verify-worktree "$wt" >/dev/null 2>&1 || rc=$?
 assert_exit 0 "$rc" "archivo de config trackeado sin symlink no debe fallar el gate"
 
-# Contraprueba: un archivo NO trackeado sin symlink SI debe seguir fallando.
+# Un archivo NO trackeado sin symlink degrada a WARN, nunca exit 31: el symlink lo
+# crea el hook link-worktree-env.sh y su ausencia no es culpa del worktree.
 printf 'FOO=bar\n' > "$parent/${CFG}.local"
-rc=0; bash "$GUARDRAILS" verify-worktree "$wt" >/dev/null 2>&1 || rc=$?
-assert_exit 31 "$rc" "archivo de config no trackeado sin symlink sigue fallando el gate"
+rc=0; out="$(bash "$GUARDRAILS" verify-worktree "$wt" 2>&1)" || rc=$?
+assert_exit 0 "$rc" "archivo no trackeado sin symlink no bloquea (gate degradado a WARN)"
+if printf '%s' "$out" | grep -q "WARN parent has 1 untracked"; then
+  echo "ok   - emite WARN por symlinks faltantes"
+else
+  echo "FAIL - falta el WARN de symlinks faltantes"
+  fails=$((fails + 1))
+fi
 
-# Y con su symlink presente vuelve a pasar.
+# Con el symlink presente no hay WARN y sigue pasando.
 ln -sf "$parent/${CFG}.local" "$wt/${CFG}.local"
-rc=0; bash "$GUARDRAILS" verify-worktree "$wt" >/dev/null 2>&1 || rc=$?
+rc=0; out="$(bash "$GUARDRAILS" verify-worktree "$wt" 2>&1)" || rc=$?
 assert_exit 0 "$rc" "archivo no trackeado con symlink pasa el gate"
+if printf '%s' "$out" | grep -q "WARN parent has"; then
+  echo "FAIL - WARN inesperado con symlink presente"
+  fails=$((fails + 1))
+else
+  echo "ok   - sin WARN con symlink presente"
+fi
 
 git -C "$parent" worktree remove --force "$wt" >/dev/null 2>&1 || true
 [ "$fails" -eq 0 ] || { echo "$fails assertion(s) fallaron"; exit 1; }

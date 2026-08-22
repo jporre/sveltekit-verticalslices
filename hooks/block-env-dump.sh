@@ -5,7 +5,7 @@
 # tool_input, y en caso de match imprime un hint a stderr + exit 2 (bloquea la tool).
 #
 # Motivo (incidente real, sesión 80744a45): un `cat .env` imprimió secretos en
-# plaintext y el usuario tuvo que interrumpir. setup-worktree.sh symlinkea todos los
+# plaintext y el usuario tuvo que interrumpir. El hook link-worktree-env.sh symlinkea todos los
 # .env* a cada worktree, así que el riesgo está en cada worktree. Para diagnosticar
 # credenciales SIN exponerlas, usar hooks/env-probe.sh (fingerprints, no valores).
 #

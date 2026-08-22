@@ -6,7 +6,7 @@
 #
 # Worktrees MUST be created via b1-add-worktree/setup-worktree.sh, which:
 #   - places the worktree under <parent>/worktrees/<slug>/
-#   - symlinks every .env* from the parent
+#   - .env* symlinks from the parent (created by the link-worktree-env.sh PostToolUse hook)
 #   - picks a free dev port and writes dev.sh
 #   - runs pnpm install
 #   - installs the per-worktree pre-commit budget hook

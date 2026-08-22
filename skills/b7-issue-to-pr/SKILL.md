@@ -255,7 +255,7 @@ export WORKTREE BRANCH PORT DEFAULT_BRANCH
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-worktree "$WORKTREE" || exit 31
 ```
 
-Sin `WORKTREE_READY` no hay `$WORKTREE` exportado → ninguna escritura posterior puede apuntar a un destino válido. `verify-worktree` además rechaza worktrees que estén fuera de `<parent>/worktrees/`, sin `dev.sh`, sin symlinks `.env*` o sin `node_modules`.
+Sin `WORKTREE_READY` no hay `$WORKTREE` exportado → ninguna escritura posterior puede apuntar a un destino válido. `verify-worktree` además rechaza worktrees que estén fuera de `<parent>/worktrees/`, sin `dev.sh` o sin `node_modules`. Symlinks `.env*` faltantes solo emiten WARN: los crea el hook PostToolUse `hooks/link-worktree-env.sh` y son cosméticos para build/test.
 
 Crear `.b7/` dentro del worktree (excluido vía el exclude por-worktree que siembra `setup-worktree.sh`). Mover los artefactos `.b7/issue.json`, `.b7/triage.json`, `.b7/context.md` al worktree. **Sembrar el heartbeat de inmediato** (la reconciliación de b10 lo usa para distinguir runs vivos de zombies — sin él, un run muerto en fases tempranas es invisible):
 

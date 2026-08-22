@@ -87,6 +87,7 @@ finish() { # <status> <age_days>
 if [ -f "$CACHE" ]; then
   now=$(date +%s)
   cm=$(stat -f %m "$CACHE" 2>/dev/null || stat -c %Y "$CACHE" 2>/dev/null || echo 0)
+  case "$cm" in ''|*[!0-9]*) cm=0 ;; esac
   if [ $(( now - cm )) -lt "$CACHE_TTL" ]; then
     cat "$CACHE"
     exit 0

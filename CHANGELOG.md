@@ -1,3 +1,45 @@
+## [Unreleased]
+
+<!--
+  Entrada CHANGELOG generada por b7-issue-to-pr.
+  Tono: técnico-analítico para devs futuros leyendo historia.
+  Se inserta bajo la sección [Unreleased] del CHANGELOG.md raíz.
+-->
+
+### Fix — b7-guardrails (#54)
+
+verify-worktree (gate 3) contaba todos los archivos de config local del repo padre para exigir un symlink por cada uno, pero setup-worktree.sh salta a proposito los trackeados (ln -sf los volveria un type-change commiteable). En repos cuyo unico archivo del patron es un ejemplo versionado el gate fallaba siempre con exit 31 y bloqueaba el paso 1 de b7. Ahora el conteo del padre excluye los trackeados, con el mismo filtro git ls-files que ya usa setup-worktree.sh. De paso se sanitiza el mtime numerico en lock_age_secs y en codegraph-probe.sh, origen de los 'unbound variable' e 'integer expected' vistos en el mismo preflight.
+<!--
+  SUMMARY_TECHNICAL: 1-3 frases técnicas. Qué se cambió y por qué.
+  Ej: "Agrega remote function get_tareas_by_estado y nueva pantalla BandejaTareasPage para reemplazar el filtrado client-side que escalaba mal a >2k tareas."
+-->
+
+**Pantallas afectadas**: —
+<!-- "BandejaTareasPage (/tareas), DetalleTareaPage (/tareas/[id])" o "—" si no hay -->
+
+**Archivos clave**:
+- `skills/b7-issue-to-pr/scripts/guardrails.sh` — conteo del padre excluye trackeados; mtime sanitizado
+- `skills/b1-add-worktree/scripts/codegraph-probe.sh` — mtime de cache sanitizado
+- `skills/b7-issue-to-pr/tests/verify-worktree-tracked-env.test.sh` — test de regresion
+<!--
+  - `src/routes/b7-guardrails/b7-guardrails.remote.ts` — nueva query + permission check
+  - `src/routes/b7-guardrails/+page.svelte` — UI principal
+-->
+
+**Riesgos / consideraciones**:
+- Sin riesgos identificados: el gate sigue fallando cuando falta el symlink de un archivo NO trackeado (cubierto por el test).
+<!--
+  - Migración requerida: —
+  - Permiso nuevo registrado: —
+  - Posible impacto en cache: —
+  - "Sin riesgos identificados" si nada aplica.
+-->
+
+**Métricas del run**: 1 iter · 0 archivos · 0 líneas netas · —
+
+**Links**: [issue #54](https://github.com/jporre/sveltekit-verticalslices/issues/54) · [PR #—](—) · [run report](—)
+
+
 # Changelog
 
 ## [1.9.4] — 2026-08-09

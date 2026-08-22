@@ -84,6 +84,9 @@ ensure_state_dir() {
 lock_age_secs() {
   local f="$1" mtime
   mtime="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0)"
+  # Un stat de otra variante (GNU -f = filesystem) puede salir 0 con texto no numerico;
+  # bash evaluaria ese texto como expresion aritmetica -> "unbound variable".
+  case "$mtime" in ''|*[!0-9]*) mtime=0 ;; esac
   echo $(( $(date +%s) - mtime ))
 }
 
@@ -636,10 +639,15 @@ cmd_verify_worktree() {
   local link_count
   link_count=$(find "$dir" -maxdepth 1 -name '.env*' -type l 2>/dev/null | wc -l | tr -d ' ')
   if [ -n "$repo_root" ] && [ -d "$repo_root" ]; then
+    # Solo cuentan los archivos NO trackeados: setup-worktree.sh salta a proposito los
+    # trackeados (.env.example) porque ln -sf los volveria un type-change commiteable.
+    # Contarlos aca exigia symlinks que nunca se crean -> false-fail (issue #54).
     local src_env_count
-    src_env_count=$(find "$repo_root" -maxdepth 1 -name '.env*' -type f 2>/dev/null | wc -l | tr -d ' ')
+    src_env_count=$(find "$repo_root" -maxdepth 1 -name '.env*' -type f 2>/dev/null | while read -r f; do
+      git -C "$repo_root" ls-files --error-unmatch "$(basename "$f")" >/dev/null 2>&1 || echo "$f"
+    done | wc -l | tr -d ' ')
     if [ "$src_env_count" -gt 0 ] && [ "$link_count" -eq 0 ]; then
-      echo "verify-worktree: FAIL parent has $src_env_count .env* file(s) but worktree has 0 symlinks" >&2
+      echo "verify-worktree: FAIL parent has $src_env_count untracked .env* file(s) but worktree has 0 symlinks" >&2
       fail=1
     fi
   fi

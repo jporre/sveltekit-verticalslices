@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Fix — b7-guardrails (#54)
+
+verify-worktree (gate 3) contaba todos los archivos de config local del repo padre para exigir un symlink por cada uno, pero setup-worktree.sh salta a proposito los trackeados (ln -sf los volveria un type-change commiteable). En repos cuyo unico archivo del patron es un ejemplo versionado el gate fallaba siempre con exit 31 y bloqueaba el paso 1 de b7. Ahora el conteo del padre excluye los trackeados, con el mismo filtro `git ls-files` que ya usa setup-worktree.sh. De paso se sanitiza el mtime a numerico en `lock_age_secs` y en codegraph-probe.sh, origen de los "unbound variable" e "integer expected" vistos en el mismo preflight.
+
+**Archivos clave**:
+- `skills/b7-issue-to-pr/scripts/guardrails.sh` — conteo del padre excluye trackeados; mtime sanitizado
+- `skills/b1-add-worktree/scripts/codegraph-probe.sh` — mtime de cache sanitizado
+- `skills/b7-issue-to-pr/tests/verify-worktree-tracked-env.test.sh` — test de regresion
+
+**Riesgos**: sin riesgos identificados. El gate sigue fallando cuando falta el symlink de un archivo NO trackeado (cubierto por el test).
+
+**Links**: [issue #54](https://github.com/jporre/sveltekit-verticalslices/issues/54) · [PR #55](https://github.com/jporre/sveltekit-verticalslices/pull/55)
+
+
 ## [1.9.4] — 2026-08-09
 
 ### fix — b10-ship a opus

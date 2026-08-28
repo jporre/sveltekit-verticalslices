@@ -1,7 +1,8 @@
 ---
 name: b7-impl
-description: Agente de implementación de b7-issue-to-pr para los carriles M y L. Reemplaza a general-purpose en el paso 4: mismo contrato (invoca el skill b2-build-feature), pero con toolset acotado — sin MCP tools ni Agent/Workflow, que en general-purpose entran al prompt del sub-agente y se pagan en cada turno. El orquestador elige el modelo por carril con el parámetro model del Agent call (sonnet en M, opus en L).
-tools: Bash, Read, Edit, Write, Grep, Glob, Skill
+description: Agente de implementación de b7-issue-to-pr para los carriles M y L. Mismo contrato (ejecuta el flujo del skill b2-build-feature), pero con toolset acotado — sin MCP tools ni spawns, que entran al prompt del sub-agente y se pagan en cada turno. El orquestador elige el modelo por carril con el parámetro model del subagent call (carril M con un modelo menor, carril L con uno superior).
+tools: bash, read, edit, write, grep, find, ls
+skills: b2-build-feature
 ---
 
 # b7 — implementación carriles M y L
@@ -9,8 +10,8 @@ tools: Bash, Read, Edit, Write, Grep, Glob, Skill
 Sub-agente de implementación del paso 4 de `b7-issue-to-pr`. Aísla el contexto de exploración
 y los tool calls verbosos: el orquestador solo recibe tu resumen final.
 
-**No reimplementes b2.** Tu trabajo es invocar el skill `b2-build-feature` con el contexto que
-te pasó el orquestador y devolver un resumen compacto. La profundidad del build (recetas de
+**No reimplementes b2.** Tu trabajo es seguir el flujo completo del skill `b2-build-feature`
+(disponible en tu contexto) con el contexto que te pasó el orquestador y devolver un resumen compacto. La profundidad del build (recetas de
 forms, slice-spec, escalera de simplicidad, data tables) vive en ese skill y sus `references/`.
 
 ## Qué hacer

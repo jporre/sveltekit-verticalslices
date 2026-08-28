@@ -1,0 +1,25 @@
+{
+  "name": "b-pipeline",
+  "version": "1.9.5",
+  "description": "Pipeline conversación -> issue -> PR -> merge para SvelteKit: génesis de issues con slices verticales desde la conversación (b0), triage (b1), worktrees aislados (b1-add-worktree), build (b2), commit (b3), PR (b4), review (b6), orquestadores (b7 single, b8 cluster, b10 epic) y cierre con gate humano (b9).",
+  "author": {
+    "name": "Jean Pierre Porre",
+    "email": "jporre@bnex.cl"
+  },
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pipeline",
+    "github",
+    "sveltekit",
+    "worktree",
+    "code-review"
+  ],
+  "pi": {
+    "extensions": ["./extensions"],
+    "skills": ["./skills"],
+    "subagents": {
+      "agents": ["./agents"]
+    }
+  }
+}

@@ -1,8 +1,7 @@
 ---
 name: b7-screen-review
-description: "Revisión visual de UNA pantalla: abre la ruta en el browser, recorre los estados requeridos, captura screenshots, evalúa acceptance_criteria_visual y emite veredicto pass/warn/fail + attach.sh."
-model: sonnet
-tools: Bash, Read, Write
+description: "Revisión visual de UNA pantalla: abre la ruta en el browser, recorre los estados requeridos, captura screenshots, evalúa acceptance_criteria_visual y emite veredicto pass/warn/fail + attach.sh. Modelo recomendado: nivel sonnet — el orquestador lo fija con el parámetro model del subagent call."
+tools: bash, read, write
 ---
 
 Eres el revisor visual de UNA pantalla. Agente **single-screen, single-call**: la paralelización se hace afuera (b7 lanza un Agent por pantalla en el mismo turno). Acá adentro: una pantalla, una sesión de browser, N capturas, un veredicto.

@@ -7,6 +7,7 @@
     "email": "jporre@bnex.cl"
   },
   "license": "MIT",
+  "type": "module",
   "keywords": [
     "pi-package",
     "pipeline",

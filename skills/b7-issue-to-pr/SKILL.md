@@ -29,7 +29,7 @@ Invocar este skill con un número de issue ejecuta los 5 pasos en orden, incluso
 1. **Worktree** — `b1-add-worktree --headless`; branch `feat/<issue>-<slug>` o `fix/<issue>-<slug>`. Prohibido editar el repo principal en la rama default; si no se puede crear el worktree, abortar antes de tocar archivos.
 2. **Comentario sticky en el issue al iniciar** — `publish-docs.sh milestone started` + `issue-comment` (marker `<!-- b7:status -->`).
 3. **Commit(s) via b3-git-commit** — conventional commits por agrupación temática; sin mensajes inventados.
-4. **PR draft + labels sincronizadas** — `b4-pull-request --draft` con cuerpo de `publish-docs.sh pr-body` (incluye `Closes #<issue>`); labels `ready/auto-pr → in-progress → in-review`; sticky actualizado con link al PR.
+4. **PR draft + labels sincronizadas** — `b4-pull-request --draft` con cuerpo de `publish-docs.sh pr-body` (incluye `Closes #<issue>`); labels `ready → in-progress → in-review`; sticky actualizado con link al PR.
 5. **b6-pr-review sobre el PR recién abierto** — veredicto publicado en el PR; findings de severidad alta bloquean (re-iterar o escalar a humano).
 
 Verificación observable de cada paso: ver DEFINITION OF DONE. Si alguno no se completa con éxito, el run se reporta `aborted` con razón clara — no como completado.
@@ -38,7 +38,7 @@ Verificación observable de cada paso: ver DEFINITION OF DONE. Si alguno no se c
 
 Al CERRAR el run (no antes), **leer y correr `references/runbook.md`** — trae el bloque bash verificable de los 9 checks y las frases prohibidas. Los checks, en una línea cada uno:
 
-1. Worktree creado por `setup-worktree.sh`, rama sobre la default · 2. Sticky `<!-- b7:status -->` en el issue · 3. ≥1 commit y rama default intacta · 4. PR draft abierto + labels sincronizadas (`in-review`, sin `ready`/`auto-pr`) · 5. `b6-pr-review` con veredicto publicado (`verdict.sh read` exit 0) · 6. `plan-check` exit 0 · 7. `assert-clean.sh --fix` exit 0 · 8. gate de regresión (fix sin test → `needs-human-review`, no aborta) · 9. `screens-check` exit 0.
+1. Worktree creado por `setup-worktree.sh`, rama sobre la default · 2. Sticky `<!-- b7:status -->` en el issue · 3. ≥1 commit y rama default intacta · 4. PR draft abierto + labels sincronizadas (`in-review`, sin `ready`) · 5. `b6-pr-review` con veredicto publicado (`verdict.sh read` exit 0) · 6. `plan-check` exit 0 · 7. `assert-clean.sh --fix` exit 0 · 8. gate de regresión (fix sin test → `needs-human-review`, no aborta) · 9. `screens-check` exit 0.
 
 Si **cualquiera** no devuelve lo esperado, NO cerrar: completar el paso faltante y re-verificar.
 
@@ -287,7 +287,7 @@ Esto postea (o edita in-place, ver paso 7) el comentario sticky en el issue indi
 También en este punto se actualizan labels del issue (si las labels destino no existen, crearlas con `gh label create` antes):
 
 ```bash
-gh issue edit <N> --remove-label "ready,auto-pr" --add-label "in-progress"
+gh issue edit <N> --remove-label "ready" --add-label "in-progress" 2>/dev/null || true
 ```
 
 ### 3. Diseño de pantallas (rápido, en línea)
@@ -459,7 +459,7 @@ scripts/publish-docs.sh state-set pr_url="$PR_URL" pr_number="$PR_NUMBER" pr_lin
 scripts/publish-docs.sh issue-comment --worktree "$WORKTREE"
 ```
 
-Estado final esperado del issue: label `in-review`, comentario apuntando al PR, sin labels obsoletas (`ready`, `auto-pr`). Los pasos 8 y 8b son inseparables: si el `gh issue edit` falla, reportarlo en el run report como warning — no continuar como si todo estuviera bien. Cuando el PR mergea, el `Closes #<issue>` cierra el issue automáticamente.
+Estado final esperado del issue: label `in-review`, comentario apuntando al PR, sin label obsoleta (`ready`). Los pasos 8 y 8b son inseparables: si el `gh issue edit` falla, reportarlo en el run report como warning — no continuar como si todo estuviera bien. Cuando el PR mergea, el `Closes #<issue>` cierra el issue automáticamente.
 
 **Frontera de salida:** b7 termina en PR draft + review adjunto y NO mergea; el merge, cierre del PR y limpieza del worktree son de `b9-close`, con aprobación humana.
 

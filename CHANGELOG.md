@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fix — destraba el flujo single-issue (review de 3 pasadas)
+
+Siete bugs de consistencia que abortaban o ensuciaban runs reales:
+
+- **Vocabulario `type`**: b1 emitía `feature|bug|enhancement` pero el schema validado exige `feat|fix|chore|docs|refactor|test` — el gate de b7 rechazaba el triage tal como se escribía. Ahora b1 documenta el mapeo label→type (feature/enhancement→feat, bug→fix) y su ejemplo usa `feat`.
+- **Label fantasma `auto-pr`**: b7/b8/b9/runbook la removían y `guardrails.sh backlog` la consultaba, pero nadie la creaba — `gh issue edit --remove-label` fallaba en repos nuevos y el backlog default no matcheaba nada. Normalizado a labels que el pipeline sí crea (`ready`), con `|| true` tolerante en las remociones.
+- **migrate-to-remote enseñaba el anti-patrón que b6 castiga** (AP10): los snippets importaban de `./<feature>.remote` en vez de `./server/data.remote`.
+- **Contradicción SQL-first vs filtrado cliente <1000** (slice-spec mandaba SQL-first sin excepción y AP14 manda `$derived` en cliente): carve-out explícito en slice-spec.
+- **Sintaxis Svelte 4 en la guía Svelte 5**: `onsubmit|preventDefault` no existe en Svelte 5 → arrow con `e.preventDefault()`.
+- **b6 legitimaba `load()` con datos**: security-checklist mostraba load-con-datos solo como falla de auth; ahora también es anti-patrón doctrinal (AP2 retitulado y alineado con slice-spec).
+
 ### Feature — compatibilidad pi (dual harness)
 
 El mismo repo ahora se instala como paquete pi (`pi install`, manifiesto `pi` en `package.json`) además de plugin de Claude Code. La extensión `pi/b-pipeline-compat.ts` reutiliza los scripts de `hooks/` sin duplicar lógica:

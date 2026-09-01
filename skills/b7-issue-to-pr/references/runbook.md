@@ -22,7 +22,7 @@ git -C "$WORKTREE" log "$DEFAULT_BRANCH"..HEAD --oneline | wc -l   # >= 1
 git -C "$REPO_MAIN" status --porcelain                  # vacío
 # 4. PR draft abierto y labels del issue sincronizadas
 gh pr list --head "$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD)" --json number,isDraft,url
-gh issue view <N> --json labels -q '.labels[].name'     # contiene "in-review", no "ready"/"auto-pr"
+gh issue view <N> --json labels -q '.labels[].name'     # contiene "in-review", no "ready"
 # 5. b6-pr-review ejecutado, veredicto publicado en el PR (lector unico del marker)
 bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR>   # exit 0 obligatorio (exit 3 = sin review)
 # 6. Plan estructurado completo (todos los items done o plan vacío)

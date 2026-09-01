@@ -103,7 +103,7 @@ cmd_preflight() {
 }
 
 cmd_backlog() {
-  local label="${1:-ready,auto-pr}"
+  local label="${1:-ready}"
   local max="${2:-5}"
   # Query oldest-first (by number ascending), filtrar opt-outs localmente.
   gh issue list \

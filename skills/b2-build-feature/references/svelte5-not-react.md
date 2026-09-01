@@ -400,7 +400,7 @@ async function handleSubmit() {
 }
 </script>
 
-<form onsubmit|preventDefault={handleSubmit}>
+<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
   <input bind:value={name} />
   <select bind:value={type}>
     <option value="simple">Simple</option>

@@ -63,7 +63,7 @@ Before any research, decide if the work can short-circuit. Triage that races to 
 
 - `verdict` = `ready` (por el label)
 - `complexity` = `simple` | `medium` | `complex` (el label de complejidad presente)
-- `type` = `feature` | `bug` | `enhancement`
+- `type` = mapeo del label de tipo al vocabulario conventional-commit del schema (`feat|fix|chore|docs|refactor|test`, ver `b7-issue-to-pr/templates/triage-output.schema.json`): label `feature` o `enhancement` → `feat`; label `bug` → `fix`. Sin label de tipo → `feat`.
 - `scope` = valor de `scope:*`
 - `blocked_by` = números `#N` de la sección `## Blocked by` del body (o `[]` si no hay)
 
@@ -258,7 +258,7 @@ Short summary, no markdown headings:
 **Última línea OBLIGATORIA machine-readable** (la parsean orquestadores como b10-ship; fallback de ellos: leer labels del issue):
 
 ```
-TRIAGE_RESULT {"issue":261,"verdict":"ready","complexity":"complex","type":"feature","scope":"campaigns","blocked_by":[]}
+TRIAGE_RESULT {"issue":261,"verdict":"ready","complexity":"complex","type":"feat","scope":"campaigns","blocked_by":[]}
 ```
 
 - `verdict`: `ready` | `needs-info` | `duplicate` | `blocked` | `closed`

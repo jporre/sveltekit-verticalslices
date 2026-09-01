@@ -13,7 +13,8 @@ export async function load({locals}) {
   // ...
 }
 
-// INCORRECTO — load sin verificación devuelve datos a cualquiera
+// INCORRECTO — load que devuelve datos (slice-spec: los datos viven en remote functions, AP2)
+// y encima sin verificación de auth
 export async function load({params}) {
   return {items: await getItems(params.country)}
 }

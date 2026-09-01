@@ -17,9 +17,9 @@ Ejemplos de código de cada anti-patrón. La lista canónica y su numeración vi
 
 `goto()` solo se justifica después de una acción programática (submit, delete, etc).
 
-## 2. Fetch manual en vez de remote functions o load
+## 2. Fetch manual (o load con datos) en vez de remote functions
 
-**Anti-patrón**: Crear endpoints API y luego fetchear desde el componente con useEffect/onMount.
+**Anti-patrón**: Crear endpoints API y luego fetchear desde el componente con useEffect/onMount — o devolver datos de negocio desde `load()` (los datos viven en remote functions; `load` queda solo para guard/redirect, ver slice-spec §Reglas de datos).
 
 ```svelte
 <!-- MAL: fetch manual estilo React -->

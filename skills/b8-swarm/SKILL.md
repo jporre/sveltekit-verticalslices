@@ -40,7 +40,7 @@ Este skill **no** declara `context: fork`. Corre en el contexto principal **a pr
 --issues=N1,N2,...        cluster explicito (orden = orden de build)
 [--theme=<slug>]          tema para la rama: <type>/<theme>. Sin esto: swarm/<ids>
 [--max=N]                 cap de issues (default 5). Aplica al backlog, no a --issues.
-[--label=ready,auto-pr]   query del backlog si no se pasa --issues
+[--label=ready]           query del backlog si no se pasa --issues
 [--dry-run | --wet]       dry-run = arma la rama en el worktree, SIN PR/labels/comentarios
 [--on-error=continue|abort]  qué hacer si un issue falla el build (default continue)
 [--no-screens]            saltar review visual aunque haya screens
@@ -54,7 +54,7 @@ $ARGUMENTS
 
 > Si `$ARGUMENTS` aparece vacío, usar defaults y, sin `--issues`, sacar la cola del backlog.
 
-Defaults: `--wet`, `--max=5`, `--on-error=continue`, `--label=ready,auto-pr`. Sin `--issues`, la cola sale del backlog (`guardrails.sh backlog`).
+Defaults: `--wet`, `--max=5`, `--on-error=continue`, `--label=ready`. Sin `--issues`, la cola sale del backlog (`guardrails.sh backlog`).
 
 ## Flujo
 
@@ -145,7 +145,7 @@ fi
 
 Por cada issue ready commiteado:
 ```bash
-gh issue edit <N> --remove-label "ready,auto-pr" --add-label "in-review"
+gh issue edit <N> --remove-label "ready" --add-label "in-review" 2>/dev/null || true
 gh issue comment <N> --body "🤖 Incluido en PR #<PR> (cluster: #<otros>). Ver ahi el avance."
 ```
 En `--dry-run` se saltan labels y comentarios.
@@ -265,7 +265,7 @@ Al cerrar (éxito o abort), b8 debe haber:
 | Var | Default | Para que |
 |---|---|---|
 | `B8_MAX_PER_WAVE` | 5 | Cap de issues del backlog si no se pasa `--max`. |
-| `B8_DEFAULT_LABEL` | `ready,auto-pr` | Label query del backlog. |
+| `B8_DEFAULT_LABEL` | `ready` | Label query del backlog. |
 | `B7_MAX_OPEN_PRS` | 3 | Backpressure heredado. Casi moot (b8 = 1 PR/ola), pero corta si ya hay 3 PRs `auto-pr-bot` abiertos. |
 | `CLAUDE_PROJECT_DIR` | _(Claude Code)_ | State-dir / lock / runs. |
 

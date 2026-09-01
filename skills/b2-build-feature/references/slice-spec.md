@@ -48,7 +48,7 @@ Feature típico = 3-5 archivos, 15-35 KB. Más archivos = sospecha de over-engin
 
 ## Reglas de datos (`server/data.remote.ts`)
 
-- **SQL-first**: filtros, group by, agregaciones, promedios y aritmética se resuelven EN SQL (Drizzle); JavaScript solo lo mínimo justificable (presentación, mapeos triviales). Si el JS re-filtra o re-suma lo que SQL puede hacer, está mal.
+- **SQL-first**: filtros, group by, agregaciones, promedios y aritmética se resuelven EN SQL (Drizzle); JavaScript solo lo mínimo justificable (presentación, mapeos triviales). Si el JS re-filtra o re-suma lo que SQL puede hacer, está mal. **Carve-out**: SQL-first aplica a agregaciones, orden y filtros sobre datasets grandes; listas <1000 items se filtran/ordenan en cliente con `$derived` (AP14) — no fuerces una query por cada interacción de UI.
 - **Remote functions por default**: type-safe, se llaman desde cualquier parte, corren siempre en server (acceso seguro a env vars y cliente de db) y con async experimental se consumen con `await` directo en el componente.
 - **`load()` no se usa para datos**: la deduplicación de queries por request hace gratis compartir una misma `query` entre componentes y páginas (el caso que antes justificaba `load`). `+page.server.ts` queda solo para guard/redirect de ruta; `+server.ts` solo para consumidores externos (webhooks, apps móviles) — nunca para datos internos.
 

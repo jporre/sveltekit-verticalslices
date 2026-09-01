@@ -316,7 +316,7 @@ fi
 # de TODOS los issues del PR (los PRs cluster de b8 cierran varios).
 for i in $ISSUES; do
   gh issue edit "$i" --remove-label in-review --remove-label in-progress \
-    --remove-label auto-pr --remove-label auto-pr-bot 2>/dev/null || true
+    --remove-label ready 2>/dev/null || true
 done
 # Limpiar labels de aprobación del PR si quedaron.
 gh pr edit "$PR" --remove-label merge-approved --remove-label awaiting-approval 2>/dev/null || true

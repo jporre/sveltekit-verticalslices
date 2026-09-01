@@ -31,7 +31,7 @@ MAX="${B8_MAX_PER_WAVE:-5}"
 ISSUES=""
 MODE="wet"
 ON_ERROR="continue"
-LABEL="${B8_DEFAULT_LABEL:-ready,auto-pr}"
+LABEL="${B8_DEFAULT_LABEL:-ready}"
 THEME=""
 
 for arg in "$@"; do

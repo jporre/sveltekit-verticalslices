@@ -39,7 +39,7 @@ export const get_items = query(async () => {
 ```svelte
 <!-- BIEN — +page.svelte: sin prop data, sin loading manual -->
 <script lang="ts">
-  import { get_items } from './<feature>.remote';
+  import { get_items } from './server/data.remote';
   const items = $derived(await get_items());
 </script>
 
@@ -100,7 +100,7 @@ export const upsert_item = form(
 ```svelte
 <!-- BIEN -->
 <script lang="ts">
-  import { get_items } from './<feature>.remote';
+  import { get_items } from './server/data.remote';
   const items = $derived(await get_items());
 </script>
 ```

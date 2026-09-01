@@ -5,45 +5,25 @@ No se necesita durante el loop de implementación — por eso vive acá y no en 
 
 ## DEFINITION OF DONE — bloque verificable
 
-Antes de devolver el resumen final al usuario, el orquestador **debe** correr estos checks
-observables y exhibir el resultado de cada uno. Si alguno falla, el run no terminó.
+Los 9 checks corren en UNA pasada con el subcomando determinístico (el orquestador NO los ejecuta a mano — mismo criterio, 1 turno):
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
-. "$PLUGIN_ROOT/scripts/lib.sh"
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-$(bp_default_branch)}"   # rama base real — nunca asumir master
-# 1. Worktree existe, fue creado por setup-worktree.sh, y la rama está sobre la rama default
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-worktree "$WORKTREE"
-git -C "$WORKTREE" rev-parse --abbrev-ref HEAD       # feat/<N>-... o fix/<N>-...
-# 2. Comentario sticky en el issue
-gh issue view <N> --json comments -q '.comments[].body' | grep -q '<!-- b7:status -->'
-# 3. Commits existen (al menos uno) y la rama default no se tocó
-git -C "$WORKTREE" log "$DEFAULT_BRANCH"..HEAD --oneline | wc -l   # >= 1
-git -C "$REPO_MAIN" status --porcelain                  # vacío
-# 4. PR draft abierto y labels del issue sincronizadas
-gh pr list --head "$(git -C "$WORKTREE" rev-parse --abbrev-ref HEAD)" --json number,isDraft,url
-gh issue view <N> --json labels -q '.labels[].name'     # contiene "in-review", no "ready"
-# 5. b6-pr-review ejecutado, veredicto publicado en el PR (lector unico del marker)
-bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR>   # exit 0 obligatorio (exit 3 = sin review)
-# 6. Plan estructurado completo (todos los items done o plan vacío)
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh" plan-check --worktree "$WORKTREE"   # exit 0 obligatorio
-# 7. Worktree limpio post-commit (NADA fuera del commit — exit 0 obligatorio)
-bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
-# 8. Gate de regresion: un fix cuyo diff no toca ningun test degrada a needs-human-review (NO aborta)
-if [ "$(jq -r '.type' "$WORKTREE/.b7/triage.json")" = "fix" ] \
-   && ! git -C "$WORKTREE" diff --name-only "$DEFAULT_BRANCH"..HEAD | grep -qE '\.(test|spec)\.'; then
-  echo "FIX_SIN_TEST — fix sin test de regresion; status=needs-human-review"
-fi
-# 9. Screen-review verificable: JSON de review por cada pantalla del triage, o SKIPPED.json con
-#    reason valido (exit 8 = run invalido: falta review sin skip valido, o algun verdict=fail)
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" screens-check "$WORKTREE"
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dod-check "$WORKTREE" <N> "${PR_NUMBER:-none}"
+# emite DOD 1=ok|warn|fail ... 9=ok|warn|fail y DOD_SUMMARY=ok|needs-human-review|fail
+# exit 1 si hay fail. Checks 4/5 = skip cuando no hay PR (--dry-run/--no-pr).
 ```
 
-Si el check 7 sale 6 (código sin commitear), volver a invocar `b3-git-commit` en el worktree y pushear — el run NO está terminado con trabajo fuera del commit. Si sale 7 (artefactos persistentes que `--fix` no pudo excluir), listarlos en el run-report como warning y continuar — mismo criterio que b9 PASO 1.5: los artefactos no invalidan el run.
+Semántica por check (lo que dod-check implementa internamente — útil al depurar):
 
-Si el check 8 imprime `FIX_SIN_TEST`, el run no aborta pero su status final es `needs-human-review` (no `ok`): un fix que no toca tests necesita que un humano confirme que la ausencia de regresión es aceptable. Si hubo waiver explícito, la degradación es la misma (ver "Waiver explícito" en el paso 1).
-
-Si el check 9 sale 8, el run NO está terminado: falta el JSON de review de alguna pantalla sin skip válido, o hay un `verdict: fail` sin resolver — volver al paso 5 (o al loop del paso 4 si el fail es de criterio visual) antes de cerrar. Exit 3 = rama base irresoluble en el cross-check (problema de entorno, no del run): también bloquea — parar con diagnóstico, no adivinar. `not-evaluated` NO es fail (pass-through con nota). Con `triage.screens[]` vacío o ausente, `screens-check` sale 0 directo sin exigir artefactos.
+1. Worktree creado por `setup-worktree.sh`, rama != default (`verify-worktree` + branch check)
+2. Sticky `<!-- b7:status -->` en el issue
+3. ≥1 commit sobre la default y main tree limpio (`git status --porcelain` vacío en el repo principal)
+4. PR draft abierto y labels sincronizadas (`in-review`, sin `ready`) — skip sin PR
+5. `b6-pr-review` con veredicto publicado (`verdict.sh read` exit 0) — skip sin PR
+6. Plan estructurado completo (`plan-check` exit 0)
+7. Worktree limpio post-commit (`assert-clean.sh --fix`; exit 7 = artefactos persistentes → WARN, no fail)
+8. Gate de regresión: fix sin test en el diff → WARN (`DOD_SUMMARY=needs-human-review`, no aborta)
+9. Screen-review verificable (`screens-check`; exit 8 = run inválido)
 
 ### Frases prohibidas al cerrar el run
 

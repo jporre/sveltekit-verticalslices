@@ -4,21 +4,14 @@ Leer este archivo SOLO cuando `classify-run` (paso 1b) emitió `RUN_LANE=S`. En 
 
 ## Paso 3 — render MECÁNICO de screens (sin LLM)
 
-NO gastar una pasada de modelo diseñando el esqueleto. Renderizar `.b7/screens/<Name>.md` directamente desde `triage.json` — un bloque por cada `screen` con su `route`, `user_journey` y `acceptance_criteria_visual`. El archivo resultante **preserva el contrato `criteria_file`** que consume `b7-screen-review` (mismos campos, mismo path `.b7/screens/<Name>.md`); solo cambia que el contenido sale de sustitución de plantilla en vez de razonamiento. Ejemplo mínimo por pantalla:
+NO gastar una pasada de modelo diseñando el esqueleto — y desde el subcomando `render-screens` es el default de TODOS los carriles (ver SKILL.md paso 3):
 
 ```bash
-# lane S: render mecánico de cada screen del triage (sin modelo)
-python3 - "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/screens" <<'PY'
-import json, os, sys
-triage, outdir = sys.argv[1], sys.argv[2]
-os.makedirs(outdir, exist_ok=True)
-for s in json.load(open(triage)).get("screens", []):
-    lines = [f"# {s['name']}  ({s['route']})", "",
-             f"Journey: {s.get('user_journey','')}", "", "Criterios visuales:"]
-    lines += [f"- {c}" for c in s.get("acceptance_criteria_visual", [])]
-    open(os.path.join(outdir, f"{s['name']}.md"), "w").write("\n".join(lines) + "\n")
-PY
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" render-screens \
+  "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/screens"
 ```
+
+El archivo resultante **preserva el contrato `criteria_file`** que consume `b7-screen-review` (mismos campos, mismo path `.b7/screens/<Name>.md`); solo cambia que el contenido sale de sustitución de plantilla en vez de razonamiento. Refinar con LLM solo si `acceptance_criteria_visual` vino vacío o el impl del paso 4 falla por esqueleto pobre.
 
 ## Paso 4 — agente de implementación e iteraciones
 

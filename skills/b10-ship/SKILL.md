@@ -87,7 +87,7 @@ Skill b-pipeline:b7-issue-to-pr "<N> --lang=es"
 
 Parsear la última línea `B7_DONE issue=<N> pr=<url|none> status=<s>`. b7 puede anexar tokens opcionales: `lane=<S|M|L>` (carril del run; ver b7 paso 1b) y `screens=<ok|skipped-<r>|fail|none>` (resultado del screen review; `none` = triage sin screens). Son informativos y el parser tolerante ya los cubre (tokens `k=v` desconocidos se ignoran) — no cambian el routing de esta fase, pero `screens` va al reporte final del run. **Fallback:** `bash "$B10" reconcile <N>` — si aparece `B10_PR`, el build terminó.
 
-- `status=ok` → fase 4.
+- `status=ok` → fase 5 directamente en el happy path: el DoD de b7 (`dod-check`) ya certificó clean-tree, labels y veredicto b6 publicados — fase 4 solo corre en re-runs donde el reconcile saltó a build/verify (worktree o PR heredados de un run interrumpido).
 - `status=needs-human-review` → label ya puesto por b7; notificar y parar (worktree intacto para corrección humana).
 - `status=bailed|aborted` → leer la razón del sticky comment del issue; si es budget/no-progress → label `pipeline-failed` + comentario diagnóstico (fase, worktree, último error) y parar.
 

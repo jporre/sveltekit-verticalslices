@@ -36,11 +36,16 @@ Verificación observable de cada paso: ver DEFINITION OF DONE. Si alguno no se c
 
 ## DEFINITION OF DONE — checklist verificable
 
-Al CERRAR el run (no antes), **leer y correr `references/runbook.md`** — trae el bloque bash verificable de los 9 checks y las frases prohibidas. Los checks, en una línea cada uno:
+Al CERRAR el run (no antes), correr los 9 checks del runbook en UNA pasada con el subcomando determinístico (corre worktree, sticky, commits+main-tree, PR draft+labels, veredicto b6, plan-check, assert-clean, gate de regresión y screens-check; los checks 4/5 salen `skip` en `--dry-run`/`--no-pr`):
 
-1. Worktree creado por `setup-worktree.sh`, rama sobre la default · 2. Sticky `<!-- b7:status -->` en el issue · 3. ≥1 commit y rama default intacta · 4. PR draft abierto + labels sincronizadas (`in-review`, sin `ready`) · 5. `b6-pr-review` con veredicto publicado (`verdict.sh read` exit 0) · 6. `plan-check` exit 0 · 7. `assert-clean.sh --fix` exit 0 · 8. gate de regresión (fix sin test → `needs-human-review`, no aborta) · 9. `screens-check` exit 0.
+```bash
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" dod-check "$WORKTREE" <N> "${PR_NUMBER:-none}"
+# emite DOD 1=ok ... 9=ok y DOD_SUMMARY=ok|needs-human-review|fail; exit 1 si hay fail
+```
 
-Si **cualquiera** no devuelve lo esperado, NO cerrar: completar el paso faltante y re-verificar.
+- `DOD_SUMMARY=fail` → NO cerrar: completar el paso del check en fail y re-correr.
+- `DOD_SUMMARY=needs-human-review` (check 8 warn: fix sin test, o waiver) → status final `needs-human-review`, no `ok`.
+- El detalle semántico de cada check vive en `references/runbook.md` (leerlo solo al depurar).
 
 **Última línea OBLIGATORIA del run** (la parsean orquestadores como b10-ship; fallback de ellos: `gh pr list --search "Closes #N"` + labels del issue):
 
@@ -142,7 +147,7 @@ Tras un preflight verde, cachear el contexto una sola vez. Son **subcomandos sep
 
 ### 1. Triage
 
-Invocar `b1-triage-issue` con el número de issue. Pedirle explícitamente que escriba `.b7/triage.json` siguiendo el schema. Campos clave:
+Invocar `b1-triage-issue "<N> --auto"` (el `--auto` activa el fast-path de b1: si el issue trae labels de veredicto sin comentario humano posterior — issues de b0, re-runs — deriva el veredicto de labels sin re-explorar; solo con comentario humano nuevo corre triage completo). Pedirle explícitamente que escriba `.b7/triage.json` siguiendo el schema. Campos clave:
 
 ```json
 {
@@ -301,7 +306,14 @@ Antes de implementar, para cada `screen` del triage producir un esqueleto en `.b
 
 Esto es entrada para b2 y para la revisión visual posterior. **Texto plano, no markdown rico** — no consume tokens reformateando.
 
-**Carril S:** render mecánico de los esqueletos sin LLM — bloque exacto en `references/lane-s.md`. En carriles M y L el diseño es la pasada en línea descrita arriba.
+**Render mecánico default en TODOS los carriles** (lane-s.md lo demostró suficiente: el esqueleto sale del triage, no del modelo):
+
+```bash
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" render-screens \
+  "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/screens"
+```
+
+El LLM solo refina un esqueleto después si `acceptance_criteria_visual` vino vacío para alguna pantalla, o si el impl del paso 4 falla por un esqueleto pobre. **Carril S:** igual (ver `references/lane-s.md`); nunca pasada de modelo diseñando esqueletos.
 
 ### 4. Implementación (loop bounded)
 
@@ -412,33 +424,14 @@ Las tres salidas se generan desde el mismo `.b7/state.json` para garantizar cons
 
 Si NOT `--dry-run` y NOT `--no-pr`: invocar `b4-pull-request` con `--draft --label auto-pr-bot --body-file .b7/pr-body.md`. El cuerpo ya viene de `publish-docs.sh`. Para las screenshots de `b7-screen-review`: ejecutar el `attach.sh` que deja cada review, que postea un comentario informativo en el PR con los nombres de los PNG + puntero al run-report (GH REST no permite inline upload de imágenes en comentarios; las imágenes embebidas se ven en el run-report HTML local).
 
-**Marker de screen-review (OBLIGATORIO, apenas existe el PR y ANTES de invocar b6 en 8c).** Postear como comentario del PR el marker que consume el gate SCREEN_EVIDENCE de b6 — formato exacto, sin variaciones. El enum de `reason` del marker es un superset del de `SKIPPED.json` (que queda en 4 valores): `no-screens-flag | lane-s-no-ui | no-port | dry-run | triage-empty | infra-fail`. `triage-empty` e `infra-fail` son marker-only — NUNCA escribir `SKIPPED.json` con esos valores.
+**Marker de screen-review (OBLIGATORIO, apenas existe el PR y ANTES de invocar b6 en 8c).** El gate SCREEN_EVIDENCE de b6 consume este marker — postear exactamente uno, sin variaciones. El enum de `reason` del marker es un superset del de `SKIPPED.json` (que queda en 4 valores): `no-screens-flag | lane-s-no-ui | no-port | dry-run | triage-empty | infra-fail`. `triage-empty` e `infra-fail` son marker-only — NUNCA escribir `SKIPPED.json` con esos valores.
 
 El marker `done` lleva SIEMPRE el token `result=ok|fail` — la misma clasificación que `B7_DONE screens=` (`fail` = algún review útil quedó en `verdict: fail`). Es la señal durable que consume la condición 4b del canal auto-merge de b9: un marker `done` sin `result=` (formato viejo) se trata como no verificable, no como ok.
 
 ```bash
-if [ -f "$WORKTREE/.b7/review/SKIPPED.json" ]; then
-  reason=$(jq -r '.reason' "$WORKTREE/.b7/review/SKIPPED.json")
-  gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=skipped reason=${reason} -->"
-elif [ "$(jq -r '.screens | length' "$WORKTREE/.b7/triage.json")" -eq 0 ]; then
-  # triage sin screens: marker-only, sin SKIPPED.json
-  gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=skipped reason=triage-empty -->"
-else
-  n=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' | wc -l | tr -d ' ')
-  pngs=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')
-  utiles=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
-    -exec jq -r '.infra_fail // false' {} + | grep -cv '^true$' || true)
-  fails=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
-    -exec jq -r 'select((.infra_fail // false) | not) | .verdict // empty' {} + | grep -c '^fail$' || true)
-  if [ "$pngs" -gt 0 ] && [ "$utiles" -gt 0 ]; then
-    # done SOLO con evidencia util: >=1 PNG y >=1 review sin infra_fail
-    res=ok; [ "$fails" -gt 0 ] && res=fail
-    gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=done screens=${n} result=${res} -->"
-  else
-    # cero PNG en .b7/review/ o todos los JSON con infra_fail:true
-    gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=skipped reason=infra-fail -->"
-  fi
-fi
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" screen-marker "$WORKTREE" "$PR_NUMBER"
+# emite SCREEN_MARKER=<body> — el enum/resultado los decide el script desde SKIPPED.json,
+# triage.json y los JSON de .b7/review/ (mismas reglas: done SOLO con >=1 PNG y >=1 review sin infra_fail)
 ```
 
 El PR debe incluir:
@@ -468,23 +461,8 @@ Estado final esperado del issue: label `in-review`, comentario apuntando al PR, 
 **Contraste de impacto (señal, NO gate):** antes de invocar b6, contrastar el diff real contra `impact_files` (state.json) + `files_likely` (triage.json). Archivos fuera del set esperado indican scope-growth no declarado:
 
 ```bash
-. "$PLUGIN_ROOT/scripts/lib.sh"
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-$(bp_default_branch)}"
-python3 - "$WORKTREE" "$DEFAULT_BRANCH" <<'PY'
-import json, os, subprocess, sys
-wt, default_branch = sys.argv[1:3]
-def load(p, d):
-    try: return json.load(open(os.path.join(wt, p)))
-    except Exception: return d
-state, triage = load(".b7/state.json", {}), load(".b7/triage.json", {})
-raw = state.get("impact_files", "")
-expected = {f for f in raw.replace(",", " ").split() if f and f not in ("[]", "-")}
-expected |= set(triage.get("files_likely", []))
-base = subprocess.run(["git","-C",wt,"merge-base","HEAD",default_branch], capture_output=True, text=True).stdout.strip()
-diff = subprocess.run(["git","-C",wt,"diff","--name-only",base], capture_output=True, text=True).stdout.split("\n")
-outside = [f for f in diff if f and f not in expected and not f.startswith(".b7/") and f != "CHANGELOG.md"]
-print("IMPACT_DRIFT: " + (" ".join(outside) if outside else "none"))
-PY
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" impact-drift "$WORKTREE"
+# emite IMPACT_DRIFT: none | <archivos fuera del set>. Señal visible, nunca gate.
 ```
 
 Si `IMPACT_DRIFT` lista archivos, emitir la señal visible: línea de warning en consola, nota en el run-report y mención en el sticky del issue. NO abortar el run por esto — el gate duro sigue siendo el budget (files/lines); esto expone drift silencioso al reviewer.

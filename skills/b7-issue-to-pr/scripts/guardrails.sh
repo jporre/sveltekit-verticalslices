@@ -20,6 +20,10 @@
 #   validate-triage <triage.json>      — validate .b7/triage.json against triage-output.schema.json (required/enums/additionalProperties); exit 4 on invalid
 #   classify-run <triage.json> <state.json> — asigna carril S|M|L (lane=L si complex; S si simple y files_likely<=5; si no, M); persiste lane en state.json; emite RUN_LANE=S|M|L
 #   screens-check <worktree-dir>       — gate observable del review visual (DoD): exige .b7/review/<name>.json por cada screens[].name del triage, o SKIPPED.json con reason del enum; exit 8 = run inválido
+#   render-screens <triage.json> <screens-dir> — render mecánico de .b7/screens/<Name>.md desde triage.json (sin LLM, todos los carriles)
+#   screen-marker <worktree-dir> <pr-number> — postea el marker <!-- b7:screen-review=... --> en el PR (enum skipped/done result=); emite SCREEN_MARKER=<body>
+#   impact-drift <worktree-dir> [default-branch] — contrasta diff real vs impact_files+files_likely; emite IMPACT_DRIFT: none|<files>. Señal, NUNCA gate (siempre exit 0)
+#   dod-check <worktree-dir> <issue> <pr|none> — corre los 9 checks DoD del runbook en una pasada; emite DOD <n>=ok|warn|fail y DOD_SUMMARY=ok|needs-human-review|fail; exit 1 si hay fail
 #
 # Env knobs:
 #   B7_MAX_OPEN_PRS    (default 3)     — backpressure threshold for open auto-pr-bot PRs
@@ -1198,6 +1202,164 @@ except Exception:
   return 0
 }
 
+cmd_dod_check() {
+  local wt="${1:-}" issue="${2:-}" pr="${3:-none}"
+  if [ -z "$wt" ] || [ ! -d "$wt" ] || [ -z "$issue" ]; then
+    echo "dod-check: usage: dod-check <worktree-dir> <issue> <pr|none>" >&2
+    return 2
+  fi
+  local base
+  base="$( (cd "$wt" && bp_default_branch) 2>/dev/null || echo "$DEFAULT_BRANCH")"
+  local branch main_root commits out=() fail=0 warn=0 n
+  branch="$(git -C "$wt" rev-parse --abbrev-ref HEAD 2>/dev/null || echo)"
+  main_root="$(dirname "$(git -C "$wt" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo)")"
+
+  # 1. Worktree válido creado por setup-worktree.sh, rama != default
+  n=ok
+  if ! bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-worktree "$wt" >/dev/null 2>&1 \
+     || [ "$branch" = "$base" ]; then n=fail; fail=1; fi
+  out+=("1=$n")
+
+  # 2. Sticky <!-- b7:status --> en el issue
+  n=ok
+  gh issue view "$issue" --json comments -q '.comments[].body' 2>/dev/null | grep -q '<!-- b7:status -->' || { n=fail; fail=1; }
+  out+=("2=$n")
+
+  # 3. >=1 commit sobre la default y main tree limpio
+  n=ok
+  commits="$(git -C "$wt" log "$base"..HEAD --oneline 2>/dev/null | wc -l | tr -d ' ')"
+  [ "${commits:-0}" -ge 1 ] || { n=fail; fail=1; }
+  [ -n "$main_root" ] && [ -z "$(git -C "$main_root" status --porcelain 2>/dev/null)" ] || { n=fail; fail=1; }
+  out+=("3=$n commits=$commits")
+
+  # 4/5. PR draft + labels sincronizadas + veredicto b6 publicado (solo con PR)
+  if [ "$pr" != "none" ] && [ -n "$pr" ]; then
+    n=ok
+    local pr_json
+    pr_json="$(gh pr list --head "$branch" --json number,isDraft 2>/dev/null || echo '[]')"
+    echo "$pr_json" | jq -e 'length >= 1 and .[0].isDraft == true' >/dev/null 2>&1 || { n=fail; fail=1; }
+    gh issue view "$issue" --json labels -q '[.labels[].name] | index("in-review") != null and index("ready") == null' 2>/dev/null | grep -q true || { n=fail; fail=1; }
+    out+=("4=$n")
+    n=ok
+    bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read "$pr" >/dev/null 2>&1 || { n=fail; fail=1; }
+    out+=("5=$n")
+  else
+    out+=("4=skip 5=skip")
+  fi
+
+  # 6. Plan completo (todos los items done o plan vacío)
+  n=ok
+  bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh" plan-check --worktree "$wt" >/dev/null 2>&1 || { n=fail; fail=1; }
+  out+=("6=$n")
+
+  # 7. Worktree limpio post-commit (exit 7 = artefactos persistentes: WARN, no fail)
+  n=ok
+  bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$wt" --fix >/dev/null 2>&1
+  rc=$?
+  if [ "$rc" = 7 ]; then n=warn; warn=1; elif [ "$rc" -ne 0 ]; then n=fail; fail=1; fi
+  out+=("7=$n")
+
+  # 8. Gate de regresión: fix sin test → WARN (status needs-human-review, NO aborta)
+  n=ok
+  if [ "$(jq -r '.type' "$wt/.b7/triage.json" 2>/dev/null)" = "fix" ] \
+     && ! git -C "$wt" diff --name-only "$base"..HEAD 2>/dev/null | grep -qE '\.(test|spec)\.'; then
+    n=warn; warn=1
+    echo "DOD_NOTE fix sin test de regresion — status degrada a needs-human-review" >&2
+  fi
+  out+=("8=$n")
+
+  # 9. Screen-review verificable (screens-check; exit 8 = inválido, 3 = env)
+  n=ok
+  if ! bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" screens-check "$wt" >/dev/null 2>&1; then
+    n=fail; fail=1
+  fi
+  out+=("9=$n")
+
+  local summary=ok
+  [ "$fail" = 1 ] && summary=fail
+  [ "$fail" = 0 ] && [ "$warn" = 1 ] && summary=needs-human-review
+  echo "DOD ${out[*]}"
+  echo "DOD_SUMMARY=$summary"
+  [ "$fail" = 0 ]
+}
+
+cmd_render_screens() {
+  local triage="${1:-}" outdir="${2:-}"
+  if [ -z "$triage" ] || [ ! -f "$triage" ] || [ -z "$outdir" ]; then
+    echo "render-screens: usage: render-screens <triage.json> <screens-dir>" >&2
+    return 2
+  fi
+  python3 - "$triage" "$outdir" <<'PY'
+import json, os, sys
+triage, outdir = sys.argv[1], sys.argv[2]
+os.makedirs(outdir, exist_ok=True)
+for s in json.load(open(triage)).get("screens", []):
+    lines = [f"# {s['name']}  ({s['route']})", "",
+             f"Journey: {s.get('user_journey','')}", "", "Criterios visuales:"]
+    lines += [f"- {c}" for c in s.get("acceptance_criteria_visual", [])]
+    open(os.path.join(outdir, f"{s['name']}.md"), "w").write("\n".join(lines) + "\n")
+PY
+  echo "RENDER_SCREENS=ok dir=$outdir"
+}
+
+cmd_screen_marker() {
+  local wt="${1:-}" pr="${2:-}"
+  if [ -z "$wt" ] || [ ! -d "$wt" ] || [ -z "$pr" ]; then
+    echo "screen-marker: usage: screen-marker <worktree-dir> <pr-number>" >&2
+    return 2
+  fi
+  local body
+  if [ -f "$wt/.b7/review/SKIPPED.json" ]; then
+    local reason
+    reason="$(jq -r '.reason' "$wt/.b7/review/SKIPPED.json")"
+    body="<!-- b7:screen-review=skipped reason=${reason} -->"
+  elif [ "$(jq -r '.screens | length' "$wt/.b7/triage.json" 2>/dev/null || echo 0)" -eq 0 ]; then
+    # triage sin screens: marker-only, sin SKIPPED.json
+    body="<!-- b7:screen-review=skipped reason=triage-empty -->"
+  else
+    local n pngs utiles fails res
+    n="$(find "$wt/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' 2>/dev/null | wc -l | tr -d ' ')"
+    pngs="$(find "$wt/.b7/review" -maxdepth 1 -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
+    utiles="$(find "$wt/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
+      -exec jq -r '.infra_fail // false' {} + 2>/dev/null | grep -cv '^true$' || true)"
+    fails="$(find "$wt/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
+      -exec jq -r 'select((.infra_fail // false) | not) | .verdict // empty' {} + 2>/dev/null | grep -c '^fail$' || true)"
+    if [ "$pngs" -gt 0 ] && [ "$utiles" -gt 0 ]; then
+      res=ok; [ "$fails" -gt 0 ] && res=fail
+      body="<!-- b7:screen-review=done screens=${n} result=${res} -->"
+    else
+      body="<!-- b7:screen-review=skipped reason=infra-fail -->"
+    fi
+  fi
+  gh pr comment "$pr" --body "$body"
+  echo "SCREEN_MARKER=${body}"
+}
+
+cmd_impact_drift() {
+  local wt="${1:-}"
+  if [ -z "$wt" ] || [ ! -d "$wt" ]; then
+    echo "impact-drift: usage: impact-drift <worktree-dir> [default-branch]" >&2
+    return 2
+  fi
+  local base="${2:-$DEFAULT_BRANCH}"
+  [ -n "$base" ] || base="$( (cd "$wt" && bp_default_branch) 2>/dev/null || true)"
+  python3 - "$wt" "$base" <<'PY'
+import json, os, subprocess, sys
+wt, default_branch = sys.argv[1], sys.argv[2]
+def load(p, d):
+    try: return json.load(open(os.path.join(wt, p)))
+    except Exception: return d
+state, triage = load(".b7/state.json", {}), load(".b7/triage.json", {})
+raw = state.get("impact_files", "")
+expected = {f for f in raw.replace(",", " ").split() if f and f not in ("[]", "-")}
+expected |= set(triage.get("files_likely", []))
+base = subprocess.run(["git","-C",wt,"merge-base","HEAD",default_branch], capture_output=True, text=True).stdout.strip()
+diff = subprocess.run(["git","-C",wt,"diff","--name-only",base], capture_output=True, text=True).stdout.split("\n")
+outside = [f for f in diff if f and f not in expected and not f.startswith(".b7/") and f != "CHANGELOG.md"]
+print("IMPACT_DRIFT: " + (" ".join(outside) if outside else "none"))
+PY
+}
+
 case "${1:-}" in
   env-check)        shift; cmd_env_check "$@" ;;
   preflight)        shift; cmd_preflight "$@" ;;
@@ -1216,8 +1378,12 @@ case "${1:-}" in
   init-state)       shift; cmd_init_state "$@" ;;
   verify-worktree)  shift; cmd_verify_worktree "$@" ;;
   verify-port)      shift; cmd_verify_port "$@" ;;
+  render-screens)   shift; cmd_render_screens "$@" ;;
+  screen-marker)    shift; cmd_screen_marker "$@" ;;
+  impact-drift)     shift; cmd_impact_drift "$@" ;;
+  dod-check)        shift; cmd_dod_check "$@" ;;
   *)
-    echo "Usage: $0 {env-check|preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid] [issue]|release-lock [lock-file]|heartbeat <worktree>|dev-server start|stop <worktree>|worktree-env <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|verify-port <port> <worktree>|validate-triage <triage.json>|classify-run <triage.json> <state.json>|screens-check <worktree>}" >&2
+    echo "Usage: $0 {env-check|preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid] [issue]|release-lock [lock-file]|heartbeat <worktree>|dev-server start|stop <worktree>|worktree-env <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|verify-port <port> <worktree>|validate-triage <triage.json>|classify-run <triage.json> <state.json>|screens-check <worktree>|render-screens <triage> <dir>|screen-marker <worktree> <pr>|impact-drift <worktree> [branch]|dod-check <worktree> <issue> <pr|none>}" >&2
     exit 2
     ;;
 esac

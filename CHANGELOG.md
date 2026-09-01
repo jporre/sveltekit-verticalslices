@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Perf — flujo default single-issue: mecánica al script, LLM a las decisiones
+
+Cuatro fuentes de lentitud eliminadas del flujo single-issue (el modo epic ya las tenía):
+
+- **`guardrails.sh dod-check`**: los 9 checks DoD (worktree, sticky, commits+main-tree, PR draft+labels, veredicto b6, plan-check, assert-clean, gate de regresión, screens-check) corren en UNA pasada determinística — 4-8 turnos LLM de cierre → 1 turno. Semántica idéntica al runbook (warn de artefactos persistentes y de fix-sin-test degradan a `needs-human-review`, no abortan); checks 4/5 skip en `--dry-run`/`--no-pr`.
+- **`guardrails.sh screen-marker`**: el bloque bash del marker `b7:screen-review=` (duplicado byte-idéntico en b7 y b8) es ahora un subcomando — mismas reglas (done SOLO con ≥1 PNG y ≥1 review sin infra_fail), un solo lugar que mantener.
+- **`guardrails.sh impact-drift` y `render-screens`**: el contraste de impacto (python heredoc) y el render de esqueletos salen del SKILL al script. El render mecánico es default en TODOS los carriles (lane-s.md lo demostró suficiente): -1 pasada de modelo por run en M/L; el LLM refina solo si los criterios visuales vienen vacíos o el impl falla por esqueleto pobre.
+- **Triage sin duplicar**: b7 invoca `b1-triage-issue "<N> --auto"` — el fast-path de b1 deriva el veredicto de labels sin re-explorar (issues de b0, re-runs); triage completo solo con comentario humano posterior.
+- **b10 happy-path explícito**: `status=ok` de b7 salta directo a fase 5 (el DoD ya certificó clean-tree/labels/review); fase 4 solo en re-runs con worktree/PR heredados.
+
+Neto: ~130 líneas de bash inline fuera del prefijo cacheado de b7, 3-6 turnos LLM menos por run, misma garantía (los gates son los mismos, ahora determinísticos).
+
 ### Fix — destraba el flujo single-issue (review de 3 pasadas)
 
 Siete bugs de consistencia que abortaban o ensuciaban runs reales:

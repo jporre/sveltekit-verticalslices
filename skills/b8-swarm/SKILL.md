@@ -115,24 +115,14 @@ Cluster backend puro (sin screens) → saltar, anotar en el reporte. Un `fail` v
 - El PR cierra **todas** las issues `Closes #` al mergear (GitHub las parsea sin importar el merge method).
 - Con el PR creado, ejecutar los `attach.sh` que dejaron los reviews del paso 5 (igual que b7 en `--wet`): `for s in "$WORKTREE"/.b7/review/*-attach.sh; do [ -f "$s" ] && bash "$s" "$PR_NUMBER"; done`. Postean el comentario con los nombres de los PNG que hace detectable `EVIDENCE=screenshots` en b6.
 
-**Marker de screen-review (OBLIGATORIO, apenas existe el PR y ANTES de la b6-pr-review del paso 8).** El gate SCREEN_EVIDENCE de b6 emite BLOCKER en todo PR `auto-pr-bot` que toca UI sin marker ni evidencia — sin este comentario, TODO PR cluster con UI queda bloqueado. Postear exactamente un marker, formato exacto sin variaciones:
+**Marker de screen-review (OBLIGATORIO, apenas existe el PR y ANTES de la b6-pr-review del paso 8).** El gate SCREEN_EVIDENCE de b6 emite BLOCKER en todo PR `auto-pr-bot` que toca UI sin marker ni evidencia — sin este comentario, TODO PR cluster con UI queda bloqueado. Postear exactamente un marker, formato exacto sin variaciones. El subcomando decide el variant con las MISMAS reglas de b7:
 
 ```bash
-pngs=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
-utiles=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
-  -exec jq -r '.infra_fail // false' {} + 2>/dev/null | grep -cv '^true$' || true)
-if [ "$pngs" -gt 0 ] && [ "$utiles" -gt 0 ]; then
-  n=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' | wc -l | tr -d ' ')
-  fails=$(find "$WORKTREE/.b7/review" -maxdepth 1 -name '*.json' ! -name 'SKIPPED.json' \
-    -exec jq -r 'select((.infra_fail // false) | not) | .verdict // empty' {} + | grep -c '^fail$' || true)
-  res=ok; [ "$fails" -gt 0 ] && res=fail
-  gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=done screens=${n} result=${res} -->"
-else
-  gh pr comment "$PR_NUMBER" --body "<!-- b7:screen-review=skipped reason=<r> -->"
-fi
+bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" screen-marker "$WORKTREE" "$PR_NUMBER"
+# emite SCREEN_MARKER=<body>; done SOLO con >=1 PNG y >=1 review sin infra_fail
 ```
 
-`done` SOLO con >=1 PNG en `.b7/review/` Y >=1 review sin `infra_fail` (mismo guard `utiles` de b7 — con browser caído en todos los reviews el marker es `skipped reason=infra-fail`, nunca `done result=ok`). `result=ok|fail`: `fail` si algún review útil quedó en `verdict: fail`; lo consume la condición 4b del canal auto-merge de b9. Sin PNG o sin reviews útiles, `<r>` sale de lo que pasó en el paso 5 — enum cerrado, nada fuera de esto:
+`result=ok|fail` del marker `done`: `fail` si algún review útil quedó en `verdict: fail`; lo consume la condición 4b del canal auto-merge de b9. Sin PNG o sin reviews útiles, `<r>` sale de lo que pasó en el paso 5 — enum cerrado, nada fuera de esto:
 
 | Caso del paso 5 | `<r>` |
 |---|---|

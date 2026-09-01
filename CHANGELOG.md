@@ -1,6 +1,16 @@
 # Changelog
 
-## [1.9.5] — 2026-08-22
+## [Unreleased]
+
+### Feature — compatibilidad pi (dual harness)
+
+El mismo repo ahora se instala como paquete pi (`pi install`, manifiesto `pi` en `package.json`) además de plugin de Claude Code. La extensión `pi/b-pipeline-compat.ts` reutiliza los scripts de `hooks/` sin duplicar lógica:
+
+- `session_start` exporta `CLAUDE_PLUGIN_ROOT` en el proceso de pi y escribe `~/.claude/b-pipeline.root` (equivalente a `write-root-marker.sh`), con lo que los snippets `PLUGIN_ROOT=` de los SKILL.md y todos los scripts funcionan sin cambios.
+- `tool_call` (bash/read) alimenta los scripts `block-git-worktree-add.sh` y `block-env-dump.sh` por stdin con el mismo payload `{ tool_input, cwd }` de Claude Code; exit 2 = bloquear, fail-open en cualquier otro caso.
+- `tool_execution_end` (bash con `setup-worktree.sh`) corre `link-worktree-env.sh` (no-fatal).
+
+**Estado de compatibilidad**: skills, hooks y agentes portados y verificados end-to-end en pi. Los agentes `b7-impl`, `b7-impl-s` y `b7-screen-review` tienen ports en `pi-agents/` (frontmatter de pi-subagents: tools lowercase, `skillPath` a `../skills` para que b7-impl cargue b2-build-feature; el modelo lo pasa el orquestador por parámetro, en pi no hay ids `sonnet`/`opus`). Los 8 SKILL.md con refs a tools de Claude Code llevan una nota **Multi-harness** con el mapeo a equivalentes de pi — en Claude Code la prosa sigue funcionando como está.
 
 ### Fix — symlinks .env* se mueven a un hook PostToolUse (#54 follow-up)
 

@@ -1,0 +1,28 @@
+{
+  "name": "b-pipeline",
+  "version": "1.9.5",
+  "description": "Pipeline conversación -> issue -> PR -> merge para SvelteKit. Plugin dual: Claude Code (.claude-plugin/) y pi (manifest pi/).",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pipeline",
+    "github",
+    "sveltekit",
+    "worktree",
+    "code-review"
+  ],
+  "author": {
+    "name": "Jean Pierre Porre",
+    "email": "jporre@bnex.cl"
+  },
+  "pi": {
+    "extensions": ["./pi"],
+    "skills": ["./skills"],
+    "subagents": {
+      "agents": ["./pi-agents"]
+    }
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

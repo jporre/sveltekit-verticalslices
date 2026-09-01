@@ -5,7 +5,10 @@ allowed-tools: Bash, AskUserQuestion
 context: fork
 ---
 
+
 # Create Git Worktree
+
+> **Multi-harness (Claude Code / pi).** Los mecanismos del harness se mapean así: `AskUserQuestion` → en pi, pregunta en texto y espera la respuesta. `Agent(subagent_type=…)`/`Agent call` → en pi, tool `subagent` con `agent: "<nombre>"` y `model` opcional (este paquete define los agentes `b7-impl`, `b7-impl-s`, `b7-screen-review`). `Skill(bN-…)`/`Skill b-pipeline:bN-…` → en pi, carga el `SKILL.md` de ese skill con `read` y síguelo. `Workflow` → en pi, tool `subagent` con `workflowScript` (mismas primitivas `runs.run`/`runs.all`). `PushNotification` → en pi, omítelo y reporta el hito en tu respuesta. `CLAUDE_PLUGIN_ROOT` existe en ambos (pi la exporta su extensión de compatibilidad). En Claude Code, todo funciona como está escrito.
 
 Create an isolated git worktree for feature development with symlinks to shared resources and a new terminal session.
 

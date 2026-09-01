@@ -100,6 +100,19 @@ A few ideas explain the whole design:
 
 That is it — there is no build step. The plugin auto-discovers its hooks from `hooks/hooks.json`, its skills from `skills/`, and its agents from `agents/`.
 
+### Instalación alternativa: pi
+
+El mismo repo funciona como [paquete pi](https://pi.dev/packages) — sin paso extra de empaquetado:
+
+```bash
+pi install /ruta/a/b-pipeline-market        # checkout local
+pi install git:github.com/jporre/sveltekit-verticalslices@v1.9.5   # git
+```
+
+pi descubre los skills de `skills/` (invocables como `/skill:b10-ship 42`) y carga la extensión `pi/b-pipeline-compat.ts`, que activa los mismos guardrails que los hooks de Claude Code (bloqueo de `git worktree add` directo, bloqueo de dumps de `.env`, symlinks de `.env*` a los worktrees) y exporta `CLAUDE_PLUGIN_ROOT` para que los scripts del plugin resuelvan su raíz igual que en Claude Code.
+
+> **Nota de compatibilidad**: skills, guardrails y agentes (`b7-impl`, `b7-impl-s`, `b7-screen-review` — portados a `pi-agents/`) están verificados en pi. Los orquestadores llevan una nota **Multi-harness** que mapea las tools de Claude Code (`AskUserQuestion`, `Agent`, `Skill`, `Workflow`) a sus equivalentes en pi (pregunta en texto, tool `subagent`, carga del SKILL.md con `read`, `subagent` con `workflowScript`).
+
 ---
 
 ## 5. Quick start

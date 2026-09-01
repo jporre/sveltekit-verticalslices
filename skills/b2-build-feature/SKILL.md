@@ -248,7 +248,8 @@ After verification passes:
 2. **Update CHANGELOG.md** — add entry under new date section
 3. **Gate final de conformidad** — re-correr `check-slice.sh` (paso 0 de Phase 3);
    debe salir `SLICE_CHECK ok`. Con violaciones NO se commitea.
-4. **Commit on the branch** — invoke `Skill b-pipeline:b3-git-commit` (pass the issue
+4. **Commit on the branch** — invoke `Skill b-pipeline:b3-git-commit` (in pi: load
+   `skills/b3-git-commit/SKILL.md` with `read` and follow it; pass the issue
    number if any: it adds the `Refs #N`, stages only your files with intelligent
    grouping, and runs the mandatory clean-tree gate). Do NOT hand-write `git add` +
    `git commit` — two competing commit procedures is how messages drift and files

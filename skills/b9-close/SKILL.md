@@ -17,7 +17,10 @@ Flags (después del target): `--auto-merge --epic=<N>` — siempre en par; activ
 
 ---
 
+
 # b9-close — mergear PR + cerrar issue + limpiar worktree
+
+> **Multi-harness (Claude Code / pi).** Los mecanismos del harness se mapean así: `AskUserQuestion` → en pi, pregunta en texto y espera la respuesta. `Agent(subagent_type=…)`/`Agent call` → en pi, tool `subagent` con `agent: "<nombre>"` y `model` opcional (este paquete define los agentes `b7-impl`, `b7-impl-s`, `b7-screen-review`). `Skill(bN-…)`/`Skill b-pipeline:bN-…` → en pi, carga el `SKILL.md` de ese skill con `read` y síguelo. `Workflow` → en pi, tool `subagent` con `workflowScript` (mismas primitivas `runs.run`/`runs.all`). `PushNotification` → en pi, omítelo y reporta el hito en tu respuesta. `CLAUDE_PLUGIN_ROOT` existe en ambos (pi la exporta su extensión de compatibilidad). En Claude Code, todo funciona como está escrito.
 
 Cierre del flujo b. El feature ya fue implementado por `b7-issue-to-pr` y revisado por `b6-pr-review`. Este skill **no** reimplementa ni hace review profundo: **gatea** sobre que la revisión pasó, mergea con **aprobación humana**, y deja el árbol limpio (PR cerrado, issue cerrado, worktree y branches borrados).
 

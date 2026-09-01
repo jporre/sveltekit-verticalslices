@@ -9,7 +9,10 @@ allowed-tools: Bash, Read, Write, Skill, Agent, Workflow, AskUserQuestion, PushN
 model: opus
 ---
 
+
 # b10-ship — issue → worktree cerrado
+
+> **Multi-harness (Claude Code / pi).** Los mecanismos del harness se mapean así: `AskUserQuestion` → en pi, pregunta en texto y espera la respuesta. `Agent(subagent_type=…)`/`Agent call` → en pi, tool `subagent` con `agent: "<nombre>"` y `model` opcional (este paquete define los agentes `b7-impl`, `b7-impl-s`, `b7-screen-review`). `Skill(bN-…)`/`Skill b-pipeline:bN-…` → en pi, carga el `SKILL.md` de ese skill con `read` y síguelo. `Workflow` → en pi, tool `subagent` con `workflowScript` (mismas primitivas `runs.run`/`runs.all`). `PushNotification` → en pi, omítelo y reporta el hito en tu respuesta. `CLAUDE_PLUGIN_ROOT` existe en ambos (pi la exporta su extensión de compatibilidad). En Claude Code, todo funciona como está escrito.
 
 > SIN `context: fork` a propósito: este skill corre en el main loop porque necesita el tool `Workflow` (no existe en forks) y `AskUserQuestion` con el usuario presente. La aislación la dan los skills encadenados (b7 es fork; los agentes de Workflow son subagentes).
 

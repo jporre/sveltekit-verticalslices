@@ -17,7 +17,7 @@ Server: schema lives IN the remote function. Never validate on the client for th
 
 ```ts
 // src/routes/<feature>/server/data.remote.ts
-import { z } from 'zod/v4'
+import { z } from 'zod'
 import { form, query, getRequestEvent } from '$app/server'
 import { error } from '@sveltejs/kit'
 import { db } from '$lib/server/db'

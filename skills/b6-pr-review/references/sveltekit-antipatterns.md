@@ -223,4 +223,23 @@ let filtered = $derived(allItems.filter(i => i.name.includes(search)))
 </script>
 ```
 
+## 9b. UI nativa en vez de shadcn-svelte (tokens y componentes del tema)
+
+**Anti-patrón**: `confirm()`/`alert()` nativos, spinner/texto de carga donde va `Skeleton`, o colores crudos (`text-red-500`, hex) donde hay token semántico.
+
+```svelte
+<!-- MAL -->
+async function handleDelete(id: string) {
+  if (!confirm('Delete?')) return
+  ...
+}
+<p class="text-gray-400">Sin datos</p>
+
+<!-- BIEN — AlertDialog + tokens (referencia completa: b2-build-feature/references/shadcn-ui.md) -->
+<AlertDialog.Root bind:open={!!deleteId}>
+  <AlertDialog.Action onclick={() => handleDelete(deleteId)}>Eliminar</AlertDialog.Action>
+</AlertDialog.Root>
+<p class="text-muted-foreground">Sin datos</p>
+```
+
 Nota: el estado global mutable en servidor (variables a nivel de módulo en `.server.ts`) se cubre en el Área 3 (seguridad) y en `security-checklist.md`, sección 6.

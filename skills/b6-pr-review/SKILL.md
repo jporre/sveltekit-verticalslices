@@ -232,6 +232,7 @@ La lista inline de abajo es la fuente canónica; `references/sveltekit-antipatte
 7. Named imports de shadcn (`import { Card }` en vez de `import * as Card`)
 8. `Select.Value` (no existe)
 9. Lucide imports incorrectos (`import { Plus } from 'lucide-svelte'`)
+   9b. UI nativa: `confirm()`/`alert()`, spinner o texto de carga en vez de `Skeleton`, colores crudos (`text-red-500`, hex) en vez de tokens semánticos (`text-destructive`, `text-muted-foreground`) — ver `b2-build-feature/references/shadcn-ui.md`
 
 **En archivos REMOTE_FUNCTION** (`.remote.ts`): 10. Archivo dentro de `src/lib/server/` o fuera de `server/` del feature (prohibido) 11. Query sin `refresh()` después de mutación en el componente que la usa
 

@@ -28,7 +28,7 @@ La escalera es un reflejo, no un proyecto de investigación. Dos peldaños sirve
 
 ## El marcador `// ponytail:`
 
-Una simplificación deliberada se marca con un comentario `ponytail:` — así se lee como **intención, no ignorancia**. Es la excepción sancionada a la regla general de "no comentarios": marca un atajo con techo conocido.
+Una simplificación deliberada se marca con un comentario `ponytail:` — así se lee como **intención, no ignorancia**. Es la excepción sancionada a la regla de comentarios: **cero comentarios en el código, con solo dos excepciones — `// ponytail:` (atajo con techo nombrado) y TODO accionable** (referencia a tarea real, no "mejorar esto"). El código se nombra para leerse solo; si necesita comentario explicativo, el nombre o la estructura están mal.
 
 ```ts
 // ponytail: filtro client-side, <1000 items. Si crece, mover a query con WHERE + índice.

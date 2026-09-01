@@ -93,11 +93,7 @@ as you add screens. This prevents import confusion and makes the API surface vis
 Sub-routes (`new/`, `[id]/`) import from `../server/data.remote` — never a scoped remote
 file colocated in the sub-route folder.
 
-For a complex feature the file might reach 200-300 lines — that's fine. A single file
-with 15 well-organized remote functions is better than 3 files with unclear boundaries.
-
-Exception: split only when size truly demands it, and always inside `server/`
-(e.g. `server/detail.remote.ts`).
+For a complex feature the file can grow, but the split threshold is MEASURABLE: **>300 líneas o >15 funciones exportadas → split dentro de `server/`** (e.g. `server/detail.remote.ts`). Bajo el umbral, un solo archivo con 15 well-organized remote functions beats 3 files with unclear boundaries.
 
 ## When to Split Files
 

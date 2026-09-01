@@ -112,8 +112,11 @@ The UI lives directly in `+page.svelte` and imports the colocated remote file:
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete?')) return
+    // Confirmación destructiva: AlertDialog, NUNCA confirm() nativo (references/shadcn-ui.md)
+    // <AlertDialog.Root bind:open={!!deleteId}> + <AlertDialog.Action onclick={() => handleDelete(deleteId)}>
+    if (!deleteId) return
     await delete_<entity>({ id })
+    deleteId = null
     get_<entities>.refresh()
     toast.success('Deleted')
   }
@@ -456,3 +459,39 @@ import HistoryTab from './ui/HistoryTab.svelte'
 
 Each tab is a separate component in the route folder's `ui/` (PascalCase) that
 imports its remote functions from `../server/data.remote`. Keep tabs independent — each manages its own data.
+
+## Template 5: Escritura multi-tabla (padre + hijos en una operación)
+
+Cuando la operación toca 2+ tablas, la atomicidad vive DENTRO de la remote function con
+`db.transaction` — nunca dos remote functions encadenadas desde el cliente, ni service
+layer, ni dos queries sin transacción (el hueco donde la doctrina de "sin indirección"
+se rompe sola):
+
+```typescript
+// server/data.remote.ts — crear pedido con sus líneas: UNA remote function, UNA transacción
+export const create_pedido = form(
+  requireUser(async (data) => {
+    const pedido = await db.transaction(async (tx) => {
+      const [p] = await tx.insert(pedidos).values({
+        cliente_id: data.cliente_id,
+        total: data.total,
+      }).returning();
+      await tx.insert(pedido_lines).values(
+        data.lines.map((l) => ({ ...l, pedido_id: p.id })),
+      );
+      return p;
+    });
+    return { id: pedido.id };
+  }),
+);
+```
+
+Reglas: todo dentro de la transacción usa `tx` (nunca `db` mezclado — la parte con `db`
+queda fuera de la atomicidad); la remote function es la ÚNICA vía del cliente; reusa
+`onConflictDoUpdate` para upserts idempotentes en vez de select-then-insert.
+
+```svelte
+<!-- el cliente llama UNA vez -->
+await create_pedido({ cliente_id, total, lines })
+get_pedidos().refresh()
+```

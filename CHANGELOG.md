@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Doctrina — shadcn como estándar de diseño, multi-tabla y umbrales medibles
+
+- **`b2-build-feature/references/shadcn-ui.md` (nuevo)**: tabla patrón→componente (confirmación destructiva→AlertDialog, detalle→Dialog, panel→Sheet, búsqueda→Combobox, carga→Skeleton, empty state con acción), tokens semánticos vs colores crudos, dark mode vía `app.css`. El Template 1 canónico ya no usa `confirm()` nativo. b6 castiga lo contrario con el nuevo anti-patrón 9b (UI nativa / colores crudos).
+- **Template 5 — escritura multi-tabla** en feature-templates: `db.transaction` dentro de la remote function (padre + hijos en una operación atómica). Cierra el hueco donde el agente inventaba service layers o writes sin atomicidad. migrate-to-remote hereda la receta.
+- **`event.fetch` prohibido explícitamente** en slice-spec §Reglas de datos — la última vía de datos que la doctrina no cubría (fetch server-side a endpoint propio).
+- **Umbrales medibles de concisión**: split de `data.remote.ts` a >300 líneas o >15 funciones (antes "cuando el tamaño lo exija"); regla de comentarios definida (cero salvo `// ponytail:` y TODO accionable).
+- **Contradicciones resueltas** (complemento del PR destraba): zod import unificado a `from 'zod'` (forms-recipe traía `zod/v4`), `issues() ?? []` → `issues()`.
+
 ### Perf — flujo default single-issue: mecánica al script, LLM a las decisiones
 
 Cuatro fuentes de lentitud eliminadas del flujo single-issue (el modo epic ya las tenía):

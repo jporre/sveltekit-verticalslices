@@ -61,6 +61,7 @@ For the comprehensive React-to-Svelte guide, read `references/svelte5-not-react.
 
 React trains you to handle forms with onSubmit + preventDefault + state + fetch. **SvelteKit remote functions handle all of that for you:**
 el `<form>` se conecta con spread `{...upsert_x.enhance(...)}`, cada input con `{...upsert_x.fields.name.as('text')}`, y el modo edit se pre-popula con `upsert_x.fields.set({...})`. Nada de onsubmit + fetch manual. Patrón completo con código: `references/forms-recipe.md`.
+- Decisión de diseño UI (qué componente shadcn para qué patrón, tokens semánticos, dark mode, confirmación destructiva): `references/shadcn-ui.md`.
 
 ## Workflow: 4 Phases
 

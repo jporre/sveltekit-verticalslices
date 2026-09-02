@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ABOUTME: diagnóstico mecánico de b-setup-or-fix — cuenta hits por peldaño E1-E6 sobre el
-# ABOUTME: codebase entero y emite AUDIT_RESULT parseable. Solo lectura, cero cambios.
+# ABOUTME: codebase entero y emite AUDIT_RESULT parseable. Además reporta la preparación del
+# ABOUTME: entorno para el pipeline (=== PIPELINE ===, PIPELINE_RESULT). Solo lectura, cero cambios.
 # Uso: audit.sh [ruta-src]   (default: src del cwd)
 # Exit: 0 ok | 3 no es proyecto SvelteKit
 set -uo pipefail
@@ -31,6 +32,59 @@ rung() { # rung <var>: suma el acumulador en <var> y lo resetea
 }
 : > /tmp/b-setup-or-fix-audit-counts.$$
 trap 'rm -f /tmp/b-setup-or-fix-audit-counts.$$' EXIT
+
+echo "=== PIPELINE === (entorno: duro = el pipeline no arranca | rec = degrada con fallback)"
+HARD=""; REC=""
+has() { command -v "$1" >/dev/null 2>&1; }
+missing() { # missing <HARD|REC> <nombre> <nota-accion>
+  echo "-- $2: FALTA ($3)"
+  eval "$1=\"\$$1 $2\""
+}
+okline() { echo "-- $1: ok"; }
+
+GH_OK=0
+if has gh; then
+  okline "gh CLI"
+  gh auth status >/dev/null 2>&1 && { GH_OK=1; okline "gh autenticado"; } || missing HARD gh-auth "gh auth login — el pipeline lee/escribe todo el estado via gh"
+else
+  missing HARD gh "instalar gh CLI — todo el estado (issues/labels/PRs) vive en GitHub"
+fi
+has jq   && okline "jq"   || missing HARD jq "usado por ~85 llamadas en los scripts del plugin"
+has perl && okline "perl" || missing HARD perl "timeouts portables del codegraph-probe (no usa timeout, ausente en macOS base)"
+has node && okline "node" || missing HARD node "runtime + dev servers de los worktrees"
+has pnpm && okline "pnpm" || missing HARD pnpm "setup-worktree.sh hardcodea pnpm install/exec vite"
+git remote get-url origin >/dev/null 2>&1 && okline "remote origin" || missing HARD origin "el pipeline abre PRs contra origin"
+
+if has codegraph; then
+  CG="missing"
+  PROBE="$(cd "$(dirname "$0")" && pwd)/../b1-add-worktree/scripts/codegraph-probe.sh"
+  [ -f "$PROBE" ] && CG=$(CODEGRAPH_PROBE_NO_SYNC=1 bash "$PROBE" . 2>/dev/null | tail -1 | sed -n 's/^CODEGRAPH_STATUS=\([a-z]*\).*/\1/p')
+  echo "-- codegraph: instalado, db=$CG"
+  [ "$CG" = ok ] || REC="$REC codegraph-db"
+else
+  missing REC codegraph "recomendable: grounding b0/b1 y callers b6 sistematicos; fallback rg ya cubre"
+fi
+has agent-browser && okline "agent-browser" || missing REC agent-browser "recomendable: verificacion visual de screens; sin el b6 marca blocker en PRs que tocan UI"
+ls .github/workflows/*.y*ml >/dev/null 2>&1 && okline "CI (github actions)" || missing REC ci "recomendable: b9-close re-chequea CI verde; epic-auto-merge lo exige"
+[ -f .github/pull_request_template.md ] && okline "PR template" || missing REC pr-template "recomendable: b4 exige matchear .github/pull_request_template.md"
+ENV_TRK="$(git ls-files '.env*' 2>/dev/null | head -1)"
+[ -z "$ENV_TRK" ] && okline ".env no trackeado" || missing REC env-tracked "'$ENV_TRK' commiteado: los worktrees heredan .env* solo si NO esta trackeado (symlink de archivos untracked)"
+grep -q 'codegraph' .gitignore 2>/dev/null && okline ".codegraph gitignored" || missing REC codegraph-ignore "agregar '.codegraph/' a .gitignore: la db es local por diseño"
+
+if [ "$GH_OK" = 1 ]; then
+  HAVE_L="$(gh label list --limit 100 --json name --jq '.[].name' 2>/dev/null || true)"
+  if [ -n "$HAVE_L" ]; then
+    MISS_L=""
+    for l in ready needs-info blocked duplicate simple medium complex in-progress in-review auto-pr-bot merge-approved epic-approved epic-auto-merge awaiting-approval awaiting-walkthrough force-complex-ok regression-waiver-ok needs-human-review pipeline-failed; do
+      printf '%s\n' "$HAVE_L" | grep -qx "$l" || MISS_L="$MISS_L $l"
+    done
+    if [ -z "$MISS_L" ]; then okline "labels del control plane (19/19)"; else echo "-- labels faltantes:$MISS_L"; REC="$REC labels"; fi
+  else
+    echo "-- labels: no verificable (gh label list fallo)"
+  fi
+fi
+csv() { printf '%s' "$1" | sed 's/^ //;s/ /,/g'; }
+echo "PIPELINE_RESULT hard=$(csv "$HARD") rec=$(csv "$REC")"
 
 echo "=== STACK ==="
 KIT_VERSION=$(node -e "try{console.log(require('./node_modules/@sveltejs/kit/package.json').version)}catch(e){console.log('unknown')}" 2>/dev/null || echo unknown)

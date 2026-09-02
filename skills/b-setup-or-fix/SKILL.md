@@ -82,6 +82,8 @@ Emite secciones `=== E1 ===` … `=== E6 ===` con los hits (archivo:línea) y un
 AUDIT_RESULT mode=base|rescate rungs=E1:<n>,E2:<n>,E3:<n>,E4:<n>,E5:<n>,E6:<n> features=<n>
 ```
 
+Además emite `=== PIPELINE ===` + `PIPELINE_RESULT hard=<csv> rec=<csv>`: la preparación del ENTORNO para que el pipeline (b0-b10) corra en este repo. Los faltantes **duros** (`hard=`: gh auth, jq, perl, node, pnpm, remote origin) bloquean el pipeline entero — NO son deuda de código, no van a la escalera ni a la tabla de peldaños; se listan aparte en el reporte con su acción concreta. Los **recomendables** (`rec=`: codegraph/db, agent-browser, CI, PR template, labels del control plane, `.env` untracked, `.codegraph` gitignored) degradan con fallback — se reportan y se ofrecen como peldaño de configuración de repo ANTES de la escalera (crear labels y PR template es barato y no toca código).
+
 El script **cuenta**; el juicio LLM **filtra** antes de que algo sea hallazgo:
 
 - Falsos positivos típicos a descartar: `goto()` post-acción (submit/delete), `$effect` para DOM/timers reales, `+server.ts` que es webhook externo (no se migra a remote function), `load` de página explícitamente pública, imports directos de shadcn permitidos (`Button`, `Input`, `Label`, `Textarea`, `Badge`, `Separator`).
@@ -129,6 +131,8 @@ Loop estricto por cada peldaño aprobado, en orden E1 → E6:
 ```bash
 bash "$PLUGIN_ROOT/skills/b-setup-or-fix/scripts/audit.sh"   # re-correr para el delta
 ```
+
+El reporte incluye, aparte de la tabla de peldaños, los faltantes de `PIPELINE_RESULT` (duros con su fix, recomendables como config de repo pendiente) — si `hard=` no quedó vacío, decir explícitamente que el pipeline b10 no arrancará hasta resolverlos.
 
 Reporte final, corto y con el delta primero:
 
@@ -184,7 +188,7 @@ Termina con `B11_RESULT mode=init rungs_done=E1 rungs_blocked= features=<n>`.
 - `references/migrate-to-remote.md` — recetas R1-R7 de migración a remote functions (E3): load→query, actions→form, fetch→await, single-flight. Leer al ejecutar E3.
 - `references/base-setup.md` — modo base completo: config canónica, guards, docs semilla, política de comentarios. Leer con `--init` o mode=base.
 - `references/pwa-setup.md` — manifest, service worker, cache y flujo de update. Leer SOLO si el usuario pide PWA/offline/instalable; no es parte de la escalera ni del modo base.
-- `scripts/audit.sh` — diagnóstico mecánico; secciones `=== E<n> ===` + `AUDIT_RESULT`. Exit 3 = no es SvelteKit.
+- `scripts/audit.sh` — diagnóstico mecánico; secciones `=== PIPELINE ===` (entorno, `PIPELINE_RESULT`), `=== E<n> ===` + `AUDIT_RESULT`. Exit 3 = no es SvelteKit.
 - `scripts/rung-verify.sh` — `baseline` captura estado inicial; `E<n>` compara y emite `RUNG_VERIFY ok|fail rung=E<n>`.
 - `../b6-pr-review/references/sveltekit-antipatterns.md` + `security-checklist.md` — catálogos AP/SEC canónicos.
 - `../b2-build-feature/references/slice-spec.md` + `simplicity-ladder.md` + `feature-templates.md` — layout, doctrina de simpleza y templates canónicos.

@@ -1,8 +1,10 @@
 # b-pipeline
 
-A [Claude Code](https://claude.com/claude-code) plugin that drives a GitHub issue all the way to a merged pull request — **triage → isolated worktree → build → screenshots → commit → draft PR → code review → gated merge** — by chaining a set of small, focused skills.
+A dual-harness agent plugin ([Claude Code](https://claude.com/claude-code) and [pi](https://pi.dev)) that drives a GitHub issue all the way to a merged pull request — **triage → isolated worktree → build → screenshots → commit → draft PR → code review → gated merge** — by chaining a set of small, focused skills.
 
 It is built for **SvelteKit** projects (Remote Functions, Svelte 5 runes, Drizzle, shadcn-svelte) and keeps a **human in the loop** at the points that matter: nothing complex gets built, and nothing ever merges, without a person saying yes.
+
+The build doctrine is enforced end to end, not aspirational: **Remote Functions for every data access** (no `load()` with data, no `event.fetch`, no API indirection — `db.transaction` inside the remote function for multi-table writes), **shadcn-svelte as the design standard** (pattern → component table, semantic tokens, no native `confirm()`/crude colors), and **measurable concision rules** (zero comments except `// ponytail:`, split thresholds, lazy building) — b2 builds with it, b6 reviews against it, and the same rules drive `b-setup-or-fix` migrations.
 
 > Throughout this plugin, **"task" = GitHub issue**. The two terms are used interchangeably.
 
@@ -63,7 +65,8 @@ A few ideas explain the whole design:
 
 | Requirement | Why | Check |
 | --- | --- | --- |
-| **Claude Code** | The plugin runs inside Claude Code. | `claude --version` |
+| **Claude Code or pi** | The plugin runs in either harness (see [§4](#4-installation-step-by-step) for both installs). | `claude --version` / `pi --version` |
+| **`pi-subagents` package (pi only)** | Resolves the plugin's agents (`b7-impl`, `b7-impl-s`, `b7-screen-review`) from `pi-agents/`. | `pi list` |
 | **`gh` CLI, authenticated** | All GitHub state (issues, labels, PRs, comments) goes through `gh`. | `gh auth status` |
 | **A git repo with a GitHub remote** | The pipeline reads issues and opens PRs against `origin`. | `gh repo view` |
 | **A SvelteKit project** | `b2-build-feature` is SvelteKit-specific (Remote Functions, Svelte 5, Drizzle, shadcn-svelte). | — |
@@ -98,7 +101,7 @@ A few ideas explain the whole design:
    gh auth status
    ```
 
-That is it — there is no build step. The plugin auto-discovers its hooks from `hooks/hooks.json`, its skills from `skills/`, and its agents from `agents/`.
+That is it — there is no build step. The plugin auto-discovers its hooks from `hooks/hooks.json`, its skills from `skills/`, and its agents from `agents/` (Claude Code) or `pi-agents/` (pi).
 
 ### Instalación alternativa: pi
 
@@ -170,7 +173,7 @@ Skills are namespaced `b-pipeline:<skill>`.
 | **b9-close** | Canonical close: merges the PR, closes the issue, and cleans the worktree — behind a human approval gate. |
 | **b-setup-or-fix** | Standalone "genie in a bottle" — **user-invoked only, never chained by the pipeline**. Audits an entire degraded SvelteKit repo (load functions / manual fetch instead of Remote Functions, Svelte 4 syntax, over-engineering, duplicates, comment noise) and migrates it rung by rung (E1 security → E6 docs) toward the same doctrine b2 builds with and b6 reviews against — or installs that base in a fresh project (`--init`). Every rung is verified against a baseline and human-gated before any edit. |
 
-The visual reviewer `b7-screen-review` is a plugin **agent**, not a skill: it is defined in `agents/b7-screen-review.md` and spawned by `b7-issue-to-pr` / `b8-swarm` via `subagent_type: "b-pipeline:b7-screen-review"`, one per screen in parallel. It verifies each screen against the triage's visual acceptance criteria using the `agent-browser` CLI.
+The visual reviewer `b7-screen-review` is a plugin **agent**, not a skill: it is defined in `agents/b7-screen-review.md` (Claude Code) / `pi-agents/b7-screen-review.md` (pi, same contract) and spawned by `b7-issue-to-pr` / `b8-swarm` — one per screen in parallel. It verifies each screen against the triage's visual acceptance criteria using the `agent-browser` CLI.
 
 ---
 
@@ -182,7 +185,7 @@ This is exactly what happens when you run `/b-pipeline:b10-ship <issue>` — eac
 | --- | --- | --- | --- |
 | Preflight + lock (kill switch, `gh` auth, clean tree, backpressure) | `b10-ship` | you | Refuses to start if any check fails |
 | Reconcile state from GitHub (labels, PR, verdict) and jump to the pending phase | `b10-ship` | `b10-ship` | — (this is what makes re-running safe) |
-| Triage: readiness + complexity labels | `b1-triage-issue` | `b10-ship` | `complex` → human chooses force / interactive / skip; `needs-info` / `blocked` / `duplicate` → posts questions and stops |
+| Triage: readiness + complexity labels | `b1-triage-issue` | `b10-ship` | `complex` → human chooses force / interactive / skip; `needs-info` / `blocked` / `duplicate` → posts questions and stops. Issues from `b0` skip research: the verdict derives from the labels (b1 `--auto`) and b7 reuses it instead of re-triaging |
 | Create isolated worktree, branch `feat/…` or `fix/…` | `b1-add-worktree` | `b7-issue-to-pr` (step 1) | Aborts if the worktree cannot be created |
 | Sticky status comment on the issue (`<!-- b7:status -->`) | `b7-issue-to-pr` | `b7-issue-to-pr` (step 2) | — |
 | Build the feature screen by screen | `b2-build-feature` | `b7-issue-to-pr` | — |
@@ -193,6 +196,8 @@ This is exactly what happens when you run `/b-pipeline:b10-ship <issue>` — eac
 | Merge the PR, close the issue, remove the worktree | `b9-close` | `b10-ship` | **Always** a human gate: `merge-approved` label or in-session yes; otherwise leaves `awaiting-approval` |
 
 `b7-issue-to-pr`'s five mandatory, non-skippable steps are the rows marked step 1–5 (worktree, sticky comment, commit, draft PR, review); the build and the visual verification happen between steps 2 and 3.
+
+**Mechanical steps belong to scripts, not to the model.** Wherever a step is deterministic, it is a `guardrails.sh` subcommand that emits a parseable verdict — `dod-check` (the 9 close-out checks in one pass), `screen-marker` (the `b7:screen-review=` marker on the PR), `render-screens` (screen skeletons rendered mechanically from the triage in every lane), `impact-drift` (diff vs expected files), `classify-run` (the S/M/L lane), `screens-check`, `validate-triage`. The LLM decides; the scripts certify. In the happy path b10 goes straight from build to close — the b7 DoD already certifies clean tree, labels and the published review; the verify phase only runs on re-runs resuming an interrupted build.
 
 ### A note on skill numbering
 
@@ -289,6 +294,7 @@ Triage reads and writes these labels; they are the pipeline's control plane. Cre
   - `SessionStart` → `write-root-marker.sh`: writes the plugin's install path to `~/.claude/b-pipeline.root` so the pipeline's scripts can find it (skill snippets do not receive `CLAUDE_PLUGIN_ROOT`).
 
   All hooks run **locally only** — no network calls, no telemetry; they merely allow or block an action (or write a local marker). Everything else in the plugin runs on demand, and GitHub access uses your own authenticated `gh` CLI.
+- **Same guards in pi.** The `pi/b-pipeline-compat.ts` extension reuses the exact same hook scripts: `tool_call` on bash/read feeds them the same JSON payload and blocks on exit 2, `tool_execution_end` runs the `.env*` symlink step, and session start exports `CLAUDE_PLUGIN_ROOT` (same root-marker fallback). One implementation, both harnesses.
 - **Worktree isolation.** The main checkout is never edited; all writes go to the worktree.
 
 ---

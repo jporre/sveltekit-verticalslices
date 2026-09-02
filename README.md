@@ -106,7 +106,7 @@ El mismo repo funciona como [paquete pi](https://pi.dev/packages) — sin paso e
 
 ```bash
 pi install /ruta/a/b-pipeline-market        # checkout local
-pi install git:github.com/jporre/sveltekit-verticalslices@v1.9.5   # git
+pi install git:github.com/jporre/sveltekit-verticalslices@v1.10.0   # git
 ```
 
 pi descubre los skills de `skills/` (invocables como `/skill:b10-ship 42`) y carga la extensión `pi/b-pipeline-compat.ts`, que activa los mismos guardrails que los hooks de Claude Code (bloqueo de `git worktree add` directo, bloqueo de dumps de `.env`, symlinks de `.env*` a los worktrees) y exporta `CLAUDE_PLUGIN_ROOT` para que los scripts del plugin resuelvan su raíz igual que en Claude Code.

@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.10.0] — 2026-09-01
 
 ### Refactor — dedupe documental: single source para los bloques repetidos
 

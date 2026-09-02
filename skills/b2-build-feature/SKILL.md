@@ -291,6 +291,8 @@ Todo lo demás (upsert único, `$derived` para queries, `fields.as`, namespace i
 
 ## Complexity Guide
 
+> Los umbrales canónicos de complexity (`simple|medium|complex`) viven en `b7-issue-to-pr/templates/triage-output.schema.json` (los estampa b1/b0; esta tabla es guía operativa de construcción, no la fuente del veredicto).
+
 | Size                               | Files | Approach                                                           |
 | ---------------------------------- | ----- | ------------------------------------------------------------------ |
 | Simple (1 entity, 1 screen)        | 3-4   | Implement directly                                                 |

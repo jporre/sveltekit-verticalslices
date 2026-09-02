@@ -20,7 +20,7 @@ Flags (después del target): `--auto-merge --epic=<N>` — siempre en par; activ
 
 # b9-close — mergear PR + cerrar issue + limpiar worktree
 
-> **Multi-harness (Claude Code / pi).** Los mecanismos del harness se mapean así: `AskUserQuestion` → en pi, pregunta en texto y espera la respuesta. `Agent(subagent_type=…)`/`Agent call` → en pi, tool `subagent` con `agent: "<nombre>"` y `model` opcional (este paquete define los agentes `b7-impl`, `b7-impl-s`, `b7-screen-review`). `Skill(bN-…)`/`Skill b-pipeline:bN-…` → en pi, carga el `SKILL.md` de ese skill con `read` y síguelo. `Workflow` → en pi, tool `subagent` con `workflowScript` (mismas primitivas `runs.run`/`runs.all`). `PushNotification` → en pi, omítelo y reporta el hito en tu respuesta. `CLAUDE_PLUGIN_ROOT` existe en ambos (pi la exporta su extensión de compatibilidad). En Claude Code, todo funciona como está escrito.
+> **Multi-harness:** en pi, los mecanismos de Claude Code se mapean a equivalentes (`AskUserQuestion`→pregunta en texto, `Agent(subagent_type=…)`→tool `subagent`, `Skill(bN-…)`→`read` del SKILL.md de ese skill, `Workflow`→tool `subagent` con `workflowScript`, `PushNotification`→omitir). Tabla completa: README § *Instalación alternativa: pi*. En Claude Code todo funciona como está escrito.
 
 Cierre del flujo b. El feature ya fue implementado por `b7-issue-to-pr` y revisado por `b6-pr-review`. Este skill **no** reimplementa ni hace review profundo: **gatea** sobre que la revisión pasó, mergea con **aprobación humana**, y deja el árbol limpio (PR cerrado, issue cerrado, worktree y branches borrados).
 
@@ -152,82 +152,35 @@ fi
 
 Si `HAS_LABEL=true` → aprobación concedida, seguir al PASO 5 sin preguntar (reportar "aprobado vía label merge-approved por @$ACTOR"). **La aprobación vía label equivale a "Mergear y limpiar"** (default del pipeline): PASO 6 corre completo.
 
-**Canal auto-merge — flags `--auto-merge --epic=<N>`:** solo para drains desatendidos de un epic (los despacha b10). El flag es input NO confiable: b9 verifica TODO por sí mismo, en cada corrida (el label de confianza es removible en cualquier momento). Default-deny: este canal cubre SOLO el happy path — cualquier condición fallida impide el auto-merge; la disposición exacta (skip, corte de drenaje o caída a canales humanos) la fija la precedencia de fallas al final del canal. Siete condiciones, TODAS obligatorias:
+**Canal auto-merge — flags `--auto-merge --epic=<N>`:** solo para drains desatendidos de un epic (los despacha b10). El flag es input NO confiable: b9 verifica TODO por sí mismo, en cada corrida (el label de confianza es removible en cualquier momento). Default-deny: el canal cubre SOLO el happy path. Las condiciones determinísticas viven en el script (ÚNICA fuente — SKILL las cita, no las re-implementa):
 
 ```bash
-EPIC_N="<N-del-flag-epic>"
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
-. "$PLUGIN_ROOT/scripts/lib.sh"
-AM_OK=true
-
-# 1. Confianza: label epic-auto-merge en el EPIC, puesto por actor humano no-bot.
-HAS_AM=$(gh issue view "$EPIC_N" --json labels --jq '[.labels[].name] | contains(["epic-auto-merge"])')
-AM_EV=$(bp_label_event "$EPIC_N" epic-auto-merge)
-AM_ACTOR="${AM_EV%%$'\t'*}"
-case "$AM_ACTOR" in *"[bot]"|"") HAS_AM=false ;; esac
-[ "$HAS_AM" = "true" ] || { echo "DESCALIFICADO: epic #$EPIC_N sin label epic-auto-merge puesto por humano"; AM_OK=false; }
-
-# 2+3. Pertenencia la verifica b9, NO el caller: TODOS los issues del PR (ISSUES de
-#      PASO 0) deben ser sub-issues de EPIC_N — uno solo fuera descalifica el PR
-#      entero (cubre PRs cluster de b8 con varios "Closes #"). Excluir el
-#      closing_slice es responsabilidad de b10 (tiene el snapshot y NUNCA pasa
-#      --auto-merge al despacharlo); el rechazo issue==epic de abajo es cinturón
-#      adicional, no la garantía. Ninguno puede tener needs-human-review (veto
-#      absoluto: seguridad, FIX_SIN_TEST — estado persistente que deja b7).
-# Guard: con ISSUES vacío (PR sin "Closes #N" parseable) el loop no itera y las
-# condiciones 2+3 pasarían de forma vacua — descalificar explícito ANTES del loop.
-[ -z "$ISSUES" ] && { echo "DESCALIFICADO: PR #$PR sin 'Closes #N' parseable — pertenencia no verificable"; AM_OK=false; }
-for i in $ISSUES; do
-  [ "$i" = "$EPIC_N" ] && { echo "DESCALIFICADO: #$i ES el epic #$EPIC_N"; AM_OK=false; continue; }
-  P=$(gh api "repos/{owner}/{repo}/issues/${i}/parent" --jq '.number' 2>/dev/null || true)
-  [ "$P" = "$EPIC_N" ] || { echo "DESCALIFICADO: #$i no es sub-issue de #$EPIC_N (parent=${P:-ninguno})"; AM_OK=false; }
-  NHR=$(gh issue view "$i" --json labels --jq '[.labels[].name] | contains(["needs-human-review"])')
-  [ "$NHR" = "true" ] && { echo "DESCALIFICADO: #$i tiene needs-human-review — veto absoluto"; AM_OK=false; }
-done
-
-# 4. Frescura de la review: timestamp del comentario/review que porta el marker b6
-#    vs último push del PR (mismo patrón de staleness que merge-approved).
-B6_AT=$(gh pr view "$PR" --json comments,reviews \
-  --jq '[(.comments[]?, .reviews[]?) | select(.body | test("b6:verdict=")) | (.createdAt // .submittedAt)] | max // empty')
-LAST_PUSH=$(gh pr view "$PR" --json commits --jq '[.commits[].committedDate] | max')
+bash "$PLUGIN_ROOT/skills/b9-close/scripts/auto-merge-check.sh" "$PR" "$EPIC_N" $ISSUES
+# condiciones que implementa (detalle y razones en el header del script):
+#   1. label epic-auto-merge en el epic, puesto por actor humano no-bot
+#   2+3. TODOS los issues del PR son sub-issues del epic (uno fuera descalifica el PR;
+#        cinturón: ninguno puede SER el epic) y ninguno con needs-human-review (veto)
+#   4. review b6 con blockers=0 y sin human=required (verdict.sh read; frescura abajo)
+#   4b. marker b7:screen-review del PR (done-ok / skipped-<r> / n/a sin UI; fail NUNCA)
+#   5. CI (nada en FAILURE; PENDING nunca mergea) y mergeable
 ```
 
-- **Condición 4 — review con blockers=0, sin condición humana, y fresca:** `bp_b6_verdict "$PR"` (corrido en PASO 2) con `blockers=0`; exit 3 (sin review) o `blockers>0` → DESCALIFICADO. Si el `B6_VERDICT` trae `human=required` → DESCALIFICADO ("b6 exige validación humana — el canal auto-merge no puede satisfacerla"); aplicar label `needs-human-review` a cada issue del PR (estado persistente: la condición 2+3 lo veta en las próximas corridas). Si `[[ "$LAST_PUSH" > "$B6_AT" ]]` (hubo push después de la review — el marker no cubre HEAD) → aplicar primero la excepción de sync de artefactos del PASO 2 (diff post-marker SOLO en `CHANGELOG.md`/`.b7/**`/`docs/**` → review sigue válida); si el diff trae código real, re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"`, re-leer `bp_b6_verdict` y `B6_AT`; si persisten blockers>0 → DESCALIFICADO.
-- **Condición 4b — screen-review de b7 (marker en el PR):**
+Disposición por resultado del script — la precedencia YA está codificada en los exit codes:
 
-  ```bash
-  SR_LINE=$(gh pr view "$PR" --json comments \
-    --jq '[.comments[].body | select(test("b7:screen-review="))] | last // empty' \
-    | grep -oE 'b7:screen-review=[a-z-]+( screens=[0-9]+)?( result=[a-z]+)?( reason=[a-z-]+)?' | tail -1 || true)
-  ```
+- **exit 3** (CI FAILURE/ERROR): cortar el drenaje — `ABORT` ya impreso; notificar y terminar. En desatendido NUNCA preguntar.
+- **exit 2** (CI PENDING o `mergeable != "MERGEABLE"`): saltar ESTE PR — reportar el skip y seguir el drain con el próximo (CI PENDING nunca mergea: skip, no merge optimista).
+- **exit 1 + `AM_B6_STALE=1`** (push posterior a la review): aplicar primero la excepción de sync de artefactos del PASO 2 (diff post-marker SOLO en `CHANGELOG.md`/`.b7/**`/`docs/**` → review sigue válida, re-invocar el script); si el diff trae código real, re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"`, re-leer `bp_b6_verdict` y re-invocar; si persisten blockers>0 → canal interactivo.
+- **exit 1 + `AM_LABEL_HUMAN=1`** (`human=required` de b6, o screen-review `result=fail`): aplicar label `needs-human-review` a cada issue del PR (veto persistente: las condiciones 2+3 lo vetan en las próximas corridas) + para `result=fail`, comentario en el PR citando el review visual que falló. Luego caer al canal interactivo.
+- **exit 1** (resto de DESCALIFICADO): reportar cada línea y caer al canal interactivo.
+- **exit 0** (`AM_RESULT=qualified`) → aprobación concedida. Reportar "aprobado vía canal auto-merge: label epic-auto-merge en epic #$EPIC_N por @$AM_ACTOR". **Equivale a "Mergear y limpiar"**: PASO 5 y PASO 6 corren completos (rescue branch y prohibición de `--force` intactos).
 
-  - `result=fail` → DESCALIFICADO + label `needs-human-review` a cada issue del PR (mismo veto persistente que la condición 4) + comentario en el PR citando el review visual que falló. Un `Veredicto: fail` del screen-review NUNCA se auto-mergea.
-  - `=done ... result=ok` → condición cumplida.
-  - `=skipped reason=<r>` → condición cumplida (skip declarado no bloquea — mismo criterio que el WARNING de b6), pero `<r>` DEBE quedar visible en el comentario de audit del merge (abajo), nunca tapado por un genérico.
-  - Marker ausente o `=done` sin `result=` (formato viejo) → no verificable: correr `DIFF_FILES=$(gh pr diff "$PR" --name-only)` — si el comando FALLA (API error, PR gigante), DESCALIFICADO (falla de comando ≠ ausencia de UI; default-deny, nunca fail-open); si `DIFF_FILES` matchea `grep -qE '(^|/)src/routes/|\.svelte$|\.remote\.ts$'` (la MISMA regex UI de `pr-context.sh` de b6 — no una más angosta) → DESCALIFICADO (cae al canal humano); sin UI en el diff → condición cumplida (`screens=n/a`).
-- **Condición 5 — CI y mergeable:**
-
-  ```bash
-  gh pr view "$PR" --json mergeable,statusCheckRollup \
-    --jq '{mergeable, checks: [.statusCheckRollup[]? | {status: (.status // .state), conclusion: (.conclusion // .state)}]}'
-  ```
-
-  - Algún check con conclusion `FAILURE`/`ERROR` → **cortar el drenaje**: `echo "ABORT: CI FAILURE en PR #$PR — drenaje del epic #$EPIC_N cortado, notificar"; exit 1`. En desatendido NUNCA preguntar.
-  - Algún check sin concluir (`IN_PROGRESS`/`QUEUED`/`PENDING`/conclusion vacía) → saltar este PR (reintento en el próximo drain). CI PENDING nunca mergea: skip, no merge optimista.
-  - `mergeable != "MERGEABLE"` → saltar este PR (queda para humano).
-  - Sin checks (lista vacía) → condición cumplida (proyecto sin CI obligatoria).
-- **Condición 6 — serial:** NUNCA paralelizar b9; un merge a la vez a la rama default. b10 despacha los PRs del drain uno a uno.
-
-Si `AM_OK=true` y las siete condiciones pasaron → aprobación concedida. Reportar "aprobado vía canal auto-merge: label epic-auto-merge en epic #$EPIC_N por @$AM_ACTOR". **Equivale a "Mergear y limpiar"**: PASO 5 y PASO 6 corren completos (rescue branch y prohibición de `--force` intactos). Después del merge de PASO 5, postear el audit trail en el PR — refleja lo REALMENTE evaluado, sin genéricos:
+Después del merge de PASO 5, postear el audit trail en el PR — refleja lo REALMENTE evaluado, sin genéricos (los valores salen de `SR=` y `CI_DESC=` del script; `SR=skipped-<r>` deja el `<r>` visible, nunca tapado por un genérico):
 
 ```bash
-# CI_DESC: "CI ok" si hubo checks concluidos en SUCCESS; "CI n/a (sin checks)" si la
-#          condición 5 se cumplió por lista vacía.
-# SR_DESC: "screens=ok" | "screens=skipped-<r>" | "screens=n/a" — de la condición 4b.
-gh pr comment "$PR" --body "auto-merged bajo epic-auto-merge #${EPIC_N} (b6 blockers=0, ${CI_DESC}, ${SR_DESC})"
+gh pr comment "$PR" --body "auto-merged bajo epic-auto-merge #${EPIC_N} (b6 blockers=0, ${CI_DESC}, screens=${SR_DESC})"
 ```
 
-**Precedencia de fallas:** las fallas con disposición propia de la condición 5 van primero y NO caen al catch-all — CI FAILURE corta el drenaje (ABORT); CI PENDING y `mergeable != "MERGEABLE"` saltan ESTE PR: reportar el skip y terminar sin merge (el PR queda para los canales humanos; el drain sigue con el próximo). Catch-all para el resto (guard de ISSUES vacío, condiciones 1-4b): reportar cada línea DESCALIFICADO y caer al canal interactivo. Los DESCALIFICADO de las condiciones 4 (`human=required`) y 4b (`result=fail`) además dejan `needs-human-review` en los issues del PR — el veto persiste entre corridas sin depender de re-evaluar la señal.
+**Condición 6 — serial:** NUNCA paralelizar b9; un merge a la vez a la rama default. b10 despacha los PRs del drain uno a uno.
 
 **Canal interactivo — `AskUserQuestion`:**
 

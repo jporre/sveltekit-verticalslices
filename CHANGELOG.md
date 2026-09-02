@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Refactor — dedupe documental: single source para los bloques repetidos
+
+- **`b9-close/scripts/auto-merge-check.sh` (nuevo)**: las condiciones del canal auto-merge (label humano en el epic, pertenencia sub-issue + veto needs-human-review, veredicto b6 con blockers=0 y frescura, marker screen-review, CI/mergeable) salen del SKILL (~90 líneas bash inline) a un script con default-deny y exit codes que codifican la precedencia de fallas (0 qualified / 1 disqualified / 2 skip / 3 ABORT). b9 las cita, no las re-implementa. Verificado: PR inexistente descalifica en las 4 condiciones esperadas, nunca fail-open.
+- **Multi-harness ×8 → 1 línea** por SKILL (puntero a README): ~10 KB menos por corrida del fork.
+- **svelte5-not-react §11** comprimido (duplicaba AP14) — 535 → 508 líneas.
+- **Schema triage inline de b7 → puntero** a `templates/triage-output.schema.json` (el validado por `validate-triage`).
+- **Bootstrap `requireUser()` ×2** en templates → import de `$lib/server/auth` (canonical: base-setup §2; b2 asume la base instalada). migrate-to-remote ya importaba.
+- **Escalas de complejidad**: Complexity Guide de b2 ahora cita los umbrales canónicos del schema (la tabla es guía operativa, no fuente del veredicto).
+
+No tocado a propósito: el contrato b2 inline en `b7-impl.md`/`b7-impl-s.md` (los agentes corren en contexto aislado — un pointer sin el contrato arriesga un build sin contrato); `svelte5-not-react §10` (shadcn-ui.md y AP7/AP8 la referencian como fuente de la mecánica).
+
 ### Doctrina — shadcn como estándar de diseño, multi-tabla y umbrales medibles
 
 - **`b2-build-feature/references/shadcn-ui.md` (nuevo)**: tabla patrón→componente (confirmación destructiva→AlertDialog, detalle→Dialog, panel→Sheet, búsqueda→Combobox, carga→Skeleton, empty state con acción), tokens semánticos vs colores crudos, dark mode vía `app.css`. El Template 1 canónico ya no usa `confirm()` nativo. b6 castiga lo contrario con el nuevo anti-patrón 9b (UI nativa / colores crudos).

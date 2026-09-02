@@ -483,39 +483,12 @@ import Pencil from '@lucide/svelte/icons/pencil'
 
 ## 11. Client-Side Filtering
 
-For lists under 1000 items, filter on the client. No server round-trips.
+Lista <1000 items: filtrar en cliente con `$derived` (anti-patrón y ejemplos: AP14 en `sveltekit-antipatterns.md`). 1000+ items o paginación: query server-side con parámetros:
 
 ```svelte
-<script>
-import {get_products} from './server/data.remote'
-
-const products = $derived(await get_products())
-let search = $state('')
-let category = $state('all')
-
-// Client-side filtering with $derived (reactive, instant)
-let filtered = $derived(products.filter(p => (category === 'all' || p.category === category) && p.name.toLowerCase().includes(search.toLowerCase())))
-</script>
-
-<input bind:value={search} placeholder="Search..." />
-<select bind:value={category}>
-  <option value="all">All</option>
-  <option value="electronics">Electronics</option>
-</select>
-
-{#each filtered as product (product.id)}
-  <p>{product.name}</p>
-{/each}
-```
-
-For 1000+ items or when you need pagination, use server-side queries with parameters:
-
-```svelte
-<script>
 let page = $state(1)
 let search = $state('')
 const result = $derived(await get_products({page, search, limit: 50}))
-</script>
 ```
 
 ## Quick Decision Matrix

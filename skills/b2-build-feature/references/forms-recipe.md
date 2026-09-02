@@ -24,12 +24,7 @@ import { db } from '$lib/server/db'
 import { taItem } from '$lib/server/db/schema'
 import { eq } from 'drizzle-orm'
 
-// Bootstrap self-contained: si $lib/server ya expone requireUser(), impórtalo en vez de redefinirlo aquí (slice-spec: transversal)
-function requireUser() {
-  const { locals } = getRequestEvent()
-  if (!locals.user) error(401, { message: 'No autenticado', code: 'AUTH_REQUIRED' })
-  return locals.user
-}
+import { requireUser } from '$lib/server/auth'  // guard transversal del repo — receta en b-setup-or-fix/references/base-setup.md §2 (b2 no redefine guards)
 
 export const get_items = query(async () => {
   requireUser()

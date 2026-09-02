@@ -16,7 +16,7 @@ effort: medium
 
 # Pipeline autónomo Issue → PR (b7) — orientado a pantallas
 
-> **Multi-harness (Claude Code / pi).** Los mecanismos del harness se mapean así: `AskUserQuestion` → en pi, pregunta en texto y espera la respuesta. `Agent(subagent_type=…)`/`Agent call` → en pi, tool `subagent` con `agent: "<nombre>"` y `model` opcional (este paquete define los agentes `b7-impl`, `b7-impl-s`, `b7-screen-review`). `Skill(bN-…)`/`Skill b-pipeline:bN-…` → en pi, carga el `SKILL.md` de ese skill con `read` y síguelo. `Workflow` → en pi, tool `subagent` con `workflowScript` (mismas primitivas `runs.run`/`runs.all`). `PushNotification` → en pi, omítelo y reporta el hito en tu respuesta. `CLAUDE_PLUGIN_ROOT` existe en ambos (pi la exporta su extensión de compatibilidad). En Claude Code, todo funciona como está escrito.
+> **Multi-harness:** en pi, los mecanismos de Claude Code se mapean a equivalentes (`AskUserQuestion`→pregunta en texto, `Agent(subagent_type=…)`→tool `subagent`, `Skill(bN-…)`→`read` del SKILL.md de ese skill, `Workflow`→tool `subagent` con `workflowScript`, `PushNotification`→omitir). Tabla completa: README § *Instalación alternativa: pi*. En Claude Code todo funciona como está escrito.
 
 Glue skill que encadena skills existentes. **No duplicar lógica de los skills encadenados**: si se necesita triage, invocar `b1-triage-issue`; si se necesita worktree, `b1-add-worktree`; etc. El valor de este skill es la **orquestación**, los **budgets**, el **flujo por pantallas (features colocados en `src/routes`)** y el **rastro documental triple**.
 
@@ -147,30 +147,11 @@ Tras un preflight verde, cachear el contexto una sola vez. Son **subcomandos sep
 
 ### 1. Triage
 
-Invocar `b1-triage-issue "<N> --auto"` (el `--auto` activa el fast-path de b1: si el issue trae labels de veredicto sin comentario humano posterior — issues de b0, re-runs — deriva el veredicto de labels sin re-explorar; solo con comentario humano nuevo corre triage completo). Pedirle explícitamente que escriba `.b7/triage.json` siguiendo el schema. Campos clave:
+Invocar `b1-triage-issue "<N> --auto"` (el `--auto` activa el fast-path de b1: si el issue trae labels de veredicto sin comentario humano posterior — issues de b0, re-runs — deriva el veredicto de labels sin re-explorar; solo con comentario humano nuevo corre triage completo). Pedirle explícitamente que escriba `.b7/triage.json` según el schema canónico `templates/triage-output.schema.json` (validado por `validate-triage`). Campos clave:
 
-```json
-{
-  "verdict": "ready|needs-info|duplicate|blocked|closed",
-  "type": "feat|fix|chore|docs",
-  "scope": "<feature-name>",
-  "language": "es|en",
-  "files_likely": ["src/routes/<feature>/*"],
-  "screens": [{
-    "name": "BandejaTareasPage", "route": "/tareas",
-    "user_journey": "Usuario abre /tareas, filtra por estado, ...",
-    "acceptance_criteria_visual": ["Tabla muestra ...", "Botón ..."],
-    "success_metrics": ["Filtro responde <200ms", "..."],
-    "states_required": ["golden", "invalid-submit"]
-  }],
-  "security_review_required": false,
-  "estimated_complexity": "simple|medium|complex",
-  "plan": [
-    {"id": "schema-rut", "desc": "Agregar columna rut a ta_persona + migración", "done": false},
-    {"id": "ui-form",    "desc": "Input rut en PersonaFormPage con validación", "done": false}
-  ]
-}
-```
+- `verdict`: `ready|needs-info|duplicate|blocked|closed` — `type`: `feat|fix|chore|docs|refactor|test` — `scope`, `language`, `files_likely[]`
+- `screens[]`: `name`, `route`, `user_journey`, `acceptance_criteria_visual[]`, `success_metrics[]`, `states_required[]`
+- `security_review_required`, `estimated_complexity` (`simple|medium|complex`), `plan[]` (`id`, `desc`, `done`)
 
 Tras escribir `.b7/triage.json`, **validar mecánicamente** contra el schema antes de seguir: `bash scripts/guardrails.sh validate-triage .b7/triage.json`. Si sale exit 4 (verdict/complexity fuera del enum, falta un required, o clave desconocida por `additionalProperties:false`), el triage es inválido — corregirlo y re-validar; no continuar con un artefacto que los sub-skills no van a poder consumir.
 

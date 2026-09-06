@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.11.0] — 2026-09-05
+
+### Feat — genie: audit diagnostica preparación del entorno
+
+- **`b-setup-or-fix/scripts/audit.sh` — sección PIPELINE**: requisitos duros (gh/jq/perl/node/pnpm/origin) y recomendables (codegraph vía probe NO_SYNC, agent-browser, CI, PR template, labels del control plane, .env untracked, .codegraph gitignored). Nueva línea parseable `PIPELINE_RESULT hard=<csv> rec=<csv>`.
+- **SKILL.md FASE 1/4**: duros no entran a la escalera (no son deuda de código), se reportan con su fix; rec se ofrecen como config de repo antes de E1.
+
+### Docs — README dual-harness y doctrina aplicada
+
+- Intro dual-harness (Claude Code + pi) + párrafo de doctrina aplicada (Remote Functions en todo acceso a datos, shadcn como estándar, concisión medible — construido por b2, castigado por b6).
+- §6/§7: agentes duales, fast-path de triage, subcomandos mecánicos, happy-path de b10; §12: mismos guardrails en pi vía `pi/b-pipeline-compat.ts`.
+
 ## [1.10.0] — 2026-09-01
 
 ### Refactor — dedupe documental: single source para los bloques repetidos

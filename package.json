@@ -1,6 +1,6 @@
 {
   "name": "b-pipeline",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "Pipeline conversación -> issue -> PR -> merge para SvelteKit. Plugin dual: Claude Code (.claude-plugin/) y pi (manifest pi/).",
   "license": "MIT",
   "keywords": [

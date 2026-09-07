@@ -30,10 +30,15 @@ set -euo pipefail
 #       "closing_slice": "epic"|null  // "epic" => el epic depende de TODOS los subs
 #     },                              //            (se vuelve el closing_slice de b10)
 #     "issues": [                     // ORDEN TOPOLÓGICO: una dep siempre va antes
-#       { "id":"s1", "title":"...", "body":"...", "labels":["feature","scope:x"],
-#         "blocked_by":[] },
-#       { "id":"s2", "title":"...", "body":"...", "labels":[...],
-#         "blocked_by":["s1"] }
+#       { "id":"x-remote", "screen":"/x", "kind":"remote", "title":"...", "body":"...",
+#         "labels":["feature","scope:x"], "blocked_by":[] },
+#       { "id":"x-ui", "screen":"/x", "kind":"ui", ..., "blocked_by":["x-remote"] },
+#       { "id":"x-tests", "screen":"/x", "kind":"tests", ..., "blocked_by":["x-ui"] },
+#       { "id":"x-docs", "screen":"/x", "kind":"docs", ..., "blocked_by":["x-ui"] }
+#     ]
+#   kind ∈ remote|ui|tests|docs|infra (infra: screen null). Por screen se exigen los 4
+#   kinds y las deps remote→ui→{tests,docs}. Se agrega label kind:<k> a cada issue.
+#   [
 #     ]
 #   }
 #
@@ -78,6 +83,33 @@ if not issues:
     sys.stderr.write("ERROR: el plan no tiene issues\n"); sys.exit(3)
 if epic and epic.get("number") and epic.get("closing_slice") == "epic":
     sys.stderr.write("ERROR: closing_slice='epic' edita el body del epic — incompatible con epic.number (issue existente)\n"); sys.exit(3)
+
+# --- validación: una pantalla = una ola (screen + kind) ---
+# Cada issue trae kind (remote|ui|tests|docs|infra) y screen (ruta; null solo en infra).
+# Por pantalla deben existir los 4 kinds; ui depende del remote de su pantalla y
+# tests/docs del ui. Se agrega label kind:<k> (la parsea b10 para decidir screen-review).
+KINDS = {"remote", "ui", "tests", "docs", "infra"}
+by_screen = {}
+for it in issues:
+    k = it.get("kind"); sc = it.get("screen")
+    if k not in KINDS:
+        sys.stderr.write(f"ERROR: issue '{it.get('id')}' sin kind válido ({'|'.join(sorted(KINDS))})\n"); sys.exit(3)
+    if k == "infra":
+        if sc: sys.stderr.write(f"ERROR: '{it.get('id')}' es infra: screen debe ser null\n"); sys.exit(3)
+    else:
+        if not sc or not str(sc).startswith("/"):
+            sys.stderr.write(f"ERROR: '{it.get('id')}' ({k}) necesita screen con ruta (ej. /productos)\n"); sys.exit(3)
+        by_screen.setdefault(sc, {})[k] = it
+    it["labels"] = list(dict.fromkeys(it.get("labels", []) + [f"kind:{k}"]))
+for sc, ks in by_screen.items():
+    missing = {"remote", "ui", "tests", "docs"} - set(ks)
+    if missing:
+        sys.stderr.write(f"ERROR: pantalla {sc} sin issues {sorted(missing)} — una pantalla = una ola con remote+ui+tests+docs\n"); sys.exit(3)
+    if ks["remote"]["id"] not in ks["ui"].get("blocked_by", []):
+        sys.stderr.write(f"ERROR: {sc}: '{ks['ui']['id']}' (ui) debe llevar blocked_by ['{ks['remote']['id']}']\n"); sys.exit(3)
+    for k in ("tests", "docs"):
+        if ks["ui"]["id"] not in ks[k].get("blocked_by", []):
+            sys.stderr.write(f"ERROR: {sc}: '{ks[k]['id']}' ({k}) debe llevar blocked_by ['{ks['ui']['id']}']\n"); sys.exit(3)
 
 # --- validación: ids únicos, deps conocidas y topológicamente anteriores ---
 ids = [it.get("id") for it in issues]

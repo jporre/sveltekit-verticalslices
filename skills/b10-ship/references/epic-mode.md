@@ -12,7 +12,7 @@ El epic es un tracking issue con sub-issues nativos de GitHub (vincular una vez 
 - **Cluster automático:** olas con ≥2 slices del mismo scope van por b8-swarm sin exigir `--cluster` (el flag queda para forzar cluster en epics SIN label).
 - **Wave-build:** la precondición `B7_PARALLEL=1` se considera cumplida — prefijar `B7_PARALLEL=1` inline en los comandos de guardrails de los agentes, igual que siempre. El RESTO de la elegibilidad (scopes distintos, `files_likely`/`## Archivos previstos` sin intersección, sin migraciones, nunca complex ni closing_slice) NO se relaja. `B10_WAVE_MAX` defaultea a **4** (supervisado: 2).
 - **Cap dinámico de backpressure** (con su precondición de drain exitoso intacta).
-- **Review funcional diferido al epic-review:** todo despacho de build (b7 single-issue, wave-build, cluster b8) lleva `--no-screens` — EXCEPTO el `closing_slice`. El screen-review browser por PR (dev server + mint + un agente por pantalla) se paga UNA sola vez: en el walkthrough obligatorio del epic-review, que es cuando realmente importa. b6 ve `EVIDENCE=skipped reason=no-screens-flag` → WARNING no-bloqueante; el auto-merge (blockers=0) fluye. Bonus: sin browsers concurrentes desaparece la restricción de cookie-jar del wave-build.
+- **Screen-review solo donde se entrega pantalla:** todo despacho de build lleva `--no-screens` — EXCEPTO los issues con label `kind:ui` (los estampa b0: una pantalla = una ola) y el `closing_slice`. El `ui` de cada ola ES la entrega al usuario: ahí corre el review visual y ahí el usuario contrasta sus definiciones. Los demás (`remote`, `tests`, `docs`, `infra`) no tienen nada que mirar en browser. El screen-review browser por PR (dev server + mint + un agente por pantalla) se paga UNA sola vez: en el walkthrough obligatorio del epic-review, que es cuando realmente importa. b6 ve `EVIDENCE=skipped reason=no-screens-flag` → WARNING no-bloqueante; el auto-merge (blockers=0) fluye. Bonus: sin browsers concurrentes desaparece la restricción de cookie-jar del wave-build.
 - **Review liviano por PR:** los builds b7 se despachan además con `--light-review` (b7 invoca `b6 --auto --light` en 8c) y el wave-verify pasa `--light`; al despachar b8, indicar en el prompt que su b6 del paso 8 corra `--light`. El juicio profundo (archivos completos, duplicación, cobertura del plan) se repite de todos modos en el pase opus agregado del epic-review — pagarlo dos veces por PR es ceremonia. `--light` conserva el piso: seguridad completa, callers de símbolos modificados, check-slice, FIX_SIN_TEST y SCREEN_EVIDENCE.
 - **CHANGELOG solo rollup:** los builds b7 llevan `--no-changelog` (salta la entrada por slice); al despachar b8, indicar en el prompt que omita las entradas de CHANGELOG. Cada PR tocando `CHANGELOG.md` era el ÚNICO archivo compartido de toda ola: generaba conflicto aditivo tras cada squash-merge (`mergeable != MERGEABLE` → PR saltado → drain frenado N-1 veces) y contradecía la elegibilidad de wave-build. El registro queda en la entrada rollup del cierre del epic (abajo).
 
@@ -55,7 +55,7 @@ Esto es seguro de tirar porque **el estado del epic no vive en el contexto**: vi
 B10_WAVE_DONE epic=<N> wave=<K> closed=<csv> open_prs=<csv> next=/b-pipeline:b10-ship --epic=<N>
 ```
 
-y una línea al usuario: *"Ola \<K\> cerrada. Estado persistido en GitHub. Corre `/clear` y re-invoca `/b-pipeline:b10-ship --epic=\<N\>` para la ola siguiente."*
+y una línea al usuario: *"Ola \<K\> cerrada — pantalla \<ruta\> entregada: revisa que cumpla tus definiciones (screenshots en el PR del issue `kind:ui`). Estado persistido en GitHub. Corre `/clear` y re-invoca `/b-pipeline:b10-ship --epic=\<N\>` para la ola siguiente."*
 
 - **Por qué `/clear` y no `/compact`:** `/compact` cuesta un pase de output completo (resumir 150k+) **más** un cache write del prefijo nuevo, y conserva contexto que ya no decide nada. Con estado durable en disco, `/clear` cuesta cero y arranca la ola siguiente en ~30k. Nunca proponer `/compact` acá.
 - **Sin fricción nueva:** el corte cae exactamente en el gate de aprobaciones de fin de ola (momento 2), donde el humano ya estaba presente. No agrega una parada — reusa la que existe.
@@ -239,7 +239,7 @@ const BUILD = {
 phase('build')
 const builds = (await parallel(A.issues.map(i => () =>
   agent(
-    `Corre la cadena b7 del issue #${i.n}: Skill b7-issue-to-pr "${i.n} --lang=es${A.flags || ''}". ` +
+    `Corre la cadena b7 del issue #${i.n}: Skill b7-issue-to-pr "${i.n} --lang=es${(i.ui ? (A.flags || '').replace(' --no-screens', '') : (A.flags || ''))}". ` +
     `El worktree YA existe en ${i.worktree} (setup previo secuencial) — b7 lo detecta y retoma. ` +
     `Prefija B7_PARALLEL=1 INLINE en cada comando bash de guardrails de b7 (nunca export). ` +
     `Escribi SOLO en tu worktree. Devolve {issue:${i.n}, pr, status} parseado de la linea B7_DONE.`,
@@ -250,7 +250,7 @@ const builds = (await parallel(A.issues.map(i => () =>
 return { builds }
 ```
 
-Invocación: `Workflow({ script:<lo de arriba>, args:{ issues:[{n:262, worktree:"/abs/wt/262-foo"}, {n:263, worktree:"/abs/wt/263-bar"}], flags:" --no-screens --light-review --no-changelog" } })` — la lista ya recortada a `slots`, worktrees creados en FASE 1. `flags` SOLO en modo rápido (los tres del switch); en wave-build vía `B7_PARALLEL=1` explícito sin label, omitirlo (`""`).
+Invocación: `Workflow({ script:<lo de arriba>, args:{ issues:[{n:262, worktree:"/abs/wt/262-foo", ui:false}, {n:263, worktree:"/abs/wt/263-bar", ui:true}], flags:" --no-screens --light-review --no-changelog" } })` — `ui:true` en issues con label `kind:ui` (el script les quita `--no-screens`) — la lista ya recortada a `slots`, worktrees creados en FASE 1. `flags` SOLO en modo rápido (los tres del switch); en wave-build vía `B7_PARALLEL=1` explícito sin label, omitirlo (`""`).
 
 - `verify-port` sigue siendo gate duro por pantalla (evita revisar el checkout equivocado). Cada agente escribe SOLO en su worktree — vigilado por verify-worktree y el DoD check 3 de b7 (porcelain vacío en el repo principal): mantener esos checks.
 - Sesiones: el mint per-worktree no se pisa en DB (token/hash por worktree, cleanup por hash propio) y la sesión de browser es per-run (`b7-<worktree>-<screen>`), pero rige la restricción documentada de b7 sobre mint paralelo contra el mismo host: si los browsers comparten cookie jar de localhost, un review puede correr con la sesión de otro run — aceptable solo si toda la ola usa el mismo `B7_SESSION_USER_ID`.

@@ -26,7 +26,7 @@ Fuente de verdad = historial de esta sesión; usuario presente para el gate (`As
 [--epic-title="..."]   título explícito del epic; si falta, se deriva del tema
 [--no-epic]            no crear epic de tracking (issues sueltos; usar solo con 1-2 issues independientes)
 [--lang=es|en]         idioma de los issues; default autodetectado de la conversación
-[--cluster-hint]       marcar slices secuenciales del mismo scope como cluster sugerido para b8-swarm
+[--cluster-hint]       marcar los issues de cada pantalla como cluster sugerido para b8-swarm (un PR por pantalla)
 [--fast]               junto con --yes: estampar epic-auto-merge sin preguntar (modo rápido headless)
 [--yes]                saltar el gate de confirmación (power users); por default el gate es OBLIGATORIO
 [--dry-run]            llegar hasta el preview y NO crear nada en GitHub
@@ -40,26 +40,30 @@ $ARGUMENTS
 
 > Si `$ARGUMENTS` aparece vacío, usar defaults (fuente = conversación, epic on, lang autodetectado).
 
-## El principio: slices VERTICALES, no capas horizontales
+## El principio: UNA PANTALLA = UNA OLA
 
-Esta es la decisión de diseño central del skill — y donde más se equivoca un modelo. Cada issue debe ser una **rebanada vertical end-to-end**: algo que un usuario **puede usar** al mergearse, atravesando todo el stack (Drizzle → remote function → pantalla). NO una capa técnica.
+La unidad de planificación es la **pantalla** (una carpeta `src/routes/<feature>/`), porque es lo que el cliente usa y lo que puede revisar. Cuando el pipeline entrega una pantalla, el usuario contrasta sus definiciones contra esa pantalla y punto. NO se corta por capacidad (listar / crear / borrar / filtrar de la misma ruta como issues separados): eso mete N issues en los mismos archivos, encadena olas artificiales y hace revisar la misma pantalla N veces en estados intermedios.
 
-| Slice VERTICAL (correcto) | Capa HORIZONTAL (incorrecto) |
-| --- | --- |
-| "Listar productos en `/productos`" (DB + `get_products` + `+page.svelte`) | "Crear el schema Drizzle de todo el módulo" |
-| "Crear/editar producto con formulario upsert" | "Escribir todas las remote functions" |
-| "Eliminar producto con confirmación" | "Maquetar todos los componentes UI" |
-| "Filtrar y buscar en el listado" | "Conectar el front al back" |
+Cada pantalla es **una ola** con, como mínimo, 4 issues (`kind`):
 
-Por qué vertical: cada slice = **un PR de b7** = entrega valor verificable en el browser por sí solo. Las capas horizontales no se pueden revisar visualmente, no cierran nada útil, y rompen el modelo screen-first del plugin (b2/b7 construyen y revisan **por pantalla**, no por capa).
+| kind | Entrega | Archivos |
+| --- | --- | --- |
+| `remote` | remote functions de la pantalla (`query`/`form`/`command`), SQL-first, con `requireUser()` | `server/data.remote.ts` (+ schema si falta) |
+| `ui` | `+page.svelte` + `ui/*.svelte` consumiendo las remote functions; criterios visuales | `+page.svelte`, `ui/`, `+page.server.ts` |
+| `tests` | unit de las remote functions + browser check de la pantalla | `*.test.ts` colocados |
+| `docs` | `docs/readme.md` de la carpeta + entrada en `docs/ARCHITECTURE.md` | docs de la ruta |
+
+Deps dentro de la ola: `ui` ← `remote`; `tests` y `docs` ← `ui`. Entre olas: la pantalla B depende de A **solo** si navega a A o consume sus remote functions. Se permite un issue `kind: infra` sin pantalla (prefactor, schema compartido, refactor ancho), nunca un issue "feature" horizontal.
+
+**Remote functions se crean UNA vez.** Si una función sirve a más de una pantalla, vive en la pantalla que la creó y las demás la importan. El issue `remote` de cada pantalla declara en su body cuáles reutiliza (con path) y cuáles crea; b2 obliga al agente a buscar una igual o parecida y extenderla antes de crear otra.
 
 ### Tracer bullet primero
 
-El **primer slice** es el *tracer bullet*: el camino más delgado que ejerce **todo el stack** de punta a punta (típicamente "listar X read-only" — una query, una pantalla, auth). Prueba que la arquitectura cierra. Los slices siguientes **agregan una capacidad** encima (crear, editar, borrar, filtrar, exportar…), cada uno dependiente del tracer.
+La primera ola es la pantalla más delgada del epic (típicamente el listado read-only). Prueba que el stack cierra.
 
-### Tamaño de cada slice = b7
+### Tamaño = b7
 
-Cada slice debe caber en un PR de b7: **simple (3-5 archivos)** o **medium (5-8)**. Si un slice pinta **complex (8-15+)**, **partirlo en más slices** — el bot no construye complex sin gate, y un issue gigante no es un buen slice. Mejor 4 slices simples que 1 complex.
+Cada issue debe caber en un PR de b7: `simple` (3-5 archivos) o `medium` (5-8). Una pantalla cuyo `ui` o `remote` pinta `complex` se corta por **sub-ruta** (`/productos` y `/productos/[id]`), cada una su ola. Nunca por capa ni por capacidad.
 
 ## GATE OBLIGATORIO: verificar lo que el usuario REALMENTE pide
 
@@ -131,13 +135,15 @@ Para entidades múltiples o un codebase desconocido, delegar el grounding a `Age
 
 El grounding es read-only: no decide nada, solo devuelve paths reales para que el slicing nombre rutas/tablas que existen (o confirme que son nuevas). Consolidas los reportes en el main loop antes de slicear.
 
-### Paso 3 — Slicear en vertical
+### Paso 3 — Slicear por pantalla
 
 Aplicar el principio de arriba. Para CADA slice definir:
 
-- **id** estable de slice (ej. `s1-list`, `s2-upsert`) — interno, lo usa el plan para deps.
+- **id** estable (ej. `productos-remote`, `productos-ui`) — interno, lo usa el plan para deps.
+- **screen**: ruta de la pantalla (`/productos`); la misma en sus 4 issues. `null` solo en `kind: infra`.
+- **kind**: `remote | ui | tests | docs | infra`.
 - **título** estilo conventional (`feat(scope): …`, `fix(scope): …`).
-- **objetivo + pantalla(s)** con ruta, journey y criterios de aceptación visuales.
+- **objetivo**; en `ui` además journey y criterios de aceptación visuales; en `remote`, contrato de cada función y cuáles se reutilizan de otra pantalla.
 - **alcance**: qué entra en ESTE slice y qué queda explícitamente para otro.
 - **labels**: `feature|bug|enhancement` + `scope:<area>` (+ `simple|medium` como hint; b1-triage reconfirma).
 
@@ -146,20 +152,20 @@ Dos excepciones al corte estándar (detalle en `references/slicing-guide.md`):
 - **Prefactor**: si el grounding muestra código que pelea contra los slices, UN slice `refactor(scope)` chico antes del tracer — *make the change easy, then make the easy change*. Solo si desbloquea slices de ESTE epic; limpieza general del repo es b-setup-or-fix, no un issue acá.
 - **Refactor ancho** (rename de columna / retipado de símbolo compartido, blast radius repo-wide): no forzarlo a tracer-bullet — cortarlo expand–contract (§ Refactor ancho de la guía).
 
-### Paso 4 — Ordenar en olas (dependencias)
+### Paso 4 — Ordenar en olas (una pantalla por ola)
 
-Asignar `blocked_by` (lista de slice-ids) a cada slice:
+Asignar `blocked_by` (slice-ids):
 
-- El tracer bullet (ola 0) no depende de nada.
-- **Deps SOLO reales, olas anchas:** `blocked_by` únicamente cuando el slice consume algo que otro CREA (schema, query, pantalla). Prohibido encadenar por orden estético o "flujo natural" — todo lo que solo depende del tracer va JUNTO en la ola 1, aunque sean 5 slices. Cada dep artificial es una ola extra de espera: las olas anchas son lo que b10 paraleliza (wave-build / cluster b8).
-- Dentro de una ola, buscar `## Archivos previstos` disjuntos entre slices de scopes distintos (precondición de wave-build). Mismo scope compartiendo archivos → candidatos a cluster, no a deps.
-- El **array final de issues debe quedar en orden topológico** (toda dep aparece antes que quien la usa) — el script lo exige.
+- Dentro de una pantalla: `ui` ← `remote`; `tests`, `docs` ← `ui`. Siempre.
+- Entre pantallas: **solo deps reales** (B navega a A o consume una remote function de A). Prohibido encadenar por orden estético. Pantallas independientes son olas que b10 puede correr en paralelo (archivos disjuntos por construcción: carpetas de ruta distintas).
+- `infra` va antes de la primera pantalla que lo necesita.
+- El array final queda en **orden topológico** — el script lo exige y además valida que cada `screen` traiga los 4 `kind`.
 
 Esto se materializa como la sección `## Blocked by` en cada body (el script la inyecta resolviendo ids → #números reales). Es la MISMA convención que `epic-graph.sh` de b10 parsea para calcular olas y el `closing_slice`.
 
-**Cluster (opcional):** si ≥2 slices son secuenciales, del **mismo scope**, `simple|medium`, y conviene un PR combinado, marcarlo como cluster (con `--cluster-hint`) para sugerir luego `b10-ship --epic --cluster` (que invoca b8-swarm). Slices de scopes distintos NUNCA van al mismo cluster.
+**Cluster:** los 4 issues de una pantalla son secuenciales y del mismo scope → cluster natural (`b10-ship --epic --cluster` / b8-swarm: un PR por pantalla). Issues de pantallas distintas NUNCA van al mismo cluster.
 
-**Consolidación (vertical, pero inteligente):** con las olas asignadas, cruzar los `## Archivos previstos` de todos los slices (matriz archivo × slice) y aplicar `references/slicing-guide.md` § Consolidación: overlap en la misma ola → cluster o merge (wave-build exige disjuntos); overlap entre olas solo si es append-only (si un slice reescribe lo de otro, mergear); y la cola transversal — tests y docs que 3+ slices tocarían — se extrae a UN slice de cierre `blocked_by` todos: se escribe una vez contra el estado final, no N veces contra estados intermedios. Los criterios visuales se quedan en su slice (b7 los verifica por pantalla). El resultado se muestra en el gate.
+**Sin cola transversal:** tests y docs viven en la ola de su pantalla, no en un slice de cierre. `closing_slice: "epic"` queda solo para limpieza/swap final.
 
 ### Paso 5 — GATE de verificación (humano)
 
@@ -167,7 +173,7 @@ Presentar el plan al usuario, en texto simple, pero claro:
 
 1. **Entendimiento**: objetivo real + entidades + operaciones (1 párrafo).
 2. **Supuestos/ambigüedades** detectados.
-3. **Breakdown**: epic + lista de slices con su ola y deps (mostrar como árbol de olas). Si la fuente enumera user stories o requisitos (PRD, design doc, issue origen), mapear cuáles cubre cada slice y listar los NO cubiertos — se resuelven en el gate (scope out explícito o slice nuevo), no se pierden en silencio.
+3. **Breakdown**: epic + una ola por pantalla, cada una con sus issues `remote/ui/tests/docs` y deps entre pantallas (árbol de olas). Si la fuente enumera user stories o requisitos (PRD, design doc, issue origen), mapear cuáles cubre cada slice y listar los NO cubiertos — se resuelven en el gate (scope out explícito o slice nuevo), no se pierden en silencio.
 4. **Criterios de éxito por slice**: 1-3 criterios de aceptación por slice (qué se verá/podrá hacer cuando esté logrado — los mismos que b7-screen-review y el epic-review verificarán después). Esto es LO QUE el gate aprueba: los bodies del Paso 6 elaboran estos criterios, no inventan otros.
 5. **Plan de ejecución**: que corre junto por ola (cluster mismo scope / wave-build scopes disjuntos / secuencial y por qué), dónde caerán los gates humanos (complex, waivers, epic-review).
 
@@ -198,10 +204,14 @@ Escribir el plan JSON a un scratch (ej. `"$(mktemp -t b0-plan.XXXX).json"`) con 
   "lang": "es",
   "epic": { "title": "Epic: <tema>", "labels": ["scope:<area>"], "closing_slice": "epic" },
   "issues": [
-    { "id": "s1-list", "title": "feat(<area>): …", "body": "<markdown SIN ## Blocked by>",
-      "labels": ["feature", "scope:<area>", "simple"], "blocked_by": [] },
-    { "id": "s2-upsert", "title": "feat(<area>): …", "body": "…",
-      "labels": ["feature", "scope:<area>", "medium"], "blocked_by": ["s1-list"] }
+    { "id": "<area>-remote", "screen": "/<area>", "kind": "remote", "title": "feat(<area>): remote functions de /<area>",
+      "body": "<markdown SIN ## Blocked by>", "labels": ["feature", "scope:<area>", "simple"], "blocked_by": [] },
+    { "id": "<area>-ui",    "screen": "/<area>", "kind": "ui",    "title": "feat(<area>): pantalla /<area>",
+      "body": "…", "labels": ["feature", "scope:<area>", "medium"], "blocked_by": ["<area>-remote"] },
+    { "id": "<area>-tests", "screen": "/<area>", "kind": "tests", "title": "test(<area>): /<area>",
+      "body": "…", "labels": ["feature", "scope:<area>", "simple"], "blocked_by": ["<area>-ui"] },
+    { "id": "<area>-docs",  "screen": "/<area>", "kind": "docs",  "title": "docs(<area>): /<area>",
+      "body": "…", "labels": ["feature", "scope:<area>", "simple"], "blocked_by": ["<area>-ui"] }
   ]
 }
 ```
@@ -213,7 +223,7 @@ Escribir el plan JSON a un scratch (ej. `"$(mktemp -t b0-plan.XXXX).json"`) con 
 
 #### Redacción de bodies — inline o en paralelo
 
-El cuerpo de cada slice es independiente: distinto archivo, distinta pantalla. El **slicing** (objetivo, deps, olas) es la parte difícil y ya quedó fijado y aprobado en el gate; redactar los markdown es trabajo mecánico que sigue el template de `references/slicing-guide.md`.
+El cuerpo de cada slice es independiente: distinto archivo, distinto kind. El **slicing** (objetivo, deps, olas) es la parte difícil y ya quedó fijado y aprobado en el gate; redactar los markdown es trabajo mecánico que sigue el template de `references/slicing-guide.md`.
 
 - **Breakdown chico (≤5 slices):** redactar los bodies inline. Es rápido y mantiene un solo tono.
 - **Breakdown grande (≥6 slices):** **paralelizar la redacción** vía `Workflow` — un `agent()` (haiku/sonnet) por slice. Cada agente recibe lo MISMO para no divergir: (a) el template del slicing-guide, (b) la **lista completa de slices** (título + alcance de cada uno) para que su sección `## Alcance` referencie bien lo que queda para OTROS slices, (c) los grounding facts (rutas/tablas reales del Paso 2), (d) el idioma, (e) el path del design doc si existe (`docs/plans/<tema>.md`) — cada body lo linkea en vez de repetir las reglas globales. Devuelve `{id, body}`. El main loop ensambla los bodies devueltos en el array `issues` del plan JSON. Cap de paralelismo razonable: ~8.
@@ -276,7 +286,7 @@ B0_DONE epic=<N|none> issues=<csv> waves=<k> mode=<created|dry-run>
 ## Referencias
 
 - `references/design-interview.md` — protocolo del modo diseño: entrevista 1x1, checklist de convergencia, template del design doc. Leer al entrar en modo diseño (Paso 0).
-- `references/slicing-guide.md` — vertical vs horizontal, método tracer-bullet, excepciones (prefactor, refactor ancho expand–contract), ejemplo completo con grafo de deps y plan JSON, y el template de cuerpo de issue. Leer al redactar los bodies.
+- `references/slicing-guide.md` — una pantalla = una ola (remote/ui/tests/docs), reutilización de remote functions, tracer bullet, excepciones (prefactor, refactor ancho), ejemplo completo con plan JSON y template de body. Leer al redactar los bodies.
 - `scripts/draft-bodies.workflow.js` — script Workflow para redacción paralela de bodies (breakdown >=6 slices).
 - `scripts/create-epic.sh` — creación determinística: labels + sub-issues + deps + epic + linkeo nativo. Soporta `--dry-run`.
 - `../b10-ship/scripts/epic-graph.sh` — lo que b10 usa para leer este grafo (referencia del contrato de deps/olas).

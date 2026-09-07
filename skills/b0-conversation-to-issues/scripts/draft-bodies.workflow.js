@@ -15,7 +15,8 @@ const bodies = (await parallel(A.slices.map(s => () =>
     `Criterios de aceptación APROBADOS en el gate: ${JSON.stringify(s.criterios || [])} — ` +
     `elabóralos en los checks visuales del body; PROHIBIDO inventar criterios nuevos. ` +
     `Grounding (rutas/tablas reales): ${A.grounding}. ` +
-    `Para la sección "## Alcance (slice vertical)", estos son los OTROS slices del epic ` +
+    `El slice es kind="${s.kind}" de la pantalla ${s.screen || "(infra)"}: incluye SOLO las secciones de su kind (remote: Entidad + Remote functions con Reutiliza/Crea; ui: Pantalla; tests/docs: Alcance). ` +
+    `Para la sección "## Alcance", estos son los OTROS issues del epic ` +
     `(lo que queda para cada uno): ${JSON.stringify(A.slices)}. ` +
     `PROHIBIDO escribir "## Blocked by" o #números — las deps las inyecta el script. ` +
     `Devuelve {id:"${s.id}", body:"<markdown>"}.`,

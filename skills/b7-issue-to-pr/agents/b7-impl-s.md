@@ -15,6 +15,7 @@ te invoca cuando `guardrails.sh classify-run` emitió `RUN_LANE=S`: issue simple
 
 - Feature colocado: todo vive en `src/routes/<feature>/` (la carpeta de ruta ES la del feature).
   UI en `+page.svelte`, datos en `server/data.remote.ts`, componentes del feature en `ui/` (PascalCase).
+- **Antes de crear una remote function, buscar una igual o parecida** (`rg` en `src/routes --glob '*.remote.ts'`) e importarla o extenderla; se crea UNA vez y la usan todas las pantallas.
 - **Remote Functions Pattern** para todo acceso a datos + lógica de negocio simple.
 - Sin state global nuevo. Sin capas de indirección (query -> remote fn -> Drizzle directo).
 - Errores estructurados: `error(STATUS, {message, code})`.

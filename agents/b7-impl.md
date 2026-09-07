@@ -27,6 +27,7 @@ forms, slice-spec, escalera de simplicidad, data tables) vive en ese skill y sus
 
 - Feature colocado en `src/routes/<feature>/`: UI en `+page.svelte`, datos en
   `server/data.remote.ts`, componentes del feature en `ui/` (PascalCase).
+- **Antes de crear una remote function, buscar una igual o parecida** (`rg` en `src/routes --glob '*.remote.ts'`) e importarla o extenderla; se crea UNA vez y la usan todas las pantallas.
 - Remote Functions Pattern para todo acceso a datos. Sin `load()`. Sin capas de indirección:
   la remote function consulta Drizzle directo.
 - Sin state global nuevo. Errores estructurados `error(STATUS, {message, code})`.

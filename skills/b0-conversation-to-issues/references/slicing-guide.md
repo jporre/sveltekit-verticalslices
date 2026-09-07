@@ -1,153 +1,142 @@
-# Guía de slicing vertical + template de issue
+# Guía de slicing por pantalla + template de issue
 
-Leer al redactar los bodies. Define cómo cortar la conversación en slices verticales y cómo se ve cada issue.
+Leer al redactar los bodies. Define cómo cortar la conversación en olas-pantalla y cómo se ve cada issue.
 
-## Vertical vs horizontal — la regla
+## La regla: una pantalla = una ola = 4 issues
 
-Un slice es **vertical** si, al mergearse solo, un usuario **puede hacer algo** de punta a punta: dato (Drizzle) → remote function → pantalla (`+page.svelte`). Es **horizontal** si entrega una capa técnica que por sí sola no sirve.
+La unidad es la **pantalla** (carpeta `src/routes/<feature>/`): es lo que el cliente usa y lo que puede revisar contra sus definiciones. Cada pantalla es una ola con, mínimo, estos issues (`kind`):
 
-| Pregunta de control | Vertical | Horizontal |
+| kind | Entrega | Archivos | Depende de |
+| --- | --- | --- | --- |
+| `remote` | remote functions de la pantalla (`query`/`form`/`command`), SQL-first, `requireUser()` primero | `server/data.remote.ts` (+ schema Drizzle si falta) | infra de la ola, si hay |
+| `ui` | `+page.svelte` + `ui/*.svelte` consumiendo las remote functions; criterios visuales | `+page.svelte`, `ui/`, `+page.server.ts` | `remote` |
+| `tests` | unit de las remote functions + browser check de la pantalla | `*.test.ts` colocados en la carpeta | `ui` |
+| `docs` | `docs/readme.md` de la carpeta + línea en `docs/ARCHITECTURE.md` | docs de la ruta | `ui` |
+
+`infra` (opcional, sin `screen`): prefactor, schema compartido, refactor ancho. Nunca un issue "feature" horizontal ("todas las remote functions del módulo", "maquetar todo").
+
+| Pregunta de control | Bien cortado | Mal cortado |
 | --- | --- | --- |
-| ¿Se puede usar en el browser al mergear? | Sí | No |
-| ¿b7-screen-review puede verificarlo visualmente? | Sí (tiene pantalla) | No (no hay flujo) |
-| ¿Cierra algo útil para el usuario? | Sí | No (parcial) |
-| ¿Cruza el stack? | Sí | No (una sola capa) |
+| ¿La ola entrega UNA pantalla usable al cerrar? | Sí | No (capa técnica) o varias pantallas |
+| ¿Los archivos de la ola viven en UNA carpeta de ruta? | Sí | Tocan varias rutas |
+| ¿El usuario puede revisar sus definiciones contra la pantalla al cerrar la ola? | Sí | Estado intermedio |
+| ¿Otra ola toca los mismos archivos? | No | Sí → mergear pantallas o cortar por sub-ruta |
 
-Si la respuesta es "No" en cualquiera, el slice está mal cortado. Re-cortar.
+## Remote functions: crear una vez, usar desde todas
+
+Si una función sirve a más de una pantalla, vive en la pantalla que la creó y las demás la **importan** (`../<pantalla>/server/data.remote`). El body del issue `remote` declara dos listas: **reutiliza** (nombre + path existente) y **crea** (nombre + contrato). El grounding del Paso 2 es donde se descubre qué ya existe (`rg -n 'export const' src/routes --glob '*.remote.ts'`). b2 obliga al agente a repetir esa búsqueda antes de crear cualquier función.
 
 ## Tracer bullet
 
-El primer slice atraviesa **todo el stack** por el camino más delgado posible — normalmente **listar la entidad en read-only**:
-
-- 1 tabla Drizzle (o la existente), 1 `query` (`get_<entidad>`), 1 `+page.svelte` con la tabla, auth.
-- Prueba que la arquitectura cierra (datos reales en pantalla real con sesión real).
-- Todo lo demás (crear, editar, borrar, filtrar) **depende** de él y se agrega encima.
+La primera ola es la pantalla más delgada del epic — normalmente el listado read-only: 1 tabla, 1 `query`, 1 `+page.svelte`, auth. Prueba que la arquitectura cierra con datos reales y sesión real.
 
 ## Cómo cortar (heurística)
 
-1. **Una operación por slice.** Listar / crear-editar / borrar / filtrar / exportar son slices distintos. (Crear y editar van **juntos**: en SvelteKit es UN formulario upsert con `id` opcional — no separar.)
-2. **Una pantalla o flujo corto por slice.** Si aparecen 4+ pantallas en un slice, es complex → partir.
-3. **Cap de tamaño = b7.** simple|medium según el template (abajo). Si pinta complex, partir hasta que cada parte sea simple|medium.
-4. **Deps SOLO reales, olas anchas.** `blocked_by` únicamente cuando el slice consume algo que otro CREA (schema, query, pantalla). Prohibido encadenar por orden estético o "flujo natural": todo lo que solo depende del tracer va JUNTO en la ola 1, aunque sean 5 slices. Cada dep artificial es una ola extra de espera — las olas anchas son lo que b10 paraleliza.
-5. **Cohesión de scope para cluster.** Slices secuenciales del mismo `scope`, `simple|medium`, son candidatos a un PR combinado (b8). Scopes distintos → nunca el mismo cluster.
+1. **Una carpeta de ruta por ola.** `/productos` y `/productos/[id]` son pantallas distintas → olas distintas. Listar + crear/editar + borrar + filtrar de `/productos` van en la MISMA ola (es una pantalla).
+2. **Cap de tamaño = b7.** Cada issue `simple|medium`. Si el `ui` o el `remote` de una pantalla pinta `complex`, cortar por **sub-ruta** (nunca por capa ni capacidad) hasta que cada uno quepa.
+3. **Deps entre pantallas solo reales.** B depende de A únicamente si navega a A o importa una remote function de A. Pantallas independientes son olas paralelas (carpetas disjuntas).
+4. **Orden dentro de la ola fijo:** `remote` → `ui` → `tests` + `docs`. Los 4 son del mismo scope → cluster natural (un PR por pantalla vía b8 en modo rápido).
 
-> **Lo transversal NO es un slice.** auth, db, storage, notificaciones y audit son infra genuinamente cross-cutting (viven en `$lib`, no en una ruta). No generan un issue "feature" por sí solos: o son parte del alcance de un slice de pantalla (ej. el slice exige sesión), o son un issue de infra puntual (backend puro, sin `## Pantalla(s)`). No cortes "el módulo de auth" como si fuera una pantalla.
+> **Lo transversal NO es una pantalla.** auth, db, storage, notificaciones y audit viven en `$lib`. O son parte del alcance de un issue de la ola (ej. el `ui` exige sesión), o son un issue `infra` puntual.
 
 ## Prefactor — make the change easy, then make the easy change
 
-Si el grounding muestra que el código actual pelea contra los slices (helper duplicado que el epic necesita tocar, patrón degradado en el área), UN slice `refactor(scope): …` chico ANTES del tracer: backend puro, verificable con check/build/tests verdes. Condición dura: debe hacer más fácil un slice concreto de ESTE epic — limpieza especulativa o rescate general del repo es b-setup-or-fix, no un issue de b0.
+Si el grounding muestra código que pelea contra el epic, UN issue `infra` `refactor(scope): …` antes de la primera pantalla que lo necesita. Condición dura: debe hacer más fácil una ola concreta de ESTE epic; limpieza general es b-setup-or-fix.
 
-## Refactor ancho — expand–contract (la excepción al tracer bullet)
+## Refactor ancho — expand–contract
 
-Un refactor ancho es UN cambio mecánico — renombrar una columna, retipar un símbolo compartido — cuyo blast radius cruza todo el codebase: un solo edit rompe cientos de call sites y ningún slice vertical queda verde solo. No forzarlo a tracer-bullet; secuenciarlo con la misma maquinaria de deps/olas:
+Un cambio mecánico de blast radius repo-wide (rename de columna, retipado de símbolo compartido) se secuencia con la misma maquinaria, todos `infra`:
 
-- **s1-expand** (ola 0): agregar la forma nueva JUNTO a la vieja — nada se rompe.
-- **s2..sN-migrate** (ola 1, ancha): migrar call sites en lotes por blast radius (por scope o directorio), cada lote su issue con `blocked_by: [s1-expand]`. CI verde lote a lote porque la forma vieja sigue viva — y la ola ancha es exactamente lo que wave-build paraleliza.
-- **sZ-contract** (ola final): borrar la forma vieja, `blocked_by` TODOS los migrate — cierre natural del epic.
+- **expand** (ola 0): agregar la forma nueva junto a la vieja.
+- **migrate-\*** (ola 1, ancha): call sites en lotes por scope, `blocked_by: [expand]`.
+- **contract** (ola final): borrar la forma vieja, `blocked_by` todos los migrate.
 
-Todos son slices backend puro (sin `## Pantalla(s)`, criterios no visuales). Si ni los lotes pueden quedar verdes solos, mantener la secuencia pero declarar el epic como `closing_slice: "epic"` — verde se promete recién en el cierre.
+Si ni los lotes quedan verdes solos, `closing_slice: "epic"`.
 
-## Consolidación — vertical slices, pero inteligente
+## Ejemplo: "necesito gestionar los productos"
 
-Corre DESPUÉS de asignar olas y ANTES del gate. Cruzar los `## Archivos previstos` de todos los slices (matriz archivo × slice) y resolver cada overlap:
-
-1. **Mismo archivo, misma ola** → wave-build lo prohíbe: cluster (mismo scope, un PR vía b8) o merge de los slices.
-2. **Mismo archivo, olas distintas** → aceptable solo si es **append-only** (cada slice AGREGA una remote function o un bloque a la pantalla existente). Si un slice REESCRIBE lo que otro creó (rehace el layout, cambia la firma de la query), mergearlos: dos pasadas sobre lo mismo son roce puro, no dos slices.
-3. **Cola transversal** — tests automatizados y docs (`docs/readme.md`, mapa de ARCHITECTURE) que 3+ slices tocarían: extraer a UN slice de cierre `chore(scope): tests y docs del epic`, `blocked_by` todos los slices que cubre — o el epic mismo como `closing_slice: "epic"` si el cierre además incluye limpieza/swap. Se escriben UNA vez contra el estado final, no N veces contra estados intermedios que el siguiente slice invalida.
-
-Qué NO se consolida: los **criterios de aceptación visuales** se quedan en su slice — b7-screen-review verifica cada pantalla en el browser al mergear; eso es lo que mantiene cada slice demoable por sí solo. Lo que se concentra al final es la redacción (docs) y la automatización (tests), no la verificación.
-
-## Ejemplo completo: "necesito gestionar los productos"
-
-Conversación → objetivo real: **CRUD de productos con búsqueda**. Grounding: no existe `src/routes/productos/` → feature nueva, scope `productos`.
-
-Grafo de slices:
+Objetivo real: **CRUD de productos con búsqueda y detalle**. Grounding: no existe `src/routes/productos/`; ya existe `get_categorias` en `src/routes/categorias/server/data.remote.ts`.
 
 ```
-        s1-list (tracer, ola 0)
-       /        |         \
-  s2-upsert  s3-delete  s4-filter    (ola 1, independientes entre si)
+Ola 0 — /productos            Ola 1 — /productos/[id]
+  productos-remote              detalle-remote  (importa get_producto de ola 0)
+      └─ productos-ui               └─ detalle-ui
+           ├─ productos-tests            ├─ detalle-tests
+           └─ productos-docs             └─ detalle-docs
 ```
 
-| id | título | op | complejidad | blocked_by |
+| id | screen | kind | título | blocked_by |
 | --- | --- | --- | --- | --- |
-| s1-list | feat(productos): listar productos | listar (tracer) | simple | — |
-| s2-upsert | feat(productos): crear y editar producto | upsert | medium | s1-list |
-| s3-delete | feat(productos): eliminar con confirmacion | borrar | simple | s1-list |
-| s4-filter | feat(productos): filtros y busqueda | filtrar | simple | s1-list |
+| productos-remote | /productos | remote | feat(productos): remote functions de /productos | — |
+| productos-ui | /productos | ui | feat(productos): pantalla /productos (listar, upsert, borrar, filtrar) | productos-remote |
+| productos-tests | /productos | tests | test(productos): /productos | productos-ui |
+| productos-docs | /productos | docs | docs(productos): /productos | productos-ui |
+| detalle-remote | /productos/[id] | remote | feat(productos): remote functions de /productos/[id] | productos-remote |
+| detalle-ui | /productos/[id] | ui | feat(productos): pantalla /productos/[id] | detalle-remote |
+| detalle-tests | /productos/[id] | tests | test(productos): /productos/[id] | detalle-ui |
+| detalle-docs | /productos/[id] | docs | docs(productos): /productos/[id] | detalle-ui |
 
-Ojo con s4: filtrar solo necesita que el LISTADO exista (s1) — encadenarlo tras s2/s3 "porque así se usaría" sería una dep estética que agrega una ola entera de espera. Los tres slices de la ola 1 son del mismo scope, simple|medium → **cluster sugerido** (un PR via b8).
+`detalle-remote` reutiliza `get_producto` (creado en `productos-remote`) y `get_categorias` (ya existía); crea solo `get_historial_producto`.
 
-Plan JSON resultante (ordenado topologicamente):
+Plan JSON (ordenado topológicamente, bodies abreviados):
 
 ```json
 {
   "lang": "es",
   "scope": "productos",
-  "epic": {
-    "title": "Epic: Gestion de productos",
-    "labels": ["scope:productos"],
-    "closing_slice": null
-  },
+  "epic": { "title": "Epic: Gestión de productos", "labels": ["scope:productos"], "closing_slice": null },
   "issues": [
-    {
-      "id": "s1-list",
-      "title": "feat(productos): listar productos (tracer bullet)",
-      "labels": ["feature", "scope:productos", "simple"],
-      "blocked_by": [],
-      "body": "## Objetivo\nVer el listado de productos para empezar a gestionarlos. Tracer bullet: prueba el stack completo (Drizzle -> remote function -> pantalla) en read-only.\n\n## Entidad / datos\n`taProductos` (id, nombre, precio, categoria, createdAt). Si la tabla no existe, crearla con Drizzle.\n\n## Pantalla\n- **Ruta**: `/productos`\n  - **Journey**: el usuario entra a /productos y ve la tabla de productos existentes.\n  - **Criterios de aceptacion (visuales)**:\n    - [ ] La tabla lista nombre, precio y categoria.\n    - [ ] Estado vacio claro cuando no hay productos.\n    - [ ] La ruta exige sesion (redirect a login si no hay).\n\n## Alcance (slice vertical)\nSolo lectura: `get_productos` + tabla. NO incluye alta/edicion/borrado/filtros (otros slices).\n\n## Complejidad estimada\nsimple (schema?, `server/data.remote.ts`, `+page.svelte`, `+page.server.ts`)."
-    },
-    {
-      "id": "s2-upsert",
-      "title": "feat(productos): crear y editar producto",
-      "labels": ["feature", "scope:productos", "medium"],
-      "blocked_by": ["s1-list"],
-      "body": "## Objetivo\nDar de alta y editar productos desde la misma pantalla del listado.\n\n## Entidad / datos\n`taProductos`. Validacion con Zod (nombre requerido, precio >= 0).\n\n## Pantalla\n- **Ruta**: `/productos`\n  - **Journey**: el usuario completa el formulario upsert (un solo form, `id` opcional) y el producto aparece/actualiza en la tabla.\n  - **Criterios de aceptacion (visuales)**:\n    - [ ] Un unico formulario upsert (crear y editar), no dos.\n    - [ ] Editar pre-puebla el formulario con el producto elegido.\n    - [ ] Errores de validacion visibles; toast de exito al guardar.\n\n## Alcance (slice vertical)\nAgrega `upsert_producto` (form) y el formulario en la pantalla existente. NO incluye borrado ni filtros.\n\n## Complejidad estimada\nmedium."
-    },
-    {
-      "id": "s3-delete",
-      "title": "feat(productos): eliminar producto con confirmacion",
-      "labels": ["feature", "scope:productos", "simple"],
-      "blocked_by": ["s1-list"],
-      "body": "## Objetivo\nEliminar productos con un dialogo de confirmacion para evitar borrados accidentales.\n\n## Pantalla\n- **Ruta**: `/productos`\n  - **Journey**: el usuario hace click en eliminar, confirma en el dialogo, y la fila desaparece.\n  - **Criterios de aceptacion (visuales)**:\n    - [ ] Dialogo de confirmacion antes de borrar.\n    - [ ] La fila se quita de la tabla al confirmar; toast de exito.\n\n## Alcance (slice vertical)\nAgrega `delete_producto` (command) + dialogo. NO toca el formulario ni los filtros.\n\n## Complejidad estimada\nsimple."
-    },
-    {
-      "id": "s4-filter",
-      "title": "feat(productos): filtros y busqueda",
-      "labels": ["feature", "scope:productos", "simple"],
-      "blocked_by": ["s1-list"],
-      "body": "## Objetivo\nEncontrar productos rapido filtrando por categoria y texto.\n\n## Pantalla\n- **Ruta**: `/productos`\n  - **Journey**: el usuario escribe en la busqueda y/o elige categoria; la tabla se filtra en vivo.\n  - **Criterios de aceptacion (visuales)**:\n    - [ ] Busqueda por texto filtra la tabla en vivo (`$derived`, client-side <1000 items).\n    - [ ] Selector de categoria filtra la tabla.\n    - [ ] Estado del filtro reflejado en la URL.\n\n## Alcance (slice vertical)\nFiltrado client-side sobre el listado ya existente (solo necesita s1). NO toca formulario ni borrado.\n\n## Complejidad estimada\nsimple."
-    }
+    { "id": "productos-remote", "screen": "/productos", "kind": "remote",
+      "title": "feat(productos): remote functions de /productos",
+      "labels": ["feature", "scope:productos", "simple"], "blocked_by": [],
+      "body": "## Objetivo\nDatos y operaciones de la pantalla /productos.\n\n## Entidad / datos\n`taProductos` (id, nombre, precio, categoriaId, createdAt). Crear con Drizzle si no existe.\n\n## Remote functions\n**Reutiliza:** `get_categorias` (`src/routes/categorias/server/data.remote.ts`).\n**Crea:** `get_productos(filtro?)` query · `upsert_producto` form (id opcional, Zod: nombre requerido, precio >= 0) · `delete_producto` command. Todas con `requireUser()` primero.\n\n## Seguridad / permisos\nSesión requerida.\n\n## Archivos previstos\n`src/routes/productos/server/data.remote.ts`, `src/lib/server/db/schema.ts` (si falta la tabla).\n\n## Alcance\nSolo remote functions + schema. Sin UI (productos-ui).\n\n## Complejidad estimada\nsimple." },
+    { "id": "productos-ui", "screen": "/productos", "kind": "ui",
+      "title": "feat(productos): pantalla /productos (listar, upsert, borrar, filtrar)",
+      "labels": ["feature", "scope:productos", "medium"], "blocked_by": ["productos-remote"],
+      "body": "## Objetivo\nGestionar productos desde una sola pantalla.\n\n## Pantalla\n- **Ruta**: `/productos`\n  - **Journey**: el usuario ve la tabla, busca/filtra por categoría, crea o edita en un form upsert, elimina con confirmación.\n  - **Criterios de aceptación (visuales)**:\n    - [ ] Tabla con nombre, precio y categoría; estado vacío claro.\n    - [ ] Un único formulario upsert; editar pre-puebla; errores de validación visibles; toast al guardar.\n    - [ ] Diálogo de confirmación antes de borrar; la fila desaparece.\n    - [ ] Búsqueda y filtro por categoría en vivo, reflejados en la URL.\n    - [ ] Sin sesión redirige a login.\n\n## Seguridad / permisos\nSesión requerida (`+page.server.ts`).\n\n## Archivos previstos\n`src/routes/productos/+page.svelte`, `src/routes/productos/ui/ProductoForm.svelte`, `src/routes/productos/+page.server.ts`.\n\n## Alcance\nSolo UI sobre las remote functions de productos-remote. Sin tests ni docs (productos-tests, productos-docs).\n\n## Complejidad estimada\nmedium." },
+    { "id": "productos-tests", "screen": "/productos", "kind": "tests",
+      "title": "test(productos): /productos",
+      "labels": ["feature", "scope:productos", "simple"], "blocked_by": ["productos-ui"],
+      "body": "## Objetivo\nCobertura de la pantalla /productos.\n\n## Alcance\nUnit de `get_productos`/`upsert_producto`/`delete_producto` (validación Zod, requireUser) + browser check de los criterios visuales de productos-ui.\n\n## Archivos previstos\n`src/routes/productos/server/data.remote.test.ts`, `src/routes/productos/productos.browser.test.ts`.\n\n## Complejidad estimada\nsimple." },
+    { "id": "productos-docs", "screen": "/productos", "kind": "docs",
+      "title": "docs(productos): /productos",
+      "labels": ["feature", "scope:productos", "simple"], "blocked_by": ["productos-ui"],
+      "body": "## Objetivo\nDocumentar la pantalla /productos para quien la mantenga.\n\n## Alcance\n`src/routes/productos/docs/readme.md` (pantalla, remote functions con contrato, tablas, permisos) + línea en `docs/ARCHITECTURE.md`.\n\n## Complejidad estimada\nsimple." }
   ]
 }
 ```
 
+(La ola 1 sigue el mismo patrón con `screen: "/productos/[id]"`.)
+
 ## Template de cuerpo de issue
 
-Estructura minima que satisface a b1-triage (entidad, operacion, scope, criterios) y a b2/b7 (pantallas con ruta + journey + acceptance):
+Estructura mínima que satisface a b1-triage (entidad, operación, scope, criterios) y a b2/b7 (pantalla con ruta + journey + acceptance). Las secciones marcadas con su kind solo van en ese kind.
 
 ```markdown
 ## Objetivo
-<1-2 lineas: que obtiene el usuario; el "para que" real, no la frase literal>
+<1-2 líneas: qué obtiene el usuario; el "para qué" real>
 
-## Entidad / datos
-<entidades REALES del codebase (tablas Drizzle, campos clave). Si hay que crear schema, decirlo.>
+## Entidad / datos                      (remote, infra)
+<tablas Drizzle reales, campos clave. Si hay que crear schema, decirlo.>
 
-## Pantalla(s)
+## Remote functions                     (remote)
+**Reutiliza:** <nombre> (<path existente>) …
+**Crea:** <nombre> query|form|command — <contrato en una línea> …
+
+## Pantalla                             (ui)
 - **Ruta**: `/<feature>`
   - **Journey**: <usuario entra a X, hace Y, ve Z>
-  - **Criterios de aceptacion (visuales)**:
-    - [ ] ...
+  - **Criterios de aceptación (visuales)**:
     - [ ] ...
 
 ## Seguridad / permisos
-<que valida ESTE slice: sesion requerida, roles, ownership de los datos. "Solo exige sesion" tambien se declara explicito.>
+<sesión, roles, ownership. "Solo exige sesión" también se declara.>
 
 ## Archivos previstos
-<paths EXACTOS del grounding donde vive cada pieza (schema, `server/data.remote.ts`, `+page.svelte`). Fija la estructura de carpetas y habilita builds paralelos: wave-build exige archivos sin interseccion entre slices de la ola.>
+<paths EXACTOS dentro de `src/routes/<feature>/` (más schema si aplica). Fija la carpeta y habilita olas paralelas.>
 
-## Alcance (slice vertical)
-<que entra en ESTE slice y que queda explicitamente para otro>
+## Alcance
+<qué entra en ESTE issue y qué queda para los otros kinds de la misma pantalla>
 
 ## Complejidad estimada
 simple | medium  (simple = 3-5 archivos, medium = 5-8)
@@ -155,10 +144,8 @@ simple | medium  (simple = 3-5 archivos, medium = 5-8)
 
 Reglas del body:
 
-- Si existe design doc (`docs/plans/<tema>.md`), linkearlo al final del body (`> Diseño: docs/plans/<tema>.md`) — las reglas globales de ejecución (sin comentarios, simplicidad, browser-first) viven UNA vez ahí, no se repiten por issue.
-- Si el plan tiene slice de cierre (tests + docs consolidados), el `## Alcance` de cada slice lo declara explícito: "tests y `docs/readme.md` van en <id-del-cierre>" — no se escriben por slice.
-
-- **No** escribir `## Blocked by` ni `#numeros` aquí — las deps van en `blocked_by` (slice-ids) del plan; el script las inyecta resolviendo a números reales.
-- Slice **backend puro** (sin pantalla): reemplazar `## Pantalla(s)` por `## Remote functions / endpoints` con los criterios de aceptación no-visuales. b7 corre igual con `screens: []`.
-- Idioma del body = idioma de la conversación (lo postea b1 al reportero en su idioma; mantén coherencia).
-- Título en conventional: `feat(scope): …`, `fix(scope): …`, `enhancement` para mejoras de algo existente.
+- `screen` y `kind` van en el plan JSON, no en el body; el script agrega la label `kind:<k>`.
+- Si existe design doc (`docs/plans/<tema>.md`), linkearlo al final (`> Diseño: docs/plans/<tema>.md`).
+- **No** escribir `## Blocked by` ni `#números` — las deps van en `blocked_by` del plan; el script las inyecta.
+- Issue `infra`: sin `## Pantalla`; criterios de aceptación no visuales. b7 corre igual con `screens: []`.
+- Idioma del body = idioma de la conversación. Título en conventional: `feat(scope): …`, `test(scope): …`, `docs(scope): …`, `refactor(scope): …`.

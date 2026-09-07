@@ -172,7 +172,16 @@ todos los archivos y verifica una sola vez. El código copy-paste completo de ca
 simples exporta los types directo desde `server/data.remote.ts`. Si la tabla no existe, crea el
 schema Drizzle primero (skill `postgresql-table-design` si está disponible).
 
-**Step 2: Remote functions** (`server/data.remote.ts`) — el archivo CORE, SQL-first:
+**Step 2: Remote functions** (`server/data.remote.ts`) — el archivo CORE, SQL-first.
+**Antes de crear cualquier remote function, buscar una igual o parecida y extenderla** — una función sirve a todas las pantallas que la necesiten, se crea UNA vez:
+
+```bash
+rg -n 'export const (get|list|upsert|create|update|delete)_?<entidad>' src/routes --glob '*.remote.ts'
+rg -n '<tabla-drizzle>' src/routes --glob '*.remote.ts'
+```
+
+Si existe: importarla desde su carpeta (`import { get_x } from '../<pantalla>/server/data.remote'`) o extenderla (parámetro opcional, campo extra) y dejar el impact set en Phase 1.5. Crear otra solo si el contrato es genuinamente distinto, y decirlo en el resumen.
+
 `query` (list) + `form` (UN upsert con `id` opcional) + `command` (delete). Siempre
 `server/data.remote.ts`, nunca `*.remote.ts` suelto en la raíz de la ruta (patrón anterior
 `<feature>.remote.ts`) ni bajo `src/lib/server/` (el cliente lo importa). Toda remote

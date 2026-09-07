@@ -132,7 +132,7 @@ B10_DONE issue=<N> phase_final=<done|stopped-at-*> pr=<url|none>
 
 Leer `references/epic-mode.md` ANTES de despachar — loop principal, drain-first con snapshot, paralelismo (triage/verify/wave-build), batch de aprobaciones por ola, cap dinámico de backpressure y gate de epic-review viven ahí.
 
-**Switch único — modo rápido:** si el epic trae `epic-auto-merge` vigente (actor humano no-bot; lo estampa b0 en el gate o el usuario a mano), el modo rápido se activa COMPLETO sin flags ni env vars: drenaje auto-merge + wave-build (`B7_PARALLEL=1` implícito, `B10_WAVE_MAX=4`) + cluster automático por scope + cap dinámico + review funcional diferido al epic-review (builds con `--no-screens --light-review --no-changelog`; excepto el closing_slice). Quitar el label del epic apaga todo y vuelve a secuencial+gates. Detalle en epic-mode.md ("Modo rápido").
+**Switch único — modo rápido:** si el epic trae `epic-auto-merge` vigente (actor humano no-bot; lo estampa b0 en el gate o el usuario a mano), el modo rápido se activa COMPLETO sin flags ni env vars: drenaje auto-merge + wave-build (`B7_PARALLEL=1` implícito, `B10_WAVE_MAX=4`) + cluster automático por scope + cap dinámico + screen-review solo donde se entrega pantalla (builds con `--no-screens --light-review --no-changelog`; los issues con label `kind:ui` y el closing_slice van SIN `--no-screens`: son la entrega de la pantalla al usuario). Quitar el label del epic apaga todo y vuelve a secuencial+gates. Detalle en epic-mode.md ("Modo rápido").
 
 ## Runs zombie
 

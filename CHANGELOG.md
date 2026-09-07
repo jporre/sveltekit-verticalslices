@@ -2,6 +2,15 @@
 
 ## [1.12.0] — 2026-09-07
 
+### Feat — b0: una pantalla = una ola (remote / ui / tests / docs)
+
+- **Doctrina de corte**: la unidad de planificación pasa de "capacidad" (listar/crear/borrar como issues separados sobre la misma ruta) a **pantalla** (`src/routes/<feature>/`). Cada pantalla es una ola con 4 issues `kind: remote|ui|tests|docs` (+ `infra` opcional sin pantalla). Deps fijas dentro de la ola (`remote → ui → tests,docs`); entre pantallas solo deps reales. Archivos disjuntos por construcción; la pantalla se construye y revisa una sola vez, en su estado final, y el usuario contrasta sus definiciones al cerrar la ola.
+- **Remote functions se crean una vez**: el issue `remote` declara `Reutiliza`/`Crea`; b2 y los agentes `b7-impl*` buscan (`rg` en `*.remote.ts`) una función igual o parecida y la importan/extienden antes de crear otra.
+- **`create-epic.sh`** valida `screen`/`kind`, exige los 4 kinds por pantalla y sus deps, y estampa la label `kind:<k>`.
+- **b1-triage** fast-path: issues con `kind:*` no pasan el check horizontal (`remote`/`tests`/`docs`/`infra` son legítimos sin pantalla).
+- **b10 modo epic**: `--no-screens` en todo build EXCEPTO `kind:ui` y el closing_slice; el mensaje de fin de ola anuncia la pantalla entregada. Desaparece la "cola transversal" de tests+docs.
+- `references/slicing-guide.md` reescrita (tabla de kinds, ejemplo `/productos` + `/productos/[id]`, template por kind).
+
 ### Perf — b7: menos turnos, menos prefijo, modelo heredado
 
 - **Modelo sin definir en todo el plugin**: se quita `model:` de los 10 frontmatter (b0, b1-triage, b3, b4, b7, b7-impl-s, b7-screen-review, b8, b9, b10) y el `model=` del Agent call del paso 4. Todo hereda el modelo de la sesión — los alias `opus`/`sonnet`/`haiku` no resuelven vía OpenRouter y rompían los sub-agentes. Quien quiera routing por alias lo mapea con `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`.

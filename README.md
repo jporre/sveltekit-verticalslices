@@ -160,7 +160,7 @@ Skills are namespaced `b-pipeline:<skill>`.
 
 | Skill | Role |
 | --- | --- |
-| **b0-conversation-to-issues** | Genesis step (before triage). Turns the conversation (or a plan/PRD via `--from`) into vertically-sliced GitHub issues with dependencies and an epic, ready for `b10-ship --epic`. With a raw idea it enters design mode first (`--design` to force): a 1-question-at-a-time interview that matures the idea into a `docs/plans/` design doc before slicing. Verifies the real intent with a human gate — including the execution mode (fast/supervised) — before creating anything. |
+| **b0-conversation-to-issues** | Genesis step (before triage). Turns the conversation (or a plan/PRD via `--from`) into screen-per-wave (remote/ui/tests/docs) sliced GitHub issues with dependencies and an epic, ready for `b10-ship --epic`. With a raw idea it enters design mode first (`--design` to force): a 1-question-at-a-time interview that matures the idea into a `docs/plans/` design doc before slicing. Verifies the real intent with a human gate — including the execution mode (fast/supervised) — before creating anything. |
 | **b10-ship** | Top-level orchestrator. `<issue>` for one issue, or `--epic=<N>` to drain an epic's sub-issue graph. Chains triage → build → review → close with the human gates. |
 | **b7-issue-to-pr** | Single-issue orchestrator: triage → worktree → build → screen review → commit → **draft PR** → auto-review. Stops at the draft PR (does not merge). |
 | **b8-swarm** | Resolves a **cluster of related issues** in **one** combined PR (refactors, multi-step migrations, "Phase X.Y" series). One worktree, one branch, one PR. |

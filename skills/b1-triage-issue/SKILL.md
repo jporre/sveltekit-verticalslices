@@ -142,6 +142,8 @@ Classification: **ready** | **needs-info** | **duplicate** | **blocked**.
 
 ### Vertical-slice check (gate antes de marcar ready)
 
+**Fast-path — issues de una ola-pantalla (b0):** si el issue trae label `kind:remote|ui|tests|docs|infra`, viene de un plan "una pantalla = una ola" y su corte ya fue aprobado en el gate de b0. NO aplicar el check horizontal: `remote`, `tests`, `docs` e `infra` son legítimos sin pantalla propia (`screens: []`, `type` según el título: `feat|test|docs|refactor`); solo `ui` lleva `screens[]` con la ruta del label/body. Para `remote`, `files_likely` = `server/data.remote.ts` de la ruta (+ schema); para `ui`, `+page.svelte`/`ui/`/`+page.server.ts`; para `tests`/`docs`, los archivos colocados en esa carpeta. Seguir directo al resto del triage.
+
 Este proyecto es **screen-first / Vertical Slice Architecture**: cada issue que entra a build debe ser una **rebanada vertical** — algo que un usuario puede USAR al mergearse, cruzando todo el stack (Drizzle → Remote Function → pantalla en `src/routes`). Un issue que entrega solo una **capa técnica** rompe el modelo: b2/b7 construyen y revisan por pantalla, no por capa, y un slice horizontal no se puede verificar en browser ni cierra nada útil.
 
 Señales de **capa horizontal** (mal slice) en el título/cuerpo:
@@ -153,7 +155,7 @@ Señales de **capa horizontal** (mal slice) en el título/cuerpo:
 Acción cuando el issue es horizontal:
 
 - **needs-info** con una pregunta concreta que proponga re-slicear en vertical: "Este issue es una capa horizontal (solo `<X>`). En este proyecto cada tarea debe entregar una pantalla usable end-to-end. ¿Lo reescribimos como slice vertical (ej. 'listar `<entidad>` en `/<feature>`') o lo partimos en slices con `/b-pipeline:b0-conversation-to-issues`?"
-- Si es parte de un feature más grande mal cortado, recomendar pasar el contexto por **b0** (que slicea en vertical + arma el epic) en vez de buildearlo tal cual.
+- Si es parte de un feature más grande mal cortado, recomendar pasar el contexto por **b0** (una pantalla = una ola con remote/ui/tests/docs + epic) en vez de buildearlo tal cual.
 
 **Excepción — concerns transversales:** auth, db, storage, notificaciones y audit son infra genuinamente transversal, no features. Un issue legítimamente backend (ej. "agregar índice a `taVentas`", "rotar el secreto de storage") NO es un mal slice — no exige pantalla. Marcar estos como `ready` normal; el `## Pantalla(s)` del body se reemplaza por `## Remote functions / endpoints` (mismo criterio que b0). La regla horizontal aplica a **features de producto** partidas por capa, no a infra transversal.
 

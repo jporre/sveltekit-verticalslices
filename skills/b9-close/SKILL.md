@@ -2,7 +2,6 @@
 name: b9-close
 description: 'Cierre de un PR ya revisado: mergea a la rama default con aprobación humana, cierra sus issues y limpia el worktree. Usar cuando pidan "cerrar/mergear el PR N", "finalizar el issue N" (ya implementado), o "limpiar el worktree". PASO 4 del flujo b — corre después de b7 (implementación) y b6-pr-review (review); no implementa ni revisa.'
 allowed-tools: Bash, Read, AskUserQuestion, Skill, Agent
-model: sonnet
 ---
 
 ## Argumentos recibidos

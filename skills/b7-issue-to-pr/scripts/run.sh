@@ -34,10 +34,7 @@ for arg in "$@"; do
     --no-pr)   NO_PR=1 ;;
     --max-iterations=*) MAX_ITER="${arg#--max-iterations=}" ;;
     --budget-files=*)   BUDGET_FILES="${arg#--budget-files=}" ;;
-    --*)
-      echo "run.sh: unknown flag: $arg" >&2
-      exit 2
-      ;;
+    --*) ;;  # flags de SKILL.md (--no-screens, --light-review, --directives=…) son del LLM; ignorar acá
     *)
       if [ -z "$ISSUE" ]; then
         ISSUE="$arg"
@@ -133,6 +130,7 @@ echo "run.sh: preflight OK; lock=${LOCK_PATH}; report=${RUN_REPORT}; scratch=${S
 echo "RUN_REPORT=${RUN_REPORT}"
 echo "RUN_ID=${RUN_ID}"
 echo "SCRATCH_DIR=${SCRATCH_DIR}"
+echo "LOCK_PATH=${LOCK_PATH}"
 
 # After this point, the LLM-driven part of the skill takes over. Claude reads SKILL.md
 # and invokes b1-triage-issue, b1-add-worktree --headless, b2-build-feature, etc.

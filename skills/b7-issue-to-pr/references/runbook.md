@@ -41,10 +41,10 @@ En `--wet` el cierre válido es: branch + commits + PR URL + review adjunto + la
 
 | Paso | Sub-agente | Modelo | Razón |
 |------|-----------|--------|-------|
-| 4 Implementación | `Agent(b-pipeline:b7-impl)` en M/L · `agents/b7-impl-s.md` en S | sonnet en S y M, opus en L (`model` del Agent call) | Aislar contexto de exploración + tool calls verbosos. Orquestador solo recibe resumen. **Nunca `general-purpose`**: su toolset `*` arrastra todos los schemas MCP al prompt del sub-agente, en cada turno del loop. |
-| 5 Revisión visual | `Agent(b-pipeline:b7-screen-review)` — agente del plugin | sonnet (multimodal, no necesita opus) | Toolset de browser (`agent-browser`) es independiente. Paralelizar por pantalla. Output binario (PNG) no contamina contexto. |
-| Triage (`b1-triage-issue`) | Skill directo (`context: fork`) | sonnet — la decisión de scope está anclada al schema de `.b7/triage.json` | Determinístico y rápido; sub-agente sería overkill. |
-| Commit / PR / log summarizers | Skill directo | haiku cuando sea posible | Idem. |
+| 4 Implementación | `Agent(b-pipeline:b7-impl)` en M/L · `agents/b7-impl-s.md` en S | el de la sesión | Aislar contexto de exploración + tool calls verbosos. Orquestador solo recibe resumen. **Nunca `general-purpose`**: su toolset `*` arrastra todos los schemas MCP al prompt del sub-agente, en cada turno del loop. |
+| 5 Revisión visual | `Agent(b-pipeline:b7-screen-review)` — agente del plugin | el de la sesión | Toolset de browser (`agent-browser`) es independiente. Paralelizar por pantalla. Output binario (PNG) no contamina contexto. |
+| Triage (`b1-triage-issue`) | Skill directo (`context: fork`) | el de la sesión | Determinístico y rápido; sub-agente sería overkill. |
+| Commit / PR / log summarizers | Skill directo | el de la sesión | Idem. |
 
 
 ## Invocación headless

@@ -1,8 +1,7 @@
 ---
 name: b7-impl-s
-description: Agente de implementación del carril rápido S de b7-issue-to-pr. Se invoca SOLO cuando classify-run asignó lane=S (issue simple, <=5 archivos probables). Corre en sonnet — única vía real de bajar modelo respecto del opus por defecto de b2-build-feature. Aplica el mismo contrato de b2 (feature colocado en src/routes, Remote Functions, sin state global, errores estructurados) pero con scope acotado y diffs mínimos.
+description: Agente de implementación del carril rápido S de b7-issue-to-pr. Se invoca SOLO cuando classify-run asignó lane=S (issue simple, <=5 archivos probables). Aplica el mismo contrato de b2 (feature colocado en src/routes, Remote Functions, sin state global, errores estructurados) pero con scope acotado y diffs mínimos.
 tools: Bash, Read, Edit, Write, Grep, Glob
-model: sonnet
 ---
 
 # b7 — implementación carril rápido (lane S)
@@ -10,7 +9,7 @@ model: sonnet
 Agente de implementación para el **carril rápido S** de `b7-issue-to-pr`. El orquestador
 te invoca cuando `guardrails.sh classify-run` emitió `RUN_LANE=S`: issue simple,
 `files_likely` con <=5 entradas. Tu única diferencia con la implementación normal es el
-**modelo (sonnet)** y el **scope acotado** — nada más cambia del contrato.
+**scope acotado** (el modelo es el de la sesión) — nada más cambia del contrato.
 
 ## Contrato (idéntico a b2-build-feature — no reinventar)
 

@@ -1,7 +1,6 @@
 ---
 name: b7-screen-review
 description: "Revisión visual de UNA pantalla: abre la ruta en el browser, recorre los estados requeridos, captura screenshots, evalúa acceptance_criteria_visual y emite veredicto pass/warn/fail + attach.sh."
-model: sonnet
 tools: Bash, Read, Write
 ---
 

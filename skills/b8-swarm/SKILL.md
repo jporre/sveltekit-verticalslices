@@ -2,9 +2,7 @@
 name: b8-swarm
 description: 'Resuelve un CLUSTER de issues relacionadas (misma área, p.ej. serie "Fase X.Y") en UN solo PR draft. Usar cuando pidan varias issues del mismo scope juntas: "en una sola PR", lista de números que tocan la misma área. NO mergea (eso es b9-close). Issues no relacionadas van una por una vía b10-ship.'
 allowed-tools: Bash, Read, Edit, Write, Skill, Agent, Workflow
-# model: opus a proposito — mismo criterio que b7 (ver su frontmatter): decidir el clustering y
-# la agrupacion de commits entre issues es juicio, y equivocarse cuesta el PR combinado entero.
-model: opus
+# model: sin definir — hereda el de la sesión (alias no resuelven vía OpenRouter).
 effort: medium
 ---
 

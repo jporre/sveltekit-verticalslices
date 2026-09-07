@@ -23,6 +23,9 @@
 #   render-screens <triage.json> <screens-dir> — render mecánico de .b7/screens/<Name>.md desde triage.json (sin LLM, todos los carriles)
 #   screen-marker <worktree-dir> <pr-number> — postea el marker <!-- b7:screen-review=... --> en el PR (enum skipped/done result=); emite SCREEN_MARKER=<body>
 #   impact-drift <worktree-dir> [default-branch] — contrasta diff real vs impact_files+files_likely; emite IMPACT_DRIFT: none|<files>. Señal, NUNCA gate (siempre exit 0)
+#   triage-gates <triage.json> [--force-complex] — validate + evidence + regression-test + verdict/complexity/security en una pasada; emite TRIAGE_GATE=ok|bail:<r>|no-pr
+#   provision <issue> <feat|fix> <slug> <scratch-dir> [wet|dry-run] — pasos 2+2b+1b: worktree headless, verify, mueve .b7, heartbeat, lane, sticky, labels; emite WORKTREE=/BRANCH=/PORT=/DEFAULT_BRANCH=/RUN_LANE=
+#   ui-touched <worktree-dir>          — UI_TOUCHED=1|0 (diff toca *.svelte, *.remote.ts o src/routes/); gobierna el skip del review visual
 #   dod-check <worktree-dir> <issue> <pr|none> — corre los 9 checks DoD del runbook en una pasada; emite DOD <n>=ok|warn|fail y DOD_SUMMARY=ok|needs-human-review|fail; exit 1 si hay fail
 #
 # Env knobs:
@@ -1360,6 +1363,90 @@ print("IMPACT_DRIFT: " + (" ".join(outside) if outside else "none"))
 PY
 }
 
+# ---------------------------------------------------------------------------
+# triage-gates <triage.json> [--force-complex]
+# Gates deterministas post-triage en UNA pasada: validate-triage, evidence
+# (type=fix exige evidence.observed), inyección de regression-test al plan,
+# verdict/security/complexity. Emite TRIAGE_GATE=ok|bail:<razón>|no-pr y
+# TRIAGE_TYPE=/TRIAGE_LANG=. exit 4 = triage inválido.
+# ---------------------------------------------------------------------------
+cmd_triage_gates() {
+  local triage="${1:-}" force=0
+  [ "${2:-}" = "--force-complex" ] && force=1
+  [ -f "$triage" ] || { echo "triage-gates: usage: triage-gates <triage.json> [--force-complex]" >&2; return 2; }
+  cmd_validate_triage "$triage" || return 4
+  local type verdict sec cx lang
+  type="$(jq -r '.type // ""' "$triage")"; verdict="$(jq -r '.verdict // ""' "$triage")"
+  sec="$(jq -r '.security_review_required // false' "$triage")"
+  cx="$(jq -r '.estimated_complexity // ""' "$triage")"; lang="$(jq -r '.language // "es"' "$triage")"
+  echo "TRIAGE_TYPE=$type"; echo "TRIAGE_LANG=$lang"
+  if [ "$verdict" != "ready" ]; then echo "TRIAGE_GATE=bail:verdict-$verdict"; return 0; fi
+  if [ "$type" = "fix" ] && [ -z "$(jq -r '.evidence.observed // empty' "$triage")" ]; then
+    echo "TRIAGE_GATE=bail:fix-sin-evidence"; return 0
+  fi
+  if [ "$cx" = "complex" ] && [ "$force" = 0 ]; then echo "TRIAGE_GATE=bail:complex"; return 0; fi
+  if [ "$type" = "fix" ] && ! jq -e '.plan[] | select(.id=="regression-test")' "$triage" >/dev/null 2>&1; then
+    local tmp; tmp=$(mktemp)
+    jq '.plan += [{"id":"regression-test","desc":"Test que falla sin el fix y pasa con el","done":false}]' "$triage" > "$tmp" && mv "$tmp" "$triage"
+    echo "triage-gates: regression-test inyectado al plan" >&2
+  fi
+  if [ "$sec" = "true" ]; then echo "TRIAGE_GATE=no-pr"; else echo "TRIAGE_GATE=ok"; fi
+}
+
+# ---------------------------------------------------------------------------
+# provision <issue> <type> <slug> <scratch-dir> [wet|dry-run]
+# Pasos 2 + 2b + 1b en una pasada: setup-worktree --headless, worktree-env,
+# verify-worktree, mueve .b7/* del scratch al worktree, heartbeat, classify-run,
+# milestone started + state-set + sticky comment, labels ready->in-progress.
+# Emite WORKTREE=/BRANCH=/PORT=/DEFAULT_BRANCH=/RUN_LANE= (eval-safe). exit 30/31 = abort.
+# ---------------------------------------------------------------------------
+cmd_provision() {
+  local issue="${1:-}" type="${2:-}" slug="${3:-}" scratch="${4:-}" mode="${5:-wet}"
+  if [ -z "$issue" ] || [ -z "$type" ] || [ -z "$slug" ] || [ ! -d "$scratch" ]; then
+    echo "provision: usage: provision <issue> <feat|fix> <slug> <scratch-dir> [wet|dry-run]" >&2; return 2
+  fi
+  local default_branch branch out line wt env_out
+  default_branch="$(bp_default_branch)"
+  branch="$(bp_branch_name "$type" "$issue" "$slug")"
+  out=$(bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/setup-worktree.sh" "$branch" --headless) || true
+  echo "$out" >&2
+  line=$(echo "$out" | grep '^WORKTREE_READY ' || true)
+  [ -n "$line" ] || { echo "ABORT: setup-worktree.sh no emitió WORKTREE_READY" >&2; return 30; }
+  wt="${line#WORKTREE_READY dir=}"; wt="${wt%% *}"
+  env_out="$(cmd_worktree_env "$wt")" || { echo "ABORT: worktree-env falló" >&2; return 30; }
+  eval "$env_out"
+  cmd_verify_worktree "$WORKTREE" >&2 || return 31
+  mkdir -p "$WORKTREE/.b7"
+  cp -n "$scratch"/* "$WORKTREE/.b7/" 2>/dev/null || true
+  cmd_heartbeat "$WORKTREE" >&2 || true
+  local pd="$SCRIPT_DIR/publish-docs.sh" lane_out lane=M
+  if [ -f "$WORKTREE/.b7/triage.json" ]; then
+    lane_out="$(cmd_classify_run "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/state.json" 2>/dev/null || true)"
+    lane="${lane_out#*RUN_LANE=}"; lane="${lane%%[^SML]*}"; lane="${lane:-M}"
+  fi
+  bash "$pd" milestone started --worktree "$WORKTREE" >&2 || true
+  bash "$pd" state-set mode="$mode" branch="$BRANCH" worktree_dir="$WORKTREE" --worktree "$WORKTREE" >&2 || true
+  bash "$pd" issue-comment --worktree "$WORKTREE" >&2 || echo "provision: WARN issue-comment falló" >&2
+  gh label create in-progress --color FBCA04 2>/dev/null || true
+  gh issue edit "$issue" --remove-label ready --add-label in-progress >/dev/null 2>&1 || true
+  echo "WORKTREE=$WORKTREE"; echo "BRANCH=$BRANCH"; echo "PORT=${PORT:-}"
+  echo "DEFAULT_BRANCH=$default_branch"; echo "RUN_LANE=$lane"
+}
+
+# ---------------------------------------------------------------------------
+# ui-touched <worktree-dir>
+# Emite UI_TOUCHED=1|0 según el diff vs rama base toque *.svelte, *.remote.ts o
+# src/routes/. Decide el skip del review visual en TODO carril (antes solo S).
+# ---------------------------------------------------------------------------
+cmd_ui_touched() {
+  local wt="${1:-}"; [ -d "$wt" ] || { echo "ui-touched: usage: ui-touched <worktree-dir>" >&2; return 2; }
+  local db base
+  db="$(cd "$wt" && bp_default_branch 2>/dev/null || true)"; db="${db:-${DEFAULT_BRANCH:-main}}"
+  base="$(git -C "$wt" merge-base HEAD "$db" 2>/dev/null)" || { echo "ui-touched: rama base irresoluble" >&2; return 3; }
+  if git -C "$wt" diff --name-only "$base" | grep -qE '\.svelte$|\.remote\.ts$|^src/routes/'; then
+    echo "UI_TOUCHED=1"; else echo "UI_TOUCHED=0"; fi
+}
+
 case "${1:-}" in
   env-check)        shift; cmd_env_check "$@" ;;
   preflight)        shift; cmd_preflight "$@" ;;
@@ -1382,6 +1469,9 @@ case "${1:-}" in
   screen-marker)    shift; cmd_screen_marker "$@" ;;
   impact-drift)     shift; cmd_impact_drift "$@" ;;
   dod-check)        shift; cmd_dod_check "$@" ;;
+  triage-gates)     shift; cmd_triage_gates "$@" ;;
+  provision)        shift; cmd_provision "$@" ;;
+  ui-touched)       shift; cmd_ui_touched "$@" ;;
   *)
     echo "Usage: $0 {env-check|preflight <issue>|check-budget <worktree>|acquire-lock [owner-pid] [issue]|release-lock [lock-file]|heartbeat <worktree>|dev-server start|stop <worktree>|worktree-env <worktree>|state-dir|cache-issue <issue> <out>|context-snapshot <out>|init-state <issue> <out>|verify-worktree <dir>|verify-port <port> <worktree>|validate-triage <triage.json>|classify-run <triage.json> <state.json>|screens-check <worktree>|render-screens <triage> <dir>|screen-marker <worktree> <pr>|impact-drift <worktree> [branch]|dod-check <worktree> <issue> <pr|none>}" >&2
     exit 2

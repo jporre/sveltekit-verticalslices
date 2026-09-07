@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.12.0] — 2026-09-07
+
+### Perf — b7: menos turnos, menos prefijo, modelo heredado
+
+- **Modelo sin definir en todo el plugin**: se quita `model:` de los 10 frontmatter (b0, b1-triage, b3, b4, b7, b7-impl-s, b7-screen-review, b8, b9, b10) y el `model=` del Agent call del paso 4. Todo hereda el modelo de la sesión — los alias `opus`/`sonnet`/`haiku` no resuelven vía OpenRouter y rompían los sub-agentes. Quien quiera routing por alias lo mapea con `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL`.
+- **`b7/SKILL.md` 41 KB → 14 KB**: el prefijo del fork se paga en cada turno del orquestador. Los gates deterministas salen de la prosa a tres subcomandos nuevos de `guardrails.sh`:
+  - `triage-gates <triage.json> [--force-complex]` — validate + evidence + inyección de `regression-test` + verdict/complexity/security en una pasada (`TRIAGE_GATE=ok|no-pr|bail:<r>`).
+  - `provision <issue> <feat|fix> <slug> <scratch> [wet|dry-run]` — pasos 2 + 2b + 1b: worktree headless, verify, mueve `.b7`, heartbeat, lane, sticky, labels (`WORKTREE=/BRANCH=/PORT=/DEFAULT_BRANCH=/RUN_LANE=`).
+  - `ui-touched <worktree>` — `UI_TOUCHED=1|0`; gobierna el skip del review visual.
+- **`run.sh` es el paso 0 canónico** también en la vía Skill (antes solo headless); ignora los flags que son del LLM y emite `LOCK_PATH=`.
+- **Skip del review visual por diff en TODO carril** (antes solo S): sin `*.svelte`, `*.remote.ts` ni `src/routes/` tocados no se levanta dev server ni browser.
+- **`b6 --light` default** desde b7; el review profundo lo hace un humano o el epic-review. `effort: low` en b7 y b6.
+
 ## [1.11.0] — 2026-09-05
 
 ### Feat — genie: audit diagnostica preparación del entorno

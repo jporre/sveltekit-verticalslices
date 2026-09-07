@@ -2,7 +2,6 @@
 name: b4-pull-request
 description: 'Crea un GitHub PR desde la branch actual con el template del repo. Usar cuando pidan abrir un PR; es el paso PR que invocan b7-issue-to-pr y b8-swarm.'
 context: fork
-model: haiku
 ---
 
 # Create Pull Request

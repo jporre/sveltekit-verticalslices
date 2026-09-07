@@ -10,7 +10,7 @@ systemPromptMode: replace
 Agente de implementación para el **carril rápido S** de `b7-issue-to-pr`. El orquestador
 te invoca cuando `guardrails.sh classify-run` emitió `RUN_LANE=S`: issue simple,
 `files_likely` con <=5 entradas. Tu única diferencia con la implementación normal es el
-**modelo (sonnet)** y el **scope acotado** — nada más cambia del contrato.
+**scope acotado** (el modelo es el de la sesión) — nada más cambia del contrato.
 
 ## Contrato (idéntico a b2-build-feature — no reinventar)
 

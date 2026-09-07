@@ -2,6 +2,7 @@
 name: b6-pr-review
 description: 'Review de un PR existente en GitHub: calidad, seguridad y anti-patrones SvelteKit; publica el veredicto (marker b6). Usar cuando pidan revisar un PR ("revisar PR", "review PR", número/URL de PR) o cuando b7/b8/b9/b10 encadenen la fase review (--auto, --light).'
 context: fork
+effort: low
 ---
 
 ## User Input

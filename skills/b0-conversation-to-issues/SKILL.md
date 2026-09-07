@@ -2,7 +2,6 @@
 name: b0-conversation-to-issues
 description: 'Convierte la conversación actual (o un plan/PRD/doc, o un issue grande existente) en issues de GitHub sliceados en vertical (tracer-bullet), con dependencias y epic de tracking, listos para drenar con b10-ship --epic. Usar cuando el usuario pida convertir lo conversado o un plan en issues/tareas/tickets ("crea los issues de esto", "turn this into issues"), pida desglosar un issue/epic existente en sub-issues ("desglosa el issue #42"), pida partir trabajo en vertical slices, o cuando una sesión de diseño/brainstorm converge en trabajo por registrar. TAMBIÉN al INICIO: con una idea cruda ("quiero conversar una idea", "ayúdame a pensar X antes de codear") entra en modo diseño — entrevista 1x1 que madura la idea hasta un plan sliceable y recién ahí crea los issues. Paso génesis, antes de b1-triage: no implementa, no triagea, no abre PRs.'
 allowed-tools: Bash, Read, Write, AskUserQuestion, Agent, Workflow
-model: opus
 ---
 
 

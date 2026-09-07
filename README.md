@@ -44,7 +44,7 @@ You give it an issue number. It:
 
 It runs unattended where it is safe to do so, and **stops and asks** where judgement is required (complex builds, every merge).
 
-**Don't have the issues yet?** Start one step earlier with **`b0-conversation-to-issues`**: it turns the current conversation (a design chat, a brainstorm, a plan) into well-scoped GitHub issues, **sliced vertically** (tracer-bullet), ordered by dependency, and grouped under an epic — the exact shape `b10-ship --epic` drains. It verifies what you *really* want before creating anything. You can even invoke it with nothing but a raw idea: **design mode** interviews you one question at a time (recommended answer included, codebase facts looked up instead of asked), keeps a living design doc in `docs/plans/`, and only converts to issues once the plan converges.
+**Don't have the issues yet?** Start one step earlier with **`b0-conversation-to-issues`**: it turns the current conversation (a design chat, a brainstorm, a plan) into well-scoped GitHub issues, **sliced one wave per screen** (`remote → ui → tests, docs` per screen), ordered by dependency, and grouped under an epic — the exact shape `b10-ship --epic` drains. It verifies what you *really* want before creating anything. You can even invoke it with nothing but a raw idea: **design mode** interviews you one question at a time (recommended answer included, codebase facts looked up instead of asked), keeps a living design doc in `docs/plans/`, and only converts to issues once the plan converges.
 
 ---
 
@@ -55,7 +55,8 @@ A few ideas explain the whole design:
 - **Orchestrators chain atomic skills.** The big skills (`b10-ship`, `b7-issue-to-pr`, `b8-swarm`) do not implement anything themselves — they *decide* and *call* the small skills (`b1-triage-issue`, `b1-add-worktree`, `b2-build-feature`, `b3-git-commit`, `b4-pull-request`, `b6-pr-review`, `b9-close`). The value is the orchestration, the budgets, and the gates.
 - **State lives in GitHub, not on disk.** Labels, sticky comments with hidden markers (e.g. `<!-- b7:status -->`), and PR review verdicts (`<!-- b6:verdict=... -->`) are the source of truth. This is why the pipeline is **idempotent**: re-running the same command reconciles state from GitHub and resumes where it left off (see [§13](#13-recovery-and-idempotency)).
 - **Isolation by worktree.** Every feature is built in its own `git worktree` on its own branch, with its own dev-server port. Your main working tree is never edited.
-- **Screen-first builds.** Features are decomposed into screens (Feature-Sliced Design). Each screen is built, then visually verified in your real Chrome before the PR is opened. The outcome is never silent: a `b7:screen-review=` marker on the PR and a `screens=` token on the run's status line always say whether it ran, passed, or was skipped (and why) — see [§7](#7-the-pipeline-step-by-step) and [§11](#11-artifacts-it-produces).
+- **Screen-first builds.** The unit of planning is the **screen** (`src/routes/<feature>/`), not the capability — no list/create/delete as separate issues over the same route. Each screen is a wave of 4 issues (`kind: remote | ui | tests | docs`, plus optional `kind: infra`) with fixed intra-wave deps (`remote → ui → tests, docs`) and only real deps between screens; files stay disjoint by construction, the screen is built and reviewed once in its final state, and visual verification runs against your real Chrome (only for `kind: ui` issues). The outcome is never silent: a `b7:screen-review=` marker on the PR and a `screens=` token on the run's status line always say whether it ran, passed, or was skipped (and why) — see [§7](#7-the-pipeline-step-by-step) and [§11](#11-artifacts-it-produces).
+- **Remote functions are written once.** A `kind: remote` issue declares `Reuses`/`Creates`; builders look for an equal or similar function in `*.remote.ts` and import or extend it before creating another.
 - **Budgets and backpressure.** Runs are bounded (max iterations, max changed files) and the pipeline refuses to pile up work (it will not start if too many bot PRs are already open).
 - **Delegation, not bypass, at scale.** Every automated shortcut (epic auto-merge, batched approvals, parallel builds) re-derives its own evidence at the moment it acts instead of trusting a flag — see [§9](#9-human-gates).
 
@@ -267,6 +268,7 @@ Triage reads and writes these labels; they are the pipeline's control plane. Cre
 - **Bot / approval:** `auto-pr-bot`, `merge-approved`, `epic-approved`, `epic-auto-merge`, `awaiting-approval`, `awaiting-walkthrough`
 - **Batch-decision (epic mode):** `force-complex-ok`, `regression-waiver-ok`
 - **Escalation:** `needs-human-review`, `pipeline-failed`
+- **Slice shape (b0 epic mode):** `kind:remote`, `kind:ui`, `kind:tests`, `kind:docs`, `kind:infra`, `screen:<name>`
 
 ---
 

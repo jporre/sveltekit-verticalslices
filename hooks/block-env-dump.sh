@@ -1,27 +1,31 @@
 #!/usr/bin/env bash
 # PreToolUse hook — bloquea dumps de archivos .env en plaintext.
 #
-# Estructura calcada de block-git-worktree-add.sh: lee JSON por stdin, extrae el
-# tool_input, y en caso de match imprime un hint a stderr + exit 2 (bloquea la tool).
+# Lee el JSON del hook por stdin, extrae tool_input y, si hay match, imprime un
+# hint corto a stderr + exit 2 (bloquea la tool).
 #
 # Motivo (incidente real, sesión 80744a45): un `cat .env` imprimió secretos en
-# plaintext y el usuario tuvo que interrumpir. El hook link-worktree-env.sh symlinkea todos los
-# .env* a cada worktree, así que el riesgo está en cada worktree. Para diagnosticar
-# credenciales SIN exponerlas, usar hooks/env-probe.sh (fingerprints, no valores).
+# plaintext. link-worktree-env.sh symlinkea los .env* a cada worktree, así que
+# el riesgo existe en todos. Para diagnosticar credenciales SIN exponerlas:
+# hooks/env-probe.sh (fingerprints, no valores).
 #
-# Cubre DOS matchers (ver hooks.json):
-#   - Bash: bloquea verbos de dump (cat|bat|less|more|head|tail|grep|awk|sed|strings)
-#           sobre archivos .env, y `printenv`/`env` a secas o con pipe.
-#   - Read: bloquea file_path que apunte a un .env (sin esto el gate Bash se bypassea
-#           leyendo el archivo con el tool Read).
+# Matchers (ver hooks.json):
+#   - Bash: por SEGMENTO del comando (se parte en saltos de línea ; | & ( ) `),
+#           bloquea si el segmento empieza con un verbo de dump y entre sus
+#           argumentos hay un path .env sensible. Además `printenv` y `env` a secas.
+#   - Read: bloquea file_path que apunte a un .env sensible.
 #
-# NO bloquea (siguen funcionando):
-#   - `cat .env.example` / `.env.sample`  (no son secretos)
-#   - `source .env` / `. .env`            (carga sin imprimir)
-#   - `env VAR=x cmd`                      (env como runner, no como dump)
+# NO bloquea:
+#   - `cat .env.example` / `.env.sample`            (no son secretos)
+#   - `source .env` / `. .env`                      (carga sin imprimir)
+#   - `bash -c 'source .env; psql …' | grep x`      (el verbo no recibe el .env)
+#   - `grep process.env.FOO src/`                   (process.env no es un path)
+#   - `env VAR=x cmd`                               (env como runner)
 #
-# Safety stance: over-bloquea a propósito. El modo de falla seguro es negar de más;
-# para un secreto expuesto no hay vuelta atrás.
+# Precisión sobre cobertura ciega: la versión anterior bloqueaba cualquier
+# comando donde ".env" y un verbo de dump coincidieran en el texto completo,
+# lo que frenaba consultas legítimas 3-4 veces por sesión. El modo de falla
+# sigue siendo negar: ante duda (segmento raro, subshell), se bloquea.
 
 set -euo pipefail
 
@@ -52,73 +56,89 @@ print(ti.get(key,'') or '')
 cmd="$(_field '.tool_input.command')"
 file_path="$(_field '.tool_input.file_path')"
 
-# --- helper: ¿un path apunta a un .env sensible? (excluye .example/.sample) ---
+# --- helper: ¿el texto contiene un path .env sensible? ---
+# ".env" debe abrir token/path: no lo precede un alfanumérico (descarta process.env, dotenv).
+# Bare ".env" (fin o seguido de algo que no sea . _ - alfanumérico) o ".env.<sufijo>"
+# con sufijo distinto de example/sample.
 _is_sensitive_env_path() {
   local p="$1"
-  # bare .env (fin de string o seguido de algo que no sea . _ - alfanumerico)
-  if printf '%s' "$p" | grep -Eq '\.env([^A-Za-z0-9._-]|$)'; then
+  if printf '%s' "$p" | grep -Eq '(^|[^A-Za-z0-9_])\.env([^A-Za-z0-9._-]|$)'; then
     return 0
   fi
-  # .env.<suffix> con suffix != example/sample
   local m sfx
   while IFS= read -r m; do
     [ -z "$m" ] && continue
-    sfx="${m#.env.}"
+    sfx="${m##*.env.}"
     case "$sfx" in
       example|sample) ;;
       *) return 0 ;;
     esac
-  done < <(printf '%s' "$p" | grep -Eo '\.env\.[A-Za-z0-9_-]+' || true)
+  done < <(printf '%s' "$p" | grep -Eo '(^|[^A-Za-z0-9_])\.env\.[A-Za-z0-9_-]+' || true)
+  return 1
+}
+
+# --- helper: ¿este segmento es <verbo de dump> ... <path .env sensible>? ---
+_segment_dumps_env() {
+  local seg="$1" w base
+  while :; do
+    seg="${seg#"${seg%%[![:space:]]*}"}"
+    [ -z "$seg" ] && return 1
+    w="${seg%%[[:space:]]*}"
+    case "$w" in
+      sudo|command|builtin|xargs|nice|nohup|time) seg="${seg#"$w"}"; continue ;;
+      [A-Za-z_]*=*) seg="${seg#"$w"}"; continue ;;
+    esac
+    break
+  done
+  base="${w##*/}"
+  case "$base" in
+    cat|bat|less|more|head|tail|grep|egrep|fgrep|awk|sed|strings|xxd|od|nl|tac) ;;
+    *) return 1 ;;
+  esac
+  _is_sensitive_env_path "${seg#"$w"}"
+}
+
+_cmd_dumps_env() {
+  local seg
+  while IFS= read -r seg; do
+    if _segment_dumps_env "$seg"; then return 0; fi
+  done < <(printf '%s\n' "$cmd" | tr ';|&()`\n' '\n\n\n\n\n\n\n')
   return 1
 }
 
 _block() {
   cat >&2 <<MSG
-BLOCKED: posible dump de secretos desde un archivo .env.
-
-$1
-
-Para diagnosticar credenciales SIN exponer valores, usar env-probe.sh
-(imprime solo fingerprints: NAME set=yes|no len=NN sha256_8=xxxxxxxx):
-
-  bash "${PROBE}" .env                 # todas las claves
-  bash "${PROBE}" .env VAR1 VAR2        # claves puntuales
-  bash "${PROBE}" --compare a.env b.env # diff por fingerprint
-
-Permitido: cat .env.example / .env.sample, source .env, env VAR=x cmd.
+BLOCKED: $1
+Sin exponer valores: bash "${PROBE}" .env [VAR…]  (fingerprints: set/len/sha256_8).
+Permitido: cat .env.example, source .env, env VAR=x cmd.
 MSG
   exit 2
 }
 
 # ============================ Matcher: Read ============================
-# El tool Read no pasa por Bash; sin este bloqueo el gate se bypassea leyendo .env.
 if [ -n "$file_path" ]; then
   if _is_sensitive_env_path "$file_path"; then
-    _block "Read de un archivo .env (${file_path}) — leeria secretos en plaintext."
+    _block "Read de ${file_path} leería secretos en plaintext."
   fi
-  # Read de otra cosa: no aplica el resto.
   exit 0
 fi
 
 # ============================ Matcher: Bash ============================
 [ -z "$cmd" ] && exit 0
 
-# (1) Verbo de dump sobre un archivo .env sensible.
-DUMP_VERBS='(cat|bat|less|more|head|tail|grep|egrep|fgrep|awk|sed|strings|xxd|od|nl|tac)'
-if printf '%s' "$cmd" | grep -Eq "(^|[|&;[:space:]()])${DUMP_VERBS}([[:space:]]|$)"; then
-  if _is_sensitive_env_path "$cmd"; then
-    _block "Comando de dump sobre un archivo .env:  ${cmd}"
-  fi
+# (1) Verbo de dump con un .env sensible como argumento, por segmento.
+if _cmd_dumps_env; then
+  _block "dump de un archivo .env en:  ${cmd}"
 fi
 
-# (2) printenv (a secas, con args o con pipe) — siempre vuelca variables del entorno.
+# (2) printenv (a secas, con args o con pipe) — siempre vuelca el entorno.
 if printf '%s' "$cmd" | grep -Eq '(^|[|&;[:space:]()])printenv([[:space:]]|$|\|)'; then
-  _block "printenv vuelca variables del entorno (posibles secretos):  ${cmd}"
+  _block "printenv vuelca variables del entorno:  ${cmd}"
 fi
 
-# (3) env a secas o con pipe (pero NO `env VAR=x cmd`, que solo corre un comando).
+# (3) env a secas o con pipe (pero NO `env VAR=x cmd`).
 if printf '%s' "$cmd" | grep -Eq '(^|[|&;[:space:]()])env([[:space:]]*$|[[:space:]]*\|)'; then
-  _block "env sin asignaciones vuelca el entorno (posibles secretos):  ${cmd}"
+  _block "env sin asignaciones vuelca el entorno:  ${cmd}"
 fi
 
 exit 0

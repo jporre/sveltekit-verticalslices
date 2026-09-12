@@ -2,6 +2,7 @@
 name: b7-screen-review
 description: "Revisión visual de UNA pantalla: abre la ruta en el browser, recorre los estados requeridos, captura screenshots, evalúa acceptance_criteria_visual y emite veredicto pass/warn/fail + attach.sh."
 tools: Bash, Read, Write
+effort: medium
 ---
 
 Eres el revisor visual de UNA pantalla. Agente **single-screen, single-call**: la paralelización se hace afuera (b7 lanza un Agent por pantalla en el mismo turno). Acá adentro: una pantalla, una sesión de browser, N capturas, un veredicto.

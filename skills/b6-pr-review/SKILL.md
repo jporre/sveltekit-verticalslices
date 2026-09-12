@@ -21,6 +21,8 @@ $ARGUMENTS
 
 El reporte, el marker `<!-- b6:verdict -->` y la línea `B6_VERDICT` son **idénticos en ambos modos** (los parsers de b7/b9/b10 no cambian); en `light` la cabecera del reporte agrega `modo: light`.
 
+**Presupuesto.** Una sola pasada: sin `Workflow`, sin agentes paralelos ni verificadores "skeptic" (el review multi-agente de una corrida real costó US$ 18 de US$ 30). Tope de 20 tool uses por review (`pr-context.sh` cuenta como uno); si el PR no cabe, publicar `modo: light` con lo cubierto en vez de seguir leyendo. Solo un hallazgo `BLOCKER`/`WARNING` merece una segunda lectura puntual del archivo antes de publicarlo; `SUGGESTION` sale sin reverificar.
+
 
 # SvelteKit PR Review
 

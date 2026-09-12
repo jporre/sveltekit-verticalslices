@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.13.0] — 2026-09-11
+
+### Perf — presupuesto de tokens: una corrida de US$ 30 analizada turno a turno
+
+- **`hooks/block-env-dump.sh` evalúa por segmento.** Antes bloqueaba cualquier comando donde `.env` y un verbo de dump coincidieran en el texto completo (`bash -c 'source .env; psql …' | head`, `grep process.env.X src/`): 3-4 falsos positivos por sesión, cada uno un turno pagado. Ahora parte el comando en segmentos (`;`, `|`, `&`, `(`, `)`, `` ` ``, saltos de línea) y bloquea solo si el segmento empieza con el verbo de dump y entre sus argumentos hay un `.env` sensible; `.env` debe abrir token/path (descarta `process.env`, `dotenv`). Misma cobertura para `printenv`, `env` a secas y el matcher Read. Mensaje de bloqueo de 3 líneas. Vectores en `hooks/tests/block-env-dump.test.sh`.
+- **`effort: medium`** en `agents/b7-impl.md` y `agents/b7-screen-review.md` (heredaban el de la sesión; con `xhigh`, el output fue el 37 % del costo).
+- **b7 — sección *Presupuesto de tokens*:** un agente por tarea (nunca `Workflow`/ultracode dentro del pipeline; review = un solo b6 `--light`), verificación solo de `BLOCKER`/`WARNING`, el orquestador no explora (nada de más de 200 líneas ni `node_modules/` en su contexto), techo ~100k para no compactar. Columna *Effort* en la tabla de sub-agentes. El paso 9 anexa la línea de costo al run report.
+- **b2 — explorar barato:** codegraph (`codegraph_explore` / `codegraph explore`) antes de leer; `rg -l` + `Read` con `offset/limit` sin codegraph; nunca volcar más de 200 líneas; `node_modules/` solo vía `Agent(Explore)`. Golden Rule 6.
+- **b6 — presupuesto:** una pasada, sin agentes paralelos, tope de 20 tool uses, segunda lectura solo para `BLOCKER`/`WARNING`.
+- **`scripts/cost-report.py`** (stdlib): costo de la sesión desde el transcript `.jsonl` (main + sub-agentes, deduplicado por `message.id`), por fuente y por prompt del usuario; `--brief` da una línea machine-readable que b9 (PASO 7, `Costo:`) y b7 (paso 9) anexan a sus reportes. Precios default calibrados con esa corrida; `--prices` para ajustar.
+
 ## [1.12.0] — 2026-09-07
 
 ### Feat — b0: una pantalla = una ola (remote / ui / tests / docs)

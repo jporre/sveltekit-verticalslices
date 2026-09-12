@@ -175,15 +175,17 @@ bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR> || echo "WA
 
 ### 9. Run report y cierre
 
-`bash scripts/render-report.sh` desde `.b7/state.json` → `~/.claude/projects/<slug>/b7-runs/<UTC>-issue-<N>.md`. Después `dod-check`, `release-lock`, `B7_DONE`. En `--dry-run` leer `references/dry-run.md`.
+`bash scripts/render-report.sh` desde `.b7/state.json` → `~/.claude/projects/<slug>/b7-runs/<UTC>-issue-<N>.md`; anexar al final del reporte la salida de `python3 "$PLUGIN_ROOT/scripts/cost-report.py" --brief` (costo de la sesión hasta aquí; si no encuentra transcript, anotar `COST n/a`). Después `dod-check`, `release-lock`, `B7_DONE`. En `--dry-run` leer `references/dry-run.md`.
 
 ## Sub-agentes
 
-| Paso | Sub-agente | Modelo |
-|------|-----------|--------|
-| 4 | `Agent(b-pipeline:b7-impl)` (M/L) · `b7-impl-s` (S) | el de la sesión |
-| 5 | `Agent(b-pipeline:b7-screen-review)` × pantalla, en paralelo | el de la sesión |
-| 1, 6, 8 | `Skill` directo (`b1-triage-issue`, `b3-git-commit`, `b4-pull-request`, `b6-pr-review`) | el de la sesión |
+| Paso | Sub-agente | Modelo | Effort |
+|------|-----------|--------|--------|
+| 4 | `Agent(b-pipeline:b7-impl)` (M/L) · `b7-impl-s` (S) | el de la sesión | `medium` (frontmatter de `b7-impl`) |
+| 5 | `Agent(b-pipeline:b7-screen-review)` × pantalla, en paralelo | el de la sesión | `medium` (frontmatter del agente) |
+| 1, 6, 8 | `Skill` directo (`b1-triage-issue`, `b3-git-commit`, `b4-pull-request`, `b6-pr-review`) | el de la sesión | el del skill (`b6`: `low`) |
+
+Ningún paso lanza `Workflow` ni más de un agente por tarea: ver *Presupuesto de tokens*.
 
 ## Manejo de errores
 
@@ -191,12 +193,23 @@ bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR> || echo "WA
 - **El lock NO se libera solo.** Éxito, abort y bail lo liberan. Fallback: lock sin tocar 2h se recupera en el próximo preflight.
 - Si `publish-docs.sh` falla (`gh` caído), log a stderr y continuar.
 
+## Presupuesto de tokens
+
+Una corrida real (2026-09-11) costó US$ 30: 60 % fue un `Workflow` de review con 14 sub-agentes, 20 % exploración con `cat` de archivos largos en el contexto principal y el resto build a 140-164k de contexto (compactación en 164k). Reglas:
+
+- **Un agente por tarea.** Nunca `Workflow` ni ultracode dentro del pipeline, aunque la sesión los tenga activos: los pasos ya están decididos. Review = un solo `Skill(b6-pr-review … --auto --light)`, sin verificadores paralelos ni "skeptics".
+- **Verificar solo lo que bloquea.** Un hallazgo `BLOCKER`/`WARNING` de b6 se reexamina con una segunda lectura puntual del archivo; `SUGGESTION` se publica sin reverificar.
+- **Este fork no explora.** Nada de `cat`/`Read` de archivos de más de 200 líneas ni de `node_modules/` en el contexto del orquestador: eso lo hace `b7-impl` (o un `Agent(Explore)` que devuelve un resumen) y muere con él.
+- **Techo de contexto ~100k.** Sobre eso el harness compacta y se pierde el estado del run: no abrir referencias nuevas; el estado vive en `.b7/state.json`.
+- **Effort.** `b7-impl` y `b7-screen-review` corren con `effort: medium` (frontmatter); el orquestador con `low`. Subirlo solo si el usuario lo pide en la invocación.
+
 ## Qué NO hacer
 
 - No escribir triage ni mensajes de commit propios. No bypassear budgets con números más altos: escalar a humano.
 - No tocar `package.json`, lockfiles, `.env*`, `*.pem`, `*.key`, `secrets/`, configs de build/CI ni `scripts/*.sh` (el hook `pre-commit-budget.sh` los rechaza; bypass humano `B7_BUDGET_OVERRIDE=1`).
 - No leer `git diff` ni logs completos: `.b7/diff-stat.txt`, `Read` con `offset/limit`, `log-filter.sh`.
 - No saltarse `b7-screen-review` fuera de la rampa del paso 5; cada skip deja `SKIPPED.json`.
+- No lanzar `Workflow`, ultracode ni agentes paralelos de review; no volcar archivos largos ni `node_modules/` en este contexto (ver *Presupuesto de tokens*).
 
 ## Referencias (carga bajo demanda — este archivo se paga en cada turno, una reference una vez)
 

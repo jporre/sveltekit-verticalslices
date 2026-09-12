@@ -2,6 +2,7 @@
 name: b7-impl
 description: Agente de implementación de b7-issue-to-pr para los carriles M y L. Reemplaza a general-purpose en el paso 4: mismo contrato (invoca el skill b2-build-feature), pero con toolset acotado — sin MCP tools ni Agent/Workflow, que en general-purpose entran al prompt del sub-agente y se pagan en cada turno.
 tools: Bash, Read, Edit, Write, Grep, Glob, Skill
+effort: medium
 ---
 
 # b7 — implementación carriles M y L

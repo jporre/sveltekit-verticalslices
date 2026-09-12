@@ -109,6 +109,8 @@ gh issue view <NUMBER> --json number,title,body,comments,labels
 
 Read ALL comments — not just the body. Clarifications, scope changes, and decisions often happen in the comment thread. If the issue was triaged by `b1-triage-issue`, there will be an evaluation comment with affected files, complexity estimate, and a proposed plan. Use that as your starting point.
 
+**Explorar barato, antes de leer.** Con `.codegraph/` en el repo, primero `codegraph_explore` (MCP) o `codegraph explore "<símbolos>"` (shell): devuelve el source de los símbolos y quién los llama en una sola llamada. Sin codegraph: `rg -l` para ubicar y `Read` con `offset/limit`. Nunca volcar un archivo de más de 200 líneas al contexto (ni `cat` ni `Read` entero); `node_modules/` solo a través de un `Agent(Explore)` que devuelva un resumen. El contexto debe quedar bajo ~100k tokens: sobre eso el harness compacta y se pierde el plan.
+
 **If the user described the feature directly**, and the request is already clear (entity, operations, screens), skip to Phase 2.
 
 Otherwise, confirm in 1-2 questions:
@@ -273,6 +275,7 @@ After verification passes:
 3. **$derived for filtering** — client-side for <1000 items
 4. **snake_case functions** — `get_items`, `upsert_item`, `delete_item`
 5. **Lazy ladder** — stop at the first rung that holds; no unrequested abstraction; mark deliberate shortcuts with `// ponytail:` (see `references/simplicity-ladder.md`)
+6. **Explore cheap** — codegraph (or `rg -l`) before reading; never dump a file over 200 lines or anything from `node_modules/` into the context; keep the context under ~100k tokens (compaction at ~164k loses the plan)
 
 Todo lo demás (upsert único, `$derived` para queries, `fields.as`, namespace imports, `error()` throws, `href`) ya vive en la tabla STOP de arriba.
 

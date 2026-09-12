@@ -114,6 +114,8 @@ El LLM solo refina un esqueleto si `acceptance_criteria_visual` vino vacío o si
 
 ### 4. Implementación (loop bounded)
 
+**Cambio mecánico sin descubrimiento** (renames, bumps, docs/config, ediciones ya decididas archivo por archivo): en vez de `b7-impl`, `Skill(b-pipeline:b11-spec-exec)` — la sesión escribe la spec ejecutable, un modelo barato la aplica en un proceso aislado y un validador la certifica byte a byte; el resto del pipeline sigue igual.
+
 Agente: `Agent(subagent_type="b-pipeline:b7-impl")` en M/L, `b7-impl-s` en S. Sin `model=`: hereda el de la sesión. **Prohibido `general-purpose`** (mete todos los schemas MCP en cada turno). Pasarle:
 
 - Rutas a `.b7/triage.json`, `.b7/screens/`, `.b7/context.md`, `$WORKTREE`.

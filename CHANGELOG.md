@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.14.0] — 2026-09-12
+
+### Feat — b11-spec-exec: spec ejecutable + modelo barato
+
+- **Nuevo skill `b11-spec-exec`**, dos niveles para cambios mecánicos ya decididos archivo por archivo. La sesión (modelo caro) escribe una SPEC ejecutable según `references/spec-template.md` (`REPO:`, `COPIAR: origen -> destino [+x]`, `ARCHIVO:`/`BUSCAR:`/`REEMPLAZAR:` con texto exacto y único, aceptación, estado git esperado). `scripts/validate-spec.py` (stdlib) la ensaya en un clon temporal antes de gastar un token (`SPEC OK`) y, tras el ejecutor, certifica byte a byte y bit de ejecución cada archivo tocado, corre la aceptación y compara `git status --porcelain` (`--check` → `CHECK OK`). `scripts/exec-spec.sh` la aplica con un modelo barato en un `claude -p` aislado (env propio, MCP vacío con `--strict-mcp-config`, `--allowedTools Bash,Read,Edit,Write,Glob,Grep`, `--max-turns`) y emite una línea `EXEC …` con turnos, duración, tokens y costo a lista calculado desde `modelUsage` (el `total_cost_usd` de `claude -p` es falso para modelos que no conoce). Modelo: `--model` > `$B_PIPELINE_EXEC_MODEL` > `z-ai/glm-5.3-flash` vía OpenRouter si existe `OPENROUTER_API_KEY` (solo llega al proceso hijo) > `haiku`.
+- **Benchmark** (PROMPT 1.13, 14 archivos, ambos byte-idénticos al ensayo determinista): Haiku 4.5, 33 llamadas, 4 min 13 s, ≈ US$ 0,38 a lista; GLM 5.3 Flash, 34 turnos, 2 min 28 s, ≈ US$ 0,044. GLM además reportó una ambigüedad real de la spec. Queda como ejecutor por defecto cuando hay key de OpenRouter.
+- **`agents/b11-review.md`**: revisor de una pasada (≤ 20 tool uses) solo cuando la spec toca `src/`, tests o migraciones, o con `--review`. Mira lo que el comparador de bytes no ve: alcance, fidelidad, informe del ejecutor contra la realidad, sentido del cambio. `REVIEW veredicto=APROBADO|OBSERVACIONES|RECHAZADO`.
+- **b7 paso 4** apunta a b11 para cambios mecánicos sin descubrimiento; README §6 (tabla) y §14 (ejemplo).
+- Esta versión se instaló con su propia SPEC: ensayada por el validador, aplicada por GLM 5.3 Flash y certificada con `--check`.
+
 ## [1.13.0] — 2026-09-11
 
 ### Perf — presupuesto de tokens: una corrida de US$ 30 analizada turno a turno

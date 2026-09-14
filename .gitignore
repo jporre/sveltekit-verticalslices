@@ -8,3 +8,7 @@
 *.pid
 .playwright-mcp/
 node_modules
+
+# python bytecode
+__pycache__/
+*.pyc

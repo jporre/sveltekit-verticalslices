@@ -8,6 +8,7 @@
 - **Una sola fuente**: b10 `run.sh` (`B10_TRIAGE=…`) delega en el script (antes tenía el mapeo duplicado en bash y ya había drifteado de la prosa de b1: `lane:b11`); b7 paso 1, el prompt de b8 y el Workflow de epic-mode lo corren ANTES de `Skill(b1)` y con `ok` no lo spawnean (un fork Explore menos por issue de b0). La prosa del mapeo en b1 `SKILL.md` se reemplaza por el puntero al script; heading/marker/`TRIAGE_RESULT`/bloque json intactos.
 - **`effort: low`** en el frontmatter de b1. El recorte de `b1/SKILL.md` queda para después de medir el costo del fork con `cost-report.py`.
 - Regresión: `tests/triage-from-labels.test.sh` (fixture `kind:ui` de b0 → `validate-triage` + `screens-check`; `bug` → `fix` con evidence y `triage-gates` sin bail; sin `## Archivos previstos` → `none`; comentario humano → `none`; `lane=b11`; `effort: low`).
+- Repo: se elimina `scripts/__pycache__/cost-report.cpython-314.pyc` (entró por error en #59); `.gitignore` ignora `__pycache__/` y `*.pyc`.
 
 ## [1.15.3] — 2026-09-14
 
@@ -39,6 +40,10 @@
 - **Señal de carril:** b0 estampa `lane:b11` en slices mecánicos elegibles (`kind:docs|tests|infra`, `## Archivos previstos` ≤ 6, sin `src/routes/` ni migraciones con lógica); `run.sh reconcile` lo lee (fallback: primera línea del body `Carril: b11`) y anexa `lane=b11` a `B10_TRIAGE`. Sin señal no se emite `lane`.
 - **`references/lane-b11.md` (b10):** fase 3 con `lane=b11` NO invoca b7 — provision de b7, SPEC por `Agent(general-purpose)` NUEVO con prompt acotado (**nunca fork**: 16,4 M tokens de entrada por issue medidos en custodia360#224), validar → ejecutar → certificar → `b11-review` si toca `src/`, vitest solo sobre archivos tocados, commit b3 + PR desde el worktree + b6 `--light`. Salida `B7_DONE … lane=b11 exec_usd=… spec_turns=…` — fases 4-5 y sticky sin cambios; `LANE_FALLBACK=b7` devuelve el issue al build normal. Elegibilidad y regla anti-fork también en epic-mode (modo rápido).
 - **Fricciones del skill b11** (todas medidas en el mismo run): `validate-spec.py` y `exec-spec.sh` validan REPO con `git rev-parse --is-inside-work-tree` (los worktrees tienen `.git` gitfile y el check `-d .git` los rechazaba); `$DIR` default se muda de `~/.claude/b11` a `${TMPDIR:-/tmp}/b11` (al hijo `claude -p` con `defaultMode: auto` le niegan `~/.claude/**` y el `COPIAR` caía); `exec-spec.sh` exige `denials=0` para `ok=si` (un hijo "success" con permisos denegados no aplicó nada — falso positivo); regla de prettier ANTES de escribir anclas. Regresión: `tests/validate-worktree.test.sh`.
+
+### Fix — `render-report.sh`: strip de comentarios HTML de guía antes del gate y de `envsubst` (#56)
+
+- Los comentarios de autor de las 4 plantillas se publicaban en CHANGELOG, PR body y sticky; el gate de vars exigía claves de state para vars que solo viven en comentarios y `envsubst` filtraba valores del state dentro de comentarios publicados. Ahora se eliminan antes del gate y de `envsubst`, preservando solo los markers `<!-- b7:* -->` (`b7:status` sigue como primera línea del sticky). Regresión: `tests/render-strip-comments.test.sh`.
 
 ## [1.14.0] — 2026-09-12
 

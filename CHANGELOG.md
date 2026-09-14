@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.1] — 2026-09-14
+
+### Fix — pi ya no escribe `~/.claude/b-pipeline.root`
+
+- El compat de pi (`pi/b-pipeline-compat.ts`) escribía el marker global en cada `session_start` apuntando a SU clone. Como el marker es last-writer-wins y gana al glob en la precedencia de los snippets (`CLAUDE_PLUGIN_ROOT` → marker → glob), una sesión de pi dejaba a TODAS las sesiones de Claude Code ejecutando los scripts del clone de pi — potencialmente viejo — y las actualizaciones del plugin "no aplicaban". Ahora pi solo exporta `CLAUDE_PLUGIN_ROOT` a `process.env` (los procesos del Bash tool lo heredan; el marker era redundante en pi) y `~/.claude/b-pipeline.root` queda como propiedad exclusiva del hook SessionStart de Claude Code, que lo reescribe correcto en cada inicio de sesión.
+
 ## [1.15.0] — 2026-09-14
 
 ### Feat — carril b11 nativo en el pipeline (#57)

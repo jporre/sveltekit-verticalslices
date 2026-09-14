@@ -6,7 +6,7 @@
 //   Claude Code                          pi
 //   ------------------------------       ------------------------------------
 //   SessionStart write-root-marker.sh -> exporta CLAUDE_PLUGIN_ROOT en el
-//                                        proceso + escribe ~/.claude/b-pipeline.root
+//                                        proceso (el marker es solo de CC)
 //   PreToolUse(Bash)  block-*.sh     -> pi.on("tool_call", toolName "bash")
 //   PreToolUse(Read)  block-env-dump -> pi.on("tool_call", toolName "read")
 //   PostToolUse(Bash) link-worktree  -> pi.on("tool_execution_end", "bash", no-fatal)
@@ -17,8 +17,7 @@
 // otro error = no bloquear (fail-open, como el harness de Claude Code).
 
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -79,18 +78,15 @@ export default function bPipelineCompat(pi: ExtensionAPI) {
   const root = findPluginRoot();
   if (!root) return;
 
-  // --- Equivalente de SessionStart write-root-marker.sh -----------------------
-  // CLAUDE_PLUGIN_ROOT en el entorno del proceso: los snippets bash de los
-  // SKILL.md y todos los scripts del plugin lo leen igual que en Claude Code.
+  // --- CLAUDE_PLUGIN_ROOT en el entorno del proceso ---------------------------
+  // Los snippets bash de los SKILL.md y todos los scripts lo heredan vía env,
+  // igual que en Claude Code. NO escribir ~/.claude/b-pipeline.root desde pi:
+  // ese marker es propiedad exclusiva del hook SessionStart de Claude Code —
+  // escribirlo desde acá apuntaba las sesiones de CC al clone de pi (otra
+  // instalación, potencialmente vieja) y "bloqueaba" las actualizaciones del
+  // plugin (last-writer-wins entre dos clones).
   pi.on("session_start", async () => {
     process.env.CLAUDE_PLUGIN_ROOT = root;
-    try {
-      const markerDir = join(homedir(), ".claude");
-      mkdirSync(markerDir, { recursive: true });
-      writeFileSync(join(markerDir, "b-pipeline.root"), `${root}\n`);
-    } catch {
-      // No-fatal: el fallback de los scripts (glob del marketplace) sigue vivo.
-    }
   });
 
   // --- Equivalente de PreToolUse (Bash y Read) --------------------------------

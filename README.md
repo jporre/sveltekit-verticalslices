@@ -278,7 +278,7 @@ Triage reads and writes these labels; they are the pipeline's control plane. Cre
 
 - **Worktrees** — one per feature, on a `feat/…` or `fix/…` branch, removed on close.
 - **`.b7/` state** inside the worktree — `state.json`, per-screen criteria (`.b7/screens/<Name>.md`), and visual review output (`.b7/review/<Name>.json` + PNGs).
-- **Run reports** — a markdown report per run (kept under the plugin's state dir).
+- **Run reports** — a markdown report per run, ending with a `COST …` line, kept under the state dir: `~/.claude/projects/<slug>` of the **main** repo (the same directory Claude Code uses for that project's transcripts; worktrees resolve to their parent).
 - **GitHub trail** — a sticky issue comment, a draft PR with release notes + technical changes, a `<!-- b7:screen-review=... -->` marker recording whether visual verification ran (and why not, if it didn't), and a `b6` review comment with a durable verdict marker. A bot PR that touches UI with no screen evidence and no declared skip is a `b6` **blocker**, not a silent gap.
 
 ---

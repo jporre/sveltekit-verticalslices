@@ -62,19 +62,15 @@ run_timeout() {
   ' "$secs" "$@"
 }
 
-# state-dir para el cache (mismo esquema slug que guardrails.sh).
-# El slug deriva SIEMPRE de $ROOT (el root probado), NO de CLAUDE_PROJECT_DIR: esa
-# variable es constante dentro de una sesión, así que dos roots distintos (worktree
-# vs repo principal, o dos worktrees) compartirían el MISMO archivo de cache y un
-# status contaminaría al otro durante la ventana de TTL. Cada root => su cache. (issue #37)
-state_dir() {
-  local slug
-  slug="$(printf '%s' "$ROOT" | sed 's|/|-|g')"
-  printf '%s/.claude/projects/%s' "$HOME" "$slug"
-}
-SD="$(state_dir)"
+# Cache en el state dir del repo PRINCIPAL (bp_state_dir, scripts/lib.sh: un
+# worktree resuelve al padre — antes cada worktree estrenaba un dir en
+# ~/.claude/projects, 345 de 361 dirs basura eran de este probe, #59). El NOMBRE
+# lleva el slug de $ROOT: dos roots (worktree vs principal, o dos worktrees) NUNCA
+# comparten cache — un status contaminaría al otro durante el TTL (issue #37).
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/scripts/lib.sh"
+SD="$(bp_state_dir "$ROOT")"
 mkdir -p "$SD" 2>/dev/null || true
-CACHE="$SD/codegraph-probe.txt"
+CACHE="$SD/codegraph-probe-$(bp_slug "$ROOT").txt"
 
 finish() { # <status> <age_days>
   local line="CODEGRAPH_STATUS=$1 db_age_days=$2"

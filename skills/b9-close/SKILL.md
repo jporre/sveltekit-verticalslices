@@ -277,12 +277,7 @@ gh pr edit "$PR" --remove-label merge-approved --remove-label awaiting-approval 
 
 > Sin comentario de progreso en el epic: `sub_issues_summary` nativo ya muestra completed/total vivo en la UI de GitHub — comentarlo por cada cierre era ruido duplicado (N comentarios por epic).
 
-Costo de la sesión desde el transcript local (`--prices` ajusta los precios; sin transcript queda `COST n/a`):
-
-```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
-COST_LINE="$(python3 "$PLUGIN_ROOT/scripts/cost-report.py" --brief 2>/dev/null || echo 'COST n/a')"; echo "$COST_LINE"
-```
+El costo NO se mide acá: lo anexa por script el run report de b7 (`publish-docs.sh run-report`, línea `COST …`).
 
 Reporte (terminar SIEMPRE con la línea machine-readable):
 
@@ -295,7 +290,6 @@ Worktree:     removido (<path>) | conservado | n/a
 Rama local:   borrada | n/a
 rama default local: actualizada (pull --ff-only)
 Rescue:       rescue/<branch>-<ts> | n/a
-Costo:        <COST_LINE>
 
 B9_MERGED pr=<N> sha=<sha-corto> issues=<i1,i2,...>
 ```

@@ -9,8 +9,11 @@
 #   issue-comment      — sticky comment en el issue (gh; edita si existe, crea si no)
 #   pr-body            — escribe .b7/pr-body.md (consumido por b4-pull-request)
 #   all                — todos los anteriores
-#   aborted            — variante para cierre de aborto (marca el sticky con ⛔)
-#   bailed [reason]    — variante para bail (verdict != ready); setea bail_reason
+#   aborted [reason]   — cierre de aborto (sticky ⛔ + CHANGELOG [Aborted]); setea abort_reason,
+#                        copia el último .b7/iter-*.tail (≤ 300 chars) a last_log_tail y escribe el run report
+#   bailed [reason]    — variante para bail (verdict != ready); setea bail_reason y escribe el run report
+#   run-report         — renderiza templates/run-report.md a state.run_report_path y anexa la línea
+#                        COST de cost-report.py --brief (COST n/a sin transcript). Sin LLM (#59)
 #   state-set k=v ...  — setea claves (whitelist=claves del state; auto-toca updated_at)
 #   milestone <n> [N]  — avanza milestone_*/status/status_emoji/iter_count
 #   plan-render        — renderiza .b7/triage.json plan[] → state.plan_block (idempotente)
@@ -26,6 +29,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(dirname "$SCRIPT_DIR")"
 TEMPLATES="$SKILL_DIR/templates"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SKILL_DIR/../.." && pwd)}"
+. "$PLUGIN_ROOT/scripts/lib.sh"
 
 SUB=""
 STATE_PATH=""
@@ -42,10 +47,10 @@ while [ $# -gt 0 ]; do
       shift ;;
   esac
 done
-# Compat: primer arg posicional (usado por plan-done <id>, bailed <reason>).
+# Compat: primer arg posicional (usado por plan-done <id>, bailed <reason>, aborted <reason>).
 SUB_ARG="${POSARGS[0]:-}"
 
-[ -z "$SUB" ]        && { echo "Usage: $0 {changelog|issue-comment|pr-body|all|aborted|bailed|state-set|milestone|plan-render|plan-done|plan-check} [--state PATH] [--worktree DIR]" >&2; exit 2; }
+[ -z "$SUB" ]        && { echo "Usage: $0 {changelog|issue-comment|pr-body|all|aborted [reason]|bailed [reason]|run-report|state-set|milestone|plan-render|plan-done|plan-check} [--state PATH] [--worktree DIR]" >&2; exit 2; }
 [ -z "$STATE_PATH" ] && STATE_PATH="$WORKTREE/.b7/state.json"
 [ ! -f "$STATE_PATH" ] && { echo "publish-docs.sh: state json not found: $STATE_PATH" >&2; exit 3; }
 
@@ -295,18 +300,44 @@ cmd_all() {
   cmd_issue_comment || true
 }
 
+# Run report por script (#59): render de run-report.md a state.run_report_path y
+# línea COST al final (cost-report.py --brief desde el worktree: resuelve el repo
+# principal vía git-common-dir; sin transcript => COST n/a). Antes lo pedía en
+# prosa el paso 9 de b7 y 0 de 252 reports traían COST.
+cmd_run_report() {
+  local out cost
+  out="$(state_get run_report_path)"
+  case "$out" in ''|'—')
+    out="$(bp_state_dir "$WORKTREE")/b7-runs/$(date -u +%Y%m%dT%H%M%SZ)-issue-$(state_get issue_number).md" ;;
+  esac
+  render_template "$TEMPLATES/run-report.md" "$out"
+  cost="$(cd "$WORKTREE" && python3 "$PLUGIN_ROOT/scripts/cost-report.py" --brief 2>/dev/null || true)"
+  cost="${cost:-COST n/a}"
+  printf '\n## Costo\n\n%s\n' "$cost" >> "$out"
+  echo "publish-docs/run-report: wrote $out ($cost)"
+}
+
 cmd_aborted() {
-  python3 - "$STATE_PATH" <<'PY'
-import json, sys
-p = sys.argv[1]
+  local reason="${1:-}" tail_file
+  # Último .tail (ya filtrado por log-filter.sh en el paso 4) -> last_log_tail
+  # (≤ 300 chars) ANTES de que b9 borre el worktree; el run report lo conserva (#59).
+  tail_file="$(ls -t "$WORKTREE"/.b7/iter-*.tail 2>/dev/null | head -n 1 || true)"
+  python3 - "$STATE_PATH" "$reason" "$tail_file" <<'PY'
+import json, sys, pathlib
+p, reason, tail_file = sys.argv[1:4]
 with open(p) as f: d = json.load(f)
 d["status"] = "aborted"
 d["status_emoji"] = "⛔"
 d["status_label"] = "Detenido"
+if reason:
+    d["abort_reason"] = reason
+if tail_file:
+    d["last_log_tail"] = pathlib.Path(tail_file).read_text(errors="replace").strip()[-300:]
 with open(p, "w") as f: json.dump(d, f, ensure_ascii=False, indent=2)
 PY
   cmd_issue_comment || true
   cmd_changelog || true
+  cmd_run_report || true
 }
 
 cmd_bailed() {
@@ -323,6 +354,7 @@ if reason:
 with open(p, "w") as f: json.dump(d, f, ensure_ascii=False, indent=2)
 PY
   cmd_issue_comment || true
+  cmd_run_report || true
 }
 
 case "$SUB" in
@@ -330,8 +362,9 @@ case "$SUB" in
   issue-comment) cmd_issue_comment ;;
   pr-body)       cmd_pr_body ;;
   all)           cmd_all ;;
-  aborted)       cmd_aborted ;;
+  aborted)       cmd_aborted "$SUB_ARG" ;;
   bailed)        cmd_bailed "$SUB_ARG" ;;
+  run-report)    cmd_run_report ;;
   state-set)     cmd_state_set ${POSARGS[@]+"${POSARGS[@]}"} ;;
   milestone)     cmd_milestone ${POSARGS[@]+"${POSARGS[@]}"} ;;
   plan-render)   cmd_plan_render ;;

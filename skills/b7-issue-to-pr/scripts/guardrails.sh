@@ -63,20 +63,11 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 # necesitan re-resuelven o fallan con mensaje claro.
 DEFAULT_BRANCH="$(bp_default_branch 2>/dev/null || true)"
 
-# State dir is per-project. Caller passes CLAUDE_PROJECT_DIR via env (Claude Code sets this);
-# fall back to a hash of the current working directory's repo root for direct shell invocations.
-state_dir() {
-  if [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
-    local slug
-    slug="$(printf '%s' "$CLAUDE_PROJECT_DIR" | sed 's|/|-|g')"
-    printf '%s/.claude/projects/%s' "$HOME" "$slug"
-  else
-    local repo_root slug
-    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-    slug="$(printf '%s' "$repo_root" | sed 's|/|-|g')"
-    printf '%s/.claude/projects/%s' "$HOME" "$slug"
-  fi
-}
+# State dir por repo: ~/.claude/projects/<slug> del repo PRINCIPAL (bp_state_dir,
+# scripts/lib.sh). Slug de Claude Code/cost-report.py y un worktree resuelve al
+# padre: invocar desde un worktree NO estrena dirs (#59). Arranque:
+# CLAUDE_PROJECT_DIR si existe, si no el cwd.
+state_dir() { bp_state_dir; }
 
 ensure_state_dir() {
   local d

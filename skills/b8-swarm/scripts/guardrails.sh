@@ -27,15 +27,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Portable: mismo patrón que b10 run.sh. Necesario para invocar el env-check de b7.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 B7_GUARD="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh"
+. "$PLUGIN_ROOT/scripts/lib.sh"
 
+# Mismo state dir que b7 (bp_state_dir: repo principal, slug de Claude Code). b10
+# lo consume vía `state-dir`. Antes con CLAUDE_PROJECT_DIR devolvía ese dir a secas.
 state_dir() {
-  local d="${CLAUDE_PROJECT_DIR:-}"
-  if [ -z "$d" ]; then
-    # Fallback: ~/.claude/projects/<slug-of-cwd>
-    local slug
-    slug="$(pwd | sed 's|/|-|g')"
-    d="$HOME/.claude/projects/${slug}"
-  fi
+  local d; d="$(bp_state_dir)"
   mkdir -p "$d"
   echo "$d"
 }

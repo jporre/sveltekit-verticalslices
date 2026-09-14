@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.15.3] — 2026-09-14
+
+### Fix — state dir único por repo, línea `COST` por script y `abort_reason` (#59)
+
+- **`bp_state_dir` / `bp_slug` (`scripts/lib.sh`)**: un solo cálculo del state dir para b7, b8, b10 y el cache de `codegraph-probe.sh`. Slug = el de Claude Code (`[^A-Za-z0-9]` → `-`, el mismo regex de `cost-report.py`; antes `sed 's|/|-|g'` conservaba `_` y `.`) y un worktree resuelve al repo principal vía `git rev-parse --git-common-dir`. Efecto: el state dir coincide con el directorio de los transcripts de la sesión, e invocar `guardrails.sh` o el probe desde un worktree ya no estrena un directorio en `~/.claude/projects` (había 361 `*worktrees-*`; 354 los crearon nuestros scripts, 345 solo con `codegraph-probe.txt`). El cache del probe sigue siendo por root, ahora en el nombre (`codegraph-probe-<slug del root>.txt`, #37 sigue cubierto). b8 `state-dir` ya no devuelve `$CLAUDE_PROJECT_DIR` a secas (dentro del Bash tool esa variable ni existe; el kill-switch de b8 se documenta con `state-dir`).
+- **Dirs viejos (manual, opcional)**: los `b7-runs/` bajo el slug con `_` (p. ej. `-Users-…-custodia_project-custodia360`) no se migran solos — moverlos al slug nuevo (`…-custodia-project-custodia360`) o dejarlos. Candidatos a borrar: dirs de `~/.claude/projects` sin transcripts, `for d in ~/.claude/projects/*worktrees-*; do ls "$d"/*.jsonl >/dev/null 2>&1 || echo "$d"; done` — revisar la lista antes de cualquier `rm -rf`.
+- **`publish-docs.sh run-report`**: renderiza `run-report.md` a `state.run_report_path` y anexa `## Costo` + la línea `COST …` de `cost-report.py --brief` (o `COST n/a` sin transcript). `aborted` y `bailed` lo llaman al final; b7 paso 9 lo invoca en vez de pedirle al LLM correr `cost-report.py` (0 de 252 run reports traían `COST`). b9 PASO 7 deja de medir costo a mano (el dato vive en el run report).
+- **`publish-docs.sh aborted [reason]`**: espejo de `bailed` — persiste `abort_reason` y copia los últimos 300 chars del `.b7/iter-*.tail` más reciente a `last_log_tail`, así el run report conserva el error aunque b9 borre el worktree. b7 pasa la razón en toda ruta de abort.
+- Regresión: `tests/state-dir-slug.test.sh` (slug = `cost-report.py`, worktree → padre, 0 dirs nuevos, cache del probe por root) y `tests/publish-docs-run-report.test.sh` (`COST` por script, `abort_reason` y `.tail` en state y reporte).
+
 ## [1.15.2] — 2026-09-14
 
 ### Fix — contrato b1/b7: b1 emite el JSON, el llamador lo persiste (#58)

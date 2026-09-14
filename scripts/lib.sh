@@ -31,6 +31,16 @@
 #                                      {type} {issue} {slug}; default
 #                                      '{type}/{issue}-{slug}' = comportamiento
 #                                      histórico feat/<n>-<slug>.
+#   bp_slug <path>                     slug de Claude Code para ~/.claude/projects:
+#                                      [^A-Za-z0-9] -> '-' por carácter (mismo
+#                                      regex que scripts/cost-report.py).
+#   bp_state_dir [dir]                 ~/.claude/projects/<bp_slug del repo
+#                                      PRINCIPAL>: un worktree resuelve al padre
+#                                      (git-common-dir), así el state dir es el
+#                                      mismo donde Claude Code guarda los
+#                                      transcripts y no nace un dir por worktree
+#                                      (#59). Solo imprime, no crea. dir default:
+#                                      CLAUDE_PROJECT_DIR o cwd.
 
 # set estricto solo al ejecutar directo (selftest); al sourcear NO se impone
 # set -e/-u al caller (los snippets de SKILL.md corren sin modo estricto).
@@ -83,6 +93,21 @@ bp_default_branch() {
   return 1
 }
 
+bp_slug() {
+  python3 -c 'import re, sys; print(re.sub(r"[^A-Za-z0-9]", "-", sys.argv[1]))' "$1"
+}
+
+bp_state_dir() {
+  local start="${1:-${CLAUDE_PROJECT_DIR:-$PWD}}" root
+  root="$(git -C "$start" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  if [ -n "$root" ]; then
+    root="$(dirname "$root")"
+  else
+    root="$(cd "$start" 2>/dev/null && pwd -P || printf '%s' "$start")"
+  fi
+  printf '%s/.claude/projects/%s\n' "$HOME" "$(bp_slug "$root")"
+}
+
 bp_branch_name() {
   local type="$1" issue="$2" slug="$3" pat
   pat="${B_PIPELINE_BRANCH_PATTERN:-$(git config --get b-pipeline.branchPattern 2>/dev/null || true)}"
@@ -111,6 +136,13 @@ bp_selftest() {
   [ "$out" = "feat/42-login-form" ] || { echo "lib.sh selftest: branch_name default -> '$out'" >&2; fails=1; }
   out="$(B_PIPELINE_BRANCH_PATTERN='feature/{issue}-{slug}' bp_branch_name fix 7 x)"
   [ "$out" = "feature/7-x" ] || { echo "lib.sh selftest: branch_name pattern -> '$out'" >&2; fails=1; }
+  # bp_slug: '_' '.' '/' -> '-', ñ = UN carácter (igual que Claude Code / cost-report.py)
+  out="$(bp_slug '/a/b_c/d.e/ñ')"
+  [ "$out" = "-a-b-c-d-e--" ] || { echo "lib.sh selftest: bp_slug -> '$out' (esperaba '-a-b-c-d-e--')" >&2; fails=1; }
+  # bp_state_dir: desde este repo termina en el slug de _BP_ROOT (sin '_' ni '.')
+  out="$(cd "$_BP_ROOT" && bp_state_dir)"
+  [ "$out" = "$HOME/.claude/projects/$(bp_slug "$(cd "$_BP_ROOT" && pwd -P)")" ] \
+    || { echo "lib.sh selftest: bp_state_dir -> '$out'" >&2; fails=1; }
   # bp_default_branch: en un repo git debe resolver no-vacio
   out="$(bp_default_branch || true)"
   [ -n "$out" ] || { echo "lib.sh selftest: default_branch vacío en repo git" >&2; fails=1; }

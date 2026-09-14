@@ -256,13 +256,14 @@ Al cerrar (éxito o abort), b8 debe haber:
 | `B8_MAX_PER_WAVE` | 5 | Cap de issues del backlog si no se pasa `--max`. |
 | `B8_DEFAULT_LABEL` | `ready` | Label query del backlog. |
 | `B7_MAX_OPEN_PRS` | 3 | Backpressure heredado. Casi moot (b8 = 1 PR/ola), pero corta si ya hay 3 PRs `auto-pr-bot` abiertos. |
-| `CLAUDE_PROJECT_DIR` | _(Claude Code)_ | State-dir / lock / runs. |
+| _(state dir)_ | `guardrails.sh state-dir` | Lock, kill-switch y `b8-runs/`: `~/.claude/projects/<slug del repo principal>` (el mismo de b7/b10 y de los transcripts de Claude Code; los worktrees resuelven al padre). |
 
 ## Kill-switch
 
 ```bash
-touch "$CLAUDE_PROJECT_DIR/b8.STOP"   # corta antes del proximo issue del build
-rm "$CLAUDE_PROJECT_DIR/b8.STOP"      # rehabilita
+SD="$(bash "$PLUGIN_ROOT/skills/b8-swarm/scripts/guardrails.sh" state-dir)"
+touch "$SD/b8.STOP"   # corta antes del proximo issue del build
+rm "$SD/b8.STOP"      # rehabilita
 ```
 
 Se chequea en preflight y al inicio de cada issue del build (el prompt de cada build agent corre `guardrails.sh killswitch` antes de empezar — ver script de referencia). No mata el build en curso; corta antes del siguiente.

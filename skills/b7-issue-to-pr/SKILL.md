@@ -177,7 +177,7 @@ bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR> || echo "WA
 
 ### 9. Run report y cierre
 
-`bash scripts/render-report.sh` desde `.b7/state.json` → `~/.claude/projects/<slug>/b7-runs/<UTC>-issue-<N>.md`; anexar al final del reporte la salida de `python3 "$PLUGIN_ROOT/scripts/cost-report.py" --brief` (costo de la sesión hasta aquí; si no encuentra transcript, anotar `COST n/a`). Después `dod-check`, `release-lock`, `B7_DONE`. En `--dry-run` leer `references/dry-run.md`.
+`bash "$PD" run-report --worktree "$WORKTREE"` renderiza `templates/run-report.md` a `state.run_report_path` (`~/.claude/projects/<slug>/b7-runs/<UTC>-issue-<N>.md`) y anexa por script la línea `COST …` de `cost-report.py --brief` (`COST n/a` sin transcript) — no medir costo a mano. Después `dod-check`, `release-lock`, `B7_DONE`. En `--dry-run` leer `references/dry-run.md`.
 
 ## Sub-agentes
 
@@ -191,7 +191,7 @@ Ningún paso lanza `Workflow` ni más de un agente por tarea: ver *Presupuesto d
 
 ## Manejo de errores
 
-- Toda ruta de abort: `bash "$PD" aborted --worktree "$WORKTREE"` (sticky + CHANGELOG `[Aborted]`), run report, y `bash "$G" release-lock "$(jq -r '.lock_file // empty' "$WORKTREE/.b7/state.json")"` (sin `state.json` todavía: `release-lock` sin arg).
+- Toda ruta de abort: `bash "$PD" aborted "<razón corta>" --worktree "$WORKTREE"` (sticky + CHANGELOG `[Aborted]` + run report con `COST` y el último `.b7/iter-*.tail` en `last_log_tail`; la razón es obligatoria, sin ella el reporte queda mudo) y `bash "$G" release-lock "$(jq -r '.lock_file // empty' "$WORKTREE/.b7/state.json")"` (sin `state.json` todavía: `release-lock` sin arg).
 - **El lock NO se libera solo.** Éxito, abort y bail lo liberan. Fallback: lock sin tocar 2h se recupera en el próximo preflight.
 - Si `publish-docs.sh` falla (`gh` caído), log a stderr y continuar.
 

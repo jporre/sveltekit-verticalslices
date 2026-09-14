@@ -77,11 +77,13 @@ Parsear la última línea `TRIAGE_RESULT {...}`. **Fallback si falta:** leer lab
 
 ### 3. Build
 
+**Carril b11:** si el reconcile emitió `B10_TRIAGE=… lane=b11`, NO invocar b7 — leer `references/lane-b11.md` y seguirlo (spec ejecutable + modelo barato; mismo contrato de salida `B7_DONE … lane=b11 exec_usd=… spec_turns=…`, las fases 4-5 no cambian). La SPEC la escribe un agente nuevo acotado, NUNCA un fork. Si el carril emite `LANE_FALLBACK=b7`, despachar b7 normal (abajo). Sin `lane=b11`:
+
 ```bash
 Skill b-pipeline:b7-issue-to-pr "<N> --lang=es"
 ```
 
-Parsear la última línea `B7_DONE issue=<N> pr=<url|none> status=<s>`. b7 puede anexar tokens opcionales: `lane=<S|M|L>` (carril del run; ver b7 paso 1b) y `screens=<ok|skipped-<r>|fail|none>` (resultado del screen review; `none` = triage sin screens). Son informativos y el parser tolerante ya los cubre (tokens `k=v` desconocidos se ignoran) — no cambian el routing de esta fase, pero `screens` va al reporte final del run. **Fallback:** `bash "$B10" reconcile <N>` — si aparece `B10_PR`, el build terminó.
+Parsear la última línea `B7_DONE issue=<N> pr=<url|none> status=<s>`. b7 puede anexar tokens opcionales: `lane=<S|M|L|b11>` (carril del run; ver b7 paso 1b — `b11` con `exec_usd=`/`spec_turns=` viene del carril de lane-b11.md) y `screens=<ok|skipped-<r>|fail|none>` (resultado del screen review; `none` = triage sin screens). Son informativos y el parser tolerante ya los cubre (tokens `k=v` desconocidos se ignoran) — no cambian el routing de esta fase, pero `screens` va al reporte final del run. **Fallback:** `bash "$B10" reconcile <N>` — si aparece `B10_PR`, el build terminó.
 
 - `status=ok` → fase 5 directamente en el happy path: el DoD de b7 (`dod-check`) ya certificó clean-tree, labels y veredicto b6 publicados — fase 4 solo corre en re-runs donde el reconcile saltó a build/verify (worktree o PR heredados de un run interrumpido).
 - `status=needs-human-review` → label ya puesto por b7; notificar y parar (worktree intacto para corrección humana).

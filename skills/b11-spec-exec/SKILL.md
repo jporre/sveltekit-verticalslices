@@ -36,8 +36,9 @@ Escribir la spec cuesta más que ejecutarla. El ahorro real: el loop mecánico n
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
 B11="$PLUGIN_ROOT/skills/b11-spec-exec"
-REPO="$(git rev-parse --show-toplevel)"
-DIR="$HOME/.claude/b11/$(basename "$REPO")/<slug-del-cambio>"   # fuera del repo: no ensucia git status
+REPO="$(git rev-parse --show-toplevel)"                            # worktrees valen: los scripts validan con rev-parse, no con .git/
+DIR="${TMPDIR:-/tmp}/b11/$(basename "$REPO")/<slug-del-cambio>"    # fuera del repo (no ensucia git status) y NUNCA bajo ~/.claude:
+                                                                   # al hijo claude -p con defaultMode auto le niegan ~/.claude/** y el COPIAR cae
 mkdir -p "$DIR/files"
 git -C "$REPO" status --porcelain | wc -l                          # debe ser 0; si no, detenerse
 ```
@@ -50,6 +51,7 @@ Leer `references/spec-template.md` y escribir `$DIR/SPEC.md` con sus secciones 0
 
 - **Archivos nuevos**: la sesión los escribe completos en `$DIR/files/…` y los declara con `COPIAR: origen -> destino [+x]`. El ejecutor copia, no redacta.
 - **Ediciones**: `BUSCAR` sale de un `Read` del archivo, nunca de memoria; único en el archivo (2+ líneas de contexto o una línea inequívoca). Insertar = `REEMPLAZAR` repite el `BUSCAR` completo más lo nuevo. Un bloque que contiene ``` va cercado con 4 acentos graves.
+- **Formato ANTES de anclar**: si el repo formatea (prettier en hook/CI), pasar prettier a los archivos de `COPIAR` antes de escribir anclas o `grep -c` de aceptación, y sacar `BUSCAR` de un `Read` del archivo YA formateado. Un reformat posterior invalida anclas y aceptación → re-certificar completo.
 - **Aceptación**: comandos con salida binaria (`test`, `grep -c`, `bash -n`, `jq`, `ast.parse`), cwd = repo, sin residuos (`__pycache__`, builds). Cada edición debe tener al menos un comando que la vea.
 - **Estado git esperado**: cada archivo tocado, `?? dir/` colapsado para directorios nuevos completos.
 - Nada de juicio delegado: si al escribir la spec aparece un "depende de cómo esté el archivo", el cambio no es de b11. Detenerse y decirlo.
@@ -70,7 +72,7 @@ bash "$B11/scripts/exec-spec.sh" "$DIR/SPEC.md" [--model <x>] [--max-turns N]
 
 Bash con `timeout: 600000`; con más de 15 pasos (copias + ediciones + comandos), `run_in_background` y esperar la notificación. Modelo: `--model` > `$B_PIPELINE_EXEC_MODEL` > `z-ai/glm-5.3-flash` si existe `OPENROUTER_API_KEY` > `haiku`. La key llega solo al proceso hijo por nombre de variable; nunca se imprime ni se pasa como argumento.
 
-El script imprime una línea `EXEC model=… ok=si|no subtype=… turns=… dur=… in=… cache_read=… out=… usd_lista=… denials=… json=…` y luego el informe del ejecutor. Con `ok=no`:
+El script imprime una línea `EXEC model=… ok=si|no subtype=… turns=… dur=… in=… cache_read=… out=… usd_lista=… denials=… json=…` y luego el informe del ejecutor. `ok=si` exige `denials=0`: un hijo que terminó "success" con permisos denegados no aplicó nada. Con `ok=no`:
 
 1. Leer el informe: el ejecutor se detiene en el primer paso que no calza y lo reporta (BUSCAR no único, aceptación roja, preflight distinto).
 2. Si el repo quedó a medias, volver al estado limpio (la precondición garantiza que todo cambio es del ejecutor): `git -C "$REPO" checkout -- . && git -C "$REPO" clean -fd -- <destinos de COPIAR>`.

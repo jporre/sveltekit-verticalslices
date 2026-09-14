@@ -42,7 +42,8 @@ if [ -n "$REPO_OVERRIDE" ]; then
   sed "s#$REPO#$REPO_OVERRIDE#g" "$SPEC" > "$RUN_SPEC"
   REPO="$REPO_OVERRIDE"
 fi
-[ -d "$REPO/.git" ] || { echo "REPO no es un repo git: $REPO" >&2; exit 2; }
+# rev-parse y no -d .git: en worktrees (caso normal del pipeline) .git es un gitfile.
+git -C "$REPO" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "REPO no es un repo git: $REPO" >&2; exit 2; }
 if [ -n "$(git -C "$REPO" status --porcelain)" ]; then
   echo "REPO con cambios sin commitear ($REPO); la spec se ensaya y certifica contra HEAD limpio" >&2; exit 2
 fi
@@ -91,10 +92,12 @@ TABLA = {"glm-5.3-flash": (0.15, 0.5, 0.03, 0.19), "haiku-4": (1, 5, 0.1, 1.25),
 env_p = os.environ.get("B_PIPELINE_EXEC_PRICES")
 prices = tuple(map(float, env_p.split(","))) if env_p else next((v for k, v in TABLA.items() if k in name), None)
 usd = f"{(inp * prices[0] + outt * prices[1] + cr * prices[2] + cw * prices[3]) / 1e6:.3f}" if prices else "n/a"
-ok = rc == 0 and not d.get("is_error") and d.get("subtype") == "success"
+# denials>0 nunca es ok: el hijo terminó "success" pero le negaron writes → repo intacto y falso positivo.
+denials = len(d.get("permission_denials") or [])
+ok = rc == 0 and not d.get("is_error") and d.get("subtype") == "success" and denials == 0
 print(f"EXEC model={name} ok={'si' if ok else 'no'} subtype={d.get('subtype')} turns={d.get('num_turns')} dur={secs}s "
       f"in={inp} cache_read={cr} cache_write={cw} out={outt} usd_lista={usd} "
-      f"denials={len(d.get('permission_denials') or [])} json={out}")
+      f"denials={denials} json={out}")
 print("--- informe del ejecutor ---")
 print(d.get("result") or "(sin result)")
 sys.exit(0 if ok else 1)

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.15.0] — 2026-09-14
+
+### Feat — carril b11 nativo en el pipeline (#57)
+
+- **Señal de carril:** b0 estampa `lane:b11` en slices mecánicos elegibles (`kind:docs|tests|infra`, `## Archivos previstos` ≤ 6, sin `src/routes/` ni migraciones con lógica); `run.sh reconcile` lo lee (fallback: primera línea del body `Carril: b11`) y anexa `lane=b11` a `B10_TRIAGE`. Sin señal no se emite `lane`.
+- **`references/lane-b11.md` (b10):** fase 3 con `lane=b11` NO invoca b7 — provision de b7, SPEC por `Agent(general-purpose)` NUEVO con prompt acotado (**nunca fork**: 16,4 M tokens de entrada por issue medidos en custodia360#224), validar → ejecutar → certificar → `b11-review` si toca `src/`, vitest solo sobre archivos tocados, commit b3 + PR desde el worktree + b6 `--light`. Salida `B7_DONE … lane=b11 exec_usd=… spec_turns=…` — fases 4-5 y sticky sin cambios; `LANE_FALLBACK=b7` devuelve el issue al build normal. Elegibilidad y regla anti-fork también en epic-mode (modo rápido).
+- **Fricciones del skill b11** (todas medidas en el mismo run): `validate-spec.py` y `exec-spec.sh` validan REPO con `git rev-parse --is-inside-work-tree` (los worktrees tienen `.git` gitfile y el check `-d .git` los rechazaba); `$DIR` default se muda de `~/.claude/b11` a `${TMPDIR:-/tmp}/b11` (al hijo `claude -p` con `defaultMode: auto` le niegan `~/.claude/**` y el `COPIAR` caía); `exec-spec.sh` exige `denials=0` para `ok=si` (un hijo "success" con permisos denegados no aplicó nada — falso positivo); regla de prettier ANTES de escribir anclas. Regresión: `tests/validate-worktree.test.sh`.
+
 ## [1.14.0] — 2026-09-12
 
 ### Feat — b11-spec-exec: spec ejecutable + modelo barato

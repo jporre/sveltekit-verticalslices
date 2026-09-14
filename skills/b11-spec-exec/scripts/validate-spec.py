@@ -225,7 +225,8 @@ def main():
     a = ap.parse_args()
     spec = parse(a.spec)
     repo = os.path.abspath(a.repo or spec["repo"])
-    if not os.path.isdir(os.path.join(repo, ".git")):
+    # rev-parse y no .git/: en worktrees (caso normal del pipeline) .git es un gitfile.
+    if not os.path.isdir(repo) or sh(["git", "rev-parse", "--is-inside-work-tree"], repo).stdout.strip() != "true":
         die(f"REPO no es un repo git: {repo}")
     log = print
     tmp = fresh_clone(repo)

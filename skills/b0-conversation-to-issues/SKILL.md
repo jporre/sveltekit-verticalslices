@@ -146,6 +146,7 @@ Aplicar el principio de arriba. Para CADA slice definir:
 - **objetivo**; en `ui` además journey y criterios de aceptación visuales; en `remote`, contrato de cada función y cuáles se reutilizan de otra pantalla.
 - **alcance**: qué entra en ESTE slice y qué queda explícitamente para otro.
 - **labels**: `feature|bug|enhancement` + `scope:<area>` (+ `simple|medium` como hint; b1-triage reconfirma).
+- **Carril b11 (`lane:b11`)**: agregar el label al slice SOLO si cumple TODO: `kind: docs|tests|infra`, `## Archivos previstos` con ≤ 6 archivos, sin `src/routes/` ni migraciones con lógica, y el cambio ya queda decidido archivo por archivo en el body (cero descubrimiento). b10 lo rutea a `b11-spec-exec` (spec + modelo barato) en vez de b7. En duda, NO estamparlo — b7 es el default seguro y el carril tiene fallback, no al revés.
 
 Dos excepciones al corte estándar (detalle en `references/slicing-guide.md`):
 

@@ -50,7 +50,7 @@ gh issue view <N> --json comments \
 
 This drops Renovate/dependabot/github-actions comments and reaction-only ones ("+1", "👍", emoji-only).
 
-Closed issues: warn the user, proceed only if they insist. (Con `--auto`: abortar emitiendo `TRIAGE_RESULT {"issue":<N>,"verdict":"closed"}`.)
+Closed issues: warn the user, proceed only if they insist. (Con `--auto`: abortar emitiendo el bloque ```json del Step 8 con los required del schema y `"verdict":"closed"`, más la línea `TRIAGE_RESULT {"issue":<N>,"verdict":"closed"}`.)
 
 ## Step 2: Early-exit checks
 
@@ -66,7 +66,7 @@ Before any research, decide if the work can short-circuit. Triage that races to 
 - `scope` = valor de `scope:*`
 - `blocked_by` = números `#N` de la sección `## Blocked by` del body (o `[]` si no hay)
 
-Emitir el `TRIAGE_RESULT` con esos campos y terminar. Si apareció un comentario humano posterior a la creación → correr triage completo normal (el humano cambió algo).
+Emitir el `TRIAGE_RESULT` con esos campos — y el bloque ```json completo del Step 8 (`language` del body; `screens` según el fast-path de kind del Step 5, o `[]`) — y terminar. Si apareció un comentario humano posterior a la creación → correr triage completo normal (el humano cambió algo).
 
 **Trivially incomplete?** If `body` is empty or <100 chars and no acceptance criteria appear in the first comments, skip Steps 3-4 entirely and go straight to Step 6/7 as `needs-info`. There is nothing to ground.
 
@@ -266,6 +266,8 @@ TRIAGE_RESULT {"issue":261,"verdict":"ready","complexity":"complex","type":"feat
 - `complexity`: `simple` | `medium` | `complex`
 - `blocked_by`: números de issues que bloquean (de la sección "Blocked by" del body o del análisis), `[]` si ninguno
 - Emitirla SIEMPRE, en todo modo y para todo veredicto, como línea final del output de terminal.
+
+**(Con `--auto`) Bloque JSON completo, antes de `TRIAGE_RESULT`.** Emitir en el mensaje final el triage completo en un bloque fenced ` ```json ` conforme a `$CLAUDE_PLUGIN_ROOT/skills/b7-issue-to-pr/templates/triage-output.schema.json`: required `verdict`, `type`, `scope`, `language`, `screens`, `estimated_complexity` — poblados SIEMPRE, incluso con verdict ≠ ready (el gate del llamador valida el schema antes de bailar) — más `plan[]` de 3–8 items cuando verdict=ready, `evidence` cuando type=fix, y `user_directives` si hubo texto inline. Este skill corre read-only (`agent: Explore`): NUNCA intentar escribir archivos ni reportar "no pude escribir" — persistir el JSON es responsabilidad del llamador (b7/b8/b10).
 
 ## Edge cases
 

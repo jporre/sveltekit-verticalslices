@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.2] — 2026-09-14
+
+### Fix — contrato b1/b7: b1 emite el JSON, el llamador lo persiste (#58)
+
+- b7 §1 le pedía a b1 escribir `$SCRATCH_DIR/triage.json`, pero b1 corre `agent: Explore` (read-only, sin Write) — el run terminaba con «Triage listo pero el agente no pudo escribir» y `triage-gates` sin input. Ahora b1 en `--auto` emite el triage completo en bloque fenced ```json conforme a `triage-output.schema.json` (required poblados en todo veredicto, incl. el abort por issue cerrado y el fast-path de issues de b0), y b7 — que sí tiene Write — extrae el bloque y persiste `triage.json` él mismo (fallback: reconstruir desde `TRIAGE_RESULT` + labels). b1 conserva `agent: Explore`.
+- b8-swarm alineado al mismo contrato: el `agent()` de la fase triage persiste el JSON que retorna el skill, en vez de "escribir siguiendo el schema". b10 no cambia (parsea `TRIAGE_RESULT`, sin contrato de archivo).
+
 ## [1.15.1] — 2026-09-14
 
 ### Fix — pi ya no escribe `~/.claude/b-pipeline.root`

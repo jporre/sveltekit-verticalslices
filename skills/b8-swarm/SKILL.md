@@ -90,7 +90,7 @@ mkdir -p "$WORKTREE/.b7"
 
 Una sola invocación del `Workflow` con dos fases. Pásale el cluster + el worktree + la rama como `args`. Ver "Script de referencia" — es la fuente única del contrato de triage/build. Forma:
 
-- **Fase `triage` (paralela, read-only):** un `agent()` por issue con `b1-triage-issue`, escribe `.b7/triage-<n>.json` en el worktree; no editan código.
+- **Fase `triage` (paralela, read-only):** un `agent()` por issue: invoca `b1-triage-issue` (fork read-only, retorna el triage en bloque ```json) y el agente persiste ese JSON en `.b7/triage-<n>.json` del worktree; no editan código.
 - Gate: descartar issues con `verdict != ready` (skipped en el reporte; no entran al `Closes`).
 - **Fase `build` (SECUENCIAL):** un `agent()` por issue ready: build con `b2-build-feature`, validación skip-by-scope, commit atómico **solo de ese issue** con `b3-git-commit` scope `(#N)`; si no llega a verde, revierte sin commitear y devuelve `status:failed`.
 
@@ -184,8 +184,9 @@ const A = (typeof args === 'string') ? JSON.parse(args) : (args || {})
 phase('triage')
 const triages = (await parallel(A.issues.map(n => () =>
   agent(
-    `Triage del issue #${n} con el skill b1-triage-issue. Escribí ${A.worktree}/.b7/triage-${n}.json ` +
-    `siguiendo el schema de b1. Es READ-ONLY: no edites código. ` +
+    `Triage del issue #${n} con el skill b1-triage-issue (modo --auto). El skill corre read-only ` +
+    `y retorna el triage completo en un bloque fenced json: escribe TÚ ese JSON tal cual en ` +
+    `${A.worktree}/.b7/triage-${n}.json. No edites código. ` +
     `Devuelve {issue:${n}, verdict, type, scope, screens, plan, note}.`,
     { label:`triage:#${n}`, phase:'triage', schema:TRIAGE }
   )

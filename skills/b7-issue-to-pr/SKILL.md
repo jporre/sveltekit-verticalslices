@@ -80,7 +80,7 @@ bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/run.sh" $ARGUMENTS   # prefligh
 
 ### 1. Triage
 
-`Skill(b1-triage-issue "<N> --auto")` pidiéndole escribir `$SCRATCH_DIR/triage.json` según `templates/triage-output.schema.json` (incluye `plan[]` de 3–8 items y `user_directives` si hubo texto inline). Luego:
+`Skill(b1-triage-issue "<N> --auto")` — b1 corre read-only (`agent: Explore`), NO puede escribir archivos: NO pedírselo. Su retorno trae el triage completo en bloque fenced ```json según `templates/triage-output.schema.json` (incluye `plan[]` de 3–8 items y `user_directives` si hubo texto inline). Extraer ese bloque y persistirlo tal cual (Write) en `$SCRATCH_DIR/triage.json`. Si falta el bloque, reconstruirlo desde la línea `TRIAGE_RESULT` + labels del issue antes del gate. Luego:
 
 ```bash
 bash "$G" triage-gates "$SCRATCH_DIR/triage.json" [--force-complex]

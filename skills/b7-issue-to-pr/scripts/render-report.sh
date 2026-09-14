@@ -43,6 +43,23 @@ for k, v in data.items():
     print(f"export {key}={shlex.quote(val)}")
 ')"
 
+# Strip de comentarios HTML de guía ANTES del gate y del envsubst (#56):
+# los comentarios de las plantillas son documentación de autor, no output.
+# Se preservan solo los markers <!-- b7:* --> (p. ej. <!-- b7:status -->,
+# que publish-docs.sh usa vía startswith para ubicar el sticky). Sin este
+# strip, envsubst publicaba el andamiaje en CHANGELOG/PR/sticky y el gate
+# exigía claves de state para vars que solo viven dentro de comentarios.
+STRIPPED="$(mktemp)"
+trap 'rm -f "$STRIPPED"' EXIT
+python3 - "$TEMPLATE" "$STRIPPED" <<'PY'
+import re, sys, pathlib
+tpl = pathlib.Path(sys.argv[1]).read_text()
+tpl = re.sub(r"<!--(?!\s*b7:).*?-->", "", tpl, flags=re.S)
+tpl = "\n".join(line.rstrip() for line in tpl.split("\n"))
+tpl = re.sub(r"\n{3,}", "\n\n", tpl).lstrip("\n")
+pathlib.Path(sys.argv[2]).write_text(tpl)
+PY
+
 # Gate: detectar ${VARS} del template que NO tienen clave en state.json.
 # envsubst las renderizaria vacias sin avisar (blank silencioso). Un placeholder
 # "—" es una clave PRESENTE con valor guion — eso NO es undefined y no gatea.
@@ -52,7 +69,7 @@ import json, re, sys
 with open("'"$STATE"'") as f:
     data = json.load(f)
 present = {k.upper() for k in data.keys()}
-tpl = open("'"$TEMPLATE"'").read()
+tpl = open("'"$STRIPPED"'").read()
 used = set(re.findall(r"\$\{([A-Z_][A-Z0-9_]*)\}", tpl))
 missing = sorted(used - present)
 print("\n".join(missing))
@@ -66,6 +83,6 @@ fi
 # envsubst respeta las vars ya exportadas. Variables no definidas quedan vacías
 # (no como literal "${FOO}") gracias a `envsubst < template`.
 mkdir -p "$(dirname "$OUT")"
-envsubst < "$TEMPLATE" > "$OUT"
+envsubst < "$STRIPPED" > "$OUT"
 
 echo "render-report: wrote $OUT"

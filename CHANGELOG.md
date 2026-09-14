@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.16.0] — 2026-09-14
+
+### Feat — `triage-from-labels`: fast-path de b0 por script, fuente única (#60)
+
+- **`guardrails.sh triage-from-labels <issue.json> [<triage.json>]`**: deriva el triage de un issue de b0 (label `ready` + complejidad + `scope:*`, sin comentario humano posterior) sin spawnear b1: `plan[]` desde `## Archivos previstos` + criterios `- [ ]`, `screens[]` desde `## Pantalla` (Ruta/Journey/criterios visuales) para `kind:ui`, `type` del título o label `bug` → `fix` con `evidence.observed` del body (ya no cae en `bail:fix-sin-evidence`), `blocked_by` vía `bp_blocked_by`, `lane:b11`. Si no puede derivar plan (≥ 3 items) o screens imprime `TRIAGE_FROM_LABELS=none reason=…` y el llamador corre b1 como hoy — nunca plan genérico.
+- **Una sola fuente**: b10 `run.sh` (`B10_TRIAGE=…`) delega en el script (antes tenía el mapeo duplicado en bash y ya había drifteado de la prosa de b1: `lane:b11`); b7 paso 1, el prompt de b8 y el Workflow de epic-mode lo corren ANTES de `Skill(b1)` y con `ok` no lo spawnean (un fork Explore menos por issue de b0). La prosa del mapeo en b1 `SKILL.md` se reemplaza por el puntero al script; heading/marker/`TRIAGE_RESULT`/bloque json intactos.
+- **`effort: low`** en el frontmatter de b1. El recorte de `b1/SKILL.md` queda para después de medir el costo del fork con `cost-report.py`.
+- Regresión: `tests/triage-from-labels.test.sh` (fixture `kind:ui` de b0 → `validate-triage` + `screens-check`; `bug` → `fix` con evidence y `triage-gates` sin bail; sin `## Archivos previstos` → `none`; comentario humano → `none`; `lane=b11`; `effort: low`).
+
 ## [1.15.3] — 2026-09-14
 
 ### Fix — state dir único por repo, línea `COST` por script y `abort_reason` (#59)

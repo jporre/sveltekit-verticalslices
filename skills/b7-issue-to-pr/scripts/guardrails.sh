@@ -18,6 +18,7 @@
 #   verify-worktree <dir>              — verify the worktree was created by setup-worktree.sh (marker + symlinks + dev.sh + location)
 #   verify-port <port> <worktree-dir>  — verify the dev server on <port> is serving <worktree> (cwd match); exit 40 nadie escucha, 41 intruso
 #   validate-triage <triage.json>      — validate .b7/triage.json against triage-output.schema.json (required/enums/additionalProperties); exit 4 on invalid
+#   triage-from-labels <issue.json> [<triage.json>] — fast-path b0 (#60): labels + body → triage.json sin spawnear b1; imprime TRIAGE_FROM_LABELS=ok … | none reason=…
 #   classify-run <triage.json> <state.json> — asigna carril S|M|L (lane=L si complex; S si simple y files_likely<=5; si no, M); persiste lane en state.json; emite RUN_LANE=S|M|L
 #   screens-check <worktree-dir>       — gate observable del review visual (DoD): exige .b7/review/<name>.json por cada screens[].name del triage, o SKIPPED.json con reason del enum; exit 8 = run inválido
 #   render-screens <triage.json> <screens-dir> — render mecánico de .b7/screens/<Name>.md desde triage.json (sin LLM, todos los carriles)
@@ -832,6 +833,105 @@ cmd_dev_server() {
   return 0
 }
 
+# ---------------------------------------------------------------------------
+# triage-from-labels <issue.json> [<triage.json>]
+# Fuente única del fast-path de issues de b0 (#60): label ready + complejidad +
+# scope, sin comentario humano posterior a la creación. Deriva plan[] desde
+# `## Archivos previstos` + criterios `- [ ]`, screens[] (kind:ui) desde
+# `## Pantalla` (Ruta/Journey/criterios visuales), evidence desde el body si el
+# label es bug. Si no puede derivar plan (≥ 3) o screens, imprime
+# TRIAGE_FROM_LABELS=none reason=… y el llamador spawnea b1. Nunca plan genérico.
+# La consumen b10 run.sh (B10_TRIAGE), b7 paso 1, b8 y epic-mode.
+# ---------------------------------------------------------------------------
+cmd_triage_from_labels() {
+  local src="${1:-}" out="${2:-}" deps
+  [ -f "$src" ] || { echo "triage-from-labels: usage: triage-from-labels <issue.json> [<triage.json>]" >&2; return 2; }
+  deps="$(jq -r '.body // ""' "$src" | bp_blocked_by | paste -sd, -)"
+  python3 - "$src" "$out" "$deps" <<'PY'
+import json, re, sys
+src, out, deps = sys.argv[1:4]
+d = json.load(open(src))
+labels = {l["name"] for l in d.get("labels") or []}
+body = (d.get("body") or "").replace("\r", "")
+title = d.get("title") or ""
+
+def none(reason):
+    print(f"TRIAGE_FROM_LABELS=none reason={reason}"); sys.exit(0)
+
+def section(name):
+    m = re.search(r"^##+\s*" + name + r"\s*:?\s*$\n(.*?)(?=^##\s|\Z)", body, re.M | re.S | re.I)
+    return m.group(1).strip() if m else ""
+
+if "ready" not in labels: none("sin-label-ready")
+created = d.get("createdAt") or ""
+if any(not re.search(r"\[bot\]$", (c.get("author") or {}).get("login") or "")
+       and not re.match(r"^<!-- b|^## Evaluaci", c.get("body") or "")
+       and (c.get("createdAt") or "") > created
+       for c in d.get("comments") or []):
+    none("comentarios-humanos")
+
+cx = next((l for l in ("simple", "medium", "complex") if l in labels), "") \
+     or re.sub(r"[^a-z]", "", section("Complejidad estimada").lower())[:7]
+if cx not in ("simple", "medium", "complex"): none("sin-complejidad")
+scope = next((l[6:] for l in labels if l.startswith("scope:")), "")
+if not scope: none("sin-scope")
+lane = "b11" if "lane:b11" in labels or body.split("\n", 1)[0].strip() == "Carril: b11" else ""
+kind = next((l[5:] for l in labels if l.startswith("kind:")), "")
+
+m = re.match(r"^(feat|fix|chore|docs|refactor|test)\b", title)
+typ = m.group(1) if m else ("fix" if "bug" in labels else "feat")
+evidence = None
+if typ == "fix":
+    obs = section("Problema") or section("Síntoma") or section("Bug") or section("Objetivo")
+    if not obs: none("fix-sin-evidence-en-body")
+    evidence = {"observed": obs[:500], "source": f"issue #{d.get('number', '')} body".replace("# ", "#")}
+
+files = re.findall(r"`([^`\n]+)`", section("Archivos previstos"))
+if not files: none("sin-archivos-previstos")
+seen = set()
+def pid(s):
+    s = re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-") or "item"
+    b, i = s, 2
+    while s in seen: s = f"{b}-{i}"; i += 1
+    seen.add(s); return s
+plan = [{"id": pid(re.sub(r"\.\w+$", "", f.split("/")[-1])), "desc": f"Implementar `{f}`"[:160], "done": False} for f in files]
+plan += [{"id": pid("verificar-" + c[:40]), "desc": ("Verificar: " + c)[:160], "done": False}
+         for c in re.findall(r"^\s*- \[[ x]\]\s+(.+?)\s*$", body, re.M)]
+if len(plan) < 3: none("plan-menor-a-3")
+
+screens = []
+if kind == "ui":
+    sec = section("Pantalla")
+    r = re.search(r"\*\*Ruta\*\*:?\s*`?(/[^`\s]*)`?", sec)
+    if not r: none("ui-sin-ruta")
+    acv = re.findall(r"^\s*- \[[ x]\]\s+(.+?)\s*$", sec, re.M)
+    if not acv: none("ui-sin-criterios-visuales")
+    j = re.search(r"\*\*Journey\*\*:?\s*(.+)", sec)
+    low = sec.lower()
+    screens.append({
+        "name": "".join(w.capitalize() for w in re.findall(r"[A-Za-z0-9]+", r.group(1))) + "Page",
+        "route": r.group(1),
+        "user_journey": j.group(1).strip() if j else f"El usuario usa {r.group(1)}",
+        "acceptance_criteria_visual": acv,
+        "states_required": ["golden"] + [s for s, kw in (("empty", "vac"), ("invalid-submit", "form"), ("error", "error")) if kw in low],
+        "data_table": "tabla" in low,
+    })
+
+t = {
+    "verdict": "ready", "type": typ, "scope": scope,
+    "language": "en" if re.search(r"^## (Objective|Goal|Scope|Files)", body, re.M) else "es",
+    "files_likely": files, "grounding_source": "issue", "screens": screens,
+    "security_review_required": bool(re.search(r"(?i)\b(secret|token|password|contraseñ|raw sql|sql crud|rbac)", body)),
+    "estimated_complexity": cx,
+    "blocked_by": [int(x) for x in deps.split(",") if x], "plan": plan, "summary": title[:500],
+}
+if evidence: t["evidence"] = evidence
+if out:
+    with open(out, "w") as f: json.dump(t, f, ensure_ascii=False, indent=2)
+print(f"TRIAGE_FROM_LABELS=ok complexity={cx} scope={scope}{' lane=' + lane if lane else ''} type={typ} screens={len(screens)} plan={len(plan)}")
+PY
+}
+
 cmd_validate_triage() {
   local file="${1:-}"
   if [ -z "$file" ]; then
@@ -1442,6 +1542,7 @@ case "${1:-}" in
   env-check)        shift; cmd_env_check "$@" ;;
   preflight)        shift; cmd_preflight "$@" ;;
   validate-triage)  shift; cmd_validate_triage "$@" ;;
+  triage-from-labels) shift; cmd_triage_from_labels "$@" ;;
   classify-run)     shift; cmd_classify_run "$@" ;;
   screens-check)    shift; cmd_screens_check "$@" ;;
   check-budget)     shift; cmd_check_budget "$@" ;;

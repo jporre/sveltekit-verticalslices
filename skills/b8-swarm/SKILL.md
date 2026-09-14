@@ -184,7 +184,10 @@ const A = (typeof args === 'string') ? JSON.parse(args) : (args || {})
 phase('triage')
 const triages = (await parallel(A.issues.map(n => () =>
   agent(
-    `Triage del issue #${n} con el skill b1-triage-issue (modo --auto). El skill corre read-only ` +
+`Fast-path b0 (#60), ANTES de b1: G="\${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root")}/skills/b7-issue-to-pr/scripts/guardrails.sh"; ` +
+    `bash "$G" cache-issue ${n} ${A.worktree}/.b7/issue-${n} && bash "$G" triage-from-labels ${A.worktree}/.b7/issue-${n}/issue.json ${A.worktree}/.b7/triage-${n}.json. ` +
+    `Si imprime TRIAGE_FROM_LABELS=ok NO invoques b1: lee ese triage.json y devuelve el resultado. Si imprime none: ` +
+    `triage del issue #${n} con el skill b1-triage-issue (modo --auto). El skill corre read-only ` +
     `y retorna el triage completo en un bloque fenced json: escribe TÚ ese JSON tal cual en ` +
     `${A.worktree}/.b7/triage-${n}.json. No edites código. ` +
     `Devuelve {issue:${n}, verdict, type, scope, screens, plan, note}.`,

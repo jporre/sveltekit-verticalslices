@@ -275,28 +275,14 @@ cmd_reconcile() {
     echo "B10_PHASE=blocked"; return 0
   fi
 
-  # Fast-path: issues nacidos de b0 traen ready + complejidad en labels — emitir el
-  # veredicto de ahí para que b10 salte el spawn de b1 (que haría exactamente lo
-  # mismo: leer estos labels). Un comentario humano posterior a la creación (que no
-  # sea marker del pipeline) lo anula: ese issue va a triage completo.
-  local cx scope humans lane=""
+  # Fast-path: issues nacidos de b0 (ready + complejidad en labels, sin comentario
+  # humano posterior). Fuente única: guardrails.sh triage-from-labels (#60) — b7
+  # paso 1, b8 y epic-mode corren el mismo script; con ok b10 salta el spawn de b1.
   case ",$labels," in *,ready,*)
-    cx=""
-    case ",$labels," in *,simple,*) cx=simple ;; *,medium,*) cx=medium ;; *,complex,*) cx=complex ;; esac
-    if [ -n "$cx" ]; then
-      scope="$(echo "$labels" | tr ',' '\n' | grep '^scope:' | head -1 | cut -d: -f2-)"
-      # Carril b11 (issue #57): label lane:b11 (lo estampa b0) o, como fallback,
-      # primera línea del body `Carril: b11`. Sin señal no se emite lane.
-      case ",$labels," in *,lane:b11,*) lane=b11 ;; esac
-      if [ -z "$lane" ]; then
-        case "$(echo "$ijson" | jq -r .body | head -1 | tr -d '\r')" in "Carril: b11") lane=b11 ;; esac
-      fi
-      humans="$(echo "$ijson" | jq -r '[.comments[]?
-        | select(((.author.login // "") | test("\\[bot\\]$") | not)
-          and ((.body // "") | test("^<!-- b|^## Evaluaci") | not)
-          and (.createdAt > $created))] | length' --arg created "$(echo "$ijson" | jq -r .createdAt)" 2>/dev/null || echo 1)"
-      [ "${humans:-1}" -eq 0 ] && echo "B10_TRIAGE=ready complexity=$cx scope=${scope:-none}${lane:+ lane=$lane}"
-    fi
+    local tmp fl
+    tmp="$(mktemp)"; echo "$ijson" > "$tmp"
+    fl="$(bash "$B7_GUARD" triage-from-labels "$tmp" 2>/dev/null || true)"; rm -f "$tmp"
+    case "$fl" in TRIAGE_FROM_LABELS=ok*) echo "B10_TRIAGE=ready ${fl#TRIAGE_FROM_LABELS=ok }" ;; esac
   ;; esac
   echo "B10_PHASE=triage"
 }

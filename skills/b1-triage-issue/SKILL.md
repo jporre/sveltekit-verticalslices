@@ -3,6 +3,7 @@ name: b1-triage-issue
 description: 'Triage de un GitHub issue: evalúa, etiqueta y postea el comentario de evaluación antes de desarrollar. Usar cuando pidan triage/evaluar/revisar el issue #N o "tarea N" (tarea = issue en este codebase), o cuando otro skill (b10-ship, b7-issue-to-pr, b8-swarm) necesite un issue triageado. NO es la entrada de "resuelve el issue N" (eso es b10-ship) ni de features descritas sin issue (eso es b2-build-feature).'
 context: fork
 agent: Explore
+effort: low
 ---
 
 # Triage Issue
@@ -58,15 +59,7 @@ Before any research, decide if the work can short-circuit. Triage that races to 
 
 **Already triaged?** If labels include any of `ready`, `needs-info`, `blocked`, `duplicate`, OR a previous comment starts with `## Evaluacion de Issue` / `## Issue Evaluation`, surface the prior verdict and ask the user whether to re-triage. Don't redo research silently — it wastes tokens and risks contradicting prior alignment. (Con `--auto`: no preguntar — re-evaluar solo si hay comentarios humanos nuevos, si no reusar el veredicto.)
 
-**Issue de b0 (label `ready` sin comentario de evaluación).** Un sub-issue creado por `b0-conversation-to-issues/create-epic.sh` nace con label `ready` pero **sin** comentario `## Evaluacion de Issue` — su grounding y gate humano ya se pagaron en b0. Con `--auto`, si no hay comentarios humanos posteriores a la creación del issue: **reusar sin research**. Derivar el veredicto de los labels en vez de re-explorar:
-
-- `verdict` = `ready` (por el label)
-- `complexity` = `simple` | `medium` | `complex` (el label de complejidad presente)
-- `type` = mapeo del label de tipo al vocabulario conventional-commit del schema (`feat|fix|chore|docs|refactor|test`, ver `b7-issue-to-pr/templates/triage-output.schema.json`): label `feature` o `enhancement` → `feat`; label `bug` → `fix`. Sin label de tipo → `feat`.
-- `scope` = valor de `scope:*`
-- `blocked_by` = números `#N` de la sección `## Blocked by` del body (o `[]` si no hay)
-
-Emitir el `TRIAGE_RESULT` con esos campos — y el bloque ```json completo del Step 8 (`language` del body; `screens` según el fast-path de kind del Step 5, o `[]`) — y terminar. Si apareció un comentario humano posterior a la creación → correr triage completo normal (el humano cambió algo).
+**Issue de b0 (label `ready` sin comentario `## Evaluacion de Issue`).** El mapeo labels → triage NO vive acá: es `guardrails.sh triage-from-labels <issue.json> [<triage.json>]` (fuente única, #60: `verdict`/`complexity`/`scope`/`lane:b11` de los labels, `type` del título o label `bug` → `fix` con `evidence` del body, `plan[]` de `## Archivos previstos` + criterios, `screens[]` de `## Pantalla` para `kind:ui`, `blocked_by` de `## Blocked by`). b7 paso 1, b8, b10 `run.sh` y epic-mode lo corren ANTES de spawnear este skill y con `TRIAGE_FROM_LABELS=ok` no lo spawnean. Si igual llegaste acá con un issue así, el script devolvió `none` (comentario humano posterior, sin `## Archivos previstos`, `kind:ui` sin Ruta/criterios…): correr el triage completo normal y emitir el bloque ```json + `TRIAGE_RESULT` como siempre.
 
 **Trivially incomplete?** If `body` is empty or <100 chars and no acceptance criteria appear in the first comments, skip Steps 3-4 entirely and go straight to Step 6/7 as `needs-info`. There is nothing to ground.
 

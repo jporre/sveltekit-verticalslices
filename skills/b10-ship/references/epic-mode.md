@@ -133,7 +133,10 @@ const TRIAGE = {
 phase('triage')
 const triages = (await parallel(A.issues.map(n => () =>
   agent(
-    `Triage del issue #${n} con el skill b1-triage-issue (modo --auto). Es READ-ONLY: ` +
+`Fast-path b0 (#60), ANTES de b1: G="\${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root")}/skills/b7-issue-to-pr/scripts/guardrails.sh"; ` +
+    `D=$(mktemp -d); bash "$G" cache-issue ${n} $D && bash "$G" triage-from-labels $D/issue.json. ` +
+    `Si imprime TRIAGE_FROM_LABELS=ok NO invoques b1: devuelve verdict/complexity/scope de esa línea. Si imprime none: ` +
+    `triage del issue #${n} con el skill b1-triage-issue (modo --auto). Es READ-ONLY: ` +
     `NO edites codigo, NO abras worktree. Devolve {issue:${n}, verdict, complexity, scope, note} ` +
     `y dejá el comentario de triage en el issue como hace b1.`,
     { label: `triage:#${n}`, phase: 'triage', schema: TRIAGE }

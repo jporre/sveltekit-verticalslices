@@ -1,0 +1,230 @@
+{
+  "skill_name": "bt1-data-table",
+  "evals": [
+    {
+      "id": 0,
+      "name": "invoices-explicit-spec",
+      "prompt": "In our SvelteKit app I need a data table for invoices. Each invoice has: issue date, invoice number, client name, amount, currency, and a paid boolean. The table should let me sort columns, filter by date range and by client, search across everything, hide/show columns, and export to Excel. Put it under a new `facturas` feature.",
+      "expected_output": "A `facturas` feature folder: types.ts (row + result types), data.remote.ts (query with count + cap + truncated), ui/FacturasPage.svelte (fetch + boundary), ui/FacturasTable.svelte (receives rows). Infra files copied into $lib/components/ui/data-table/. A route. Date column uses dateRange filter + explicit sortFn, client column faceted, paid column boolean filter + bool() cell, all cell values escaped. createTablePrefs + exportTableXlsx + meta.export used. Type-checks clean.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "infra_files_copied",
+          "text": "The data-table infrastructure files (data-table-column-header.svelte, table-prefs.svelte.ts, table-export.ts, table-meta.d.ts) are present under $lib/components/ui/data-table/"
+        },
+        {
+          "id": "createTablePrefs_used",
+          "text": "Column show/hide and reorder state is managed by createTablePrefs, not hand-rolled $state + localStorage"
+        },
+        {
+          "id": "metadata_driven_export",
+          "text": "XLSX export uses exportTableXlsx fed by per-column meta.export, with no separate hand-maintained header/value mapping"
+        },
+        {
+          "id": "result_shape_truncation",
+          "text": "The remote function does count-then-capped-fetch and returns { rows, total, returned, truncated, cap }"
+        },
+        {
+          "id": "cells_escape_html",
+          "text": "Every dynamic value rendered into a createRawSnippet cell is HTML-escaped (txt/bool/escape)"
+        },
+        {
+          "id": "date_column_explicit_sort",
+          "text": "The date column pairs a dateRange filter with an explicit sortFn"
+        },
+        {
+          "id": "faceted_filters",
+          "text": "Categorical columns use faceted multi-select filters (filterOptions 'auto' or a fixed list)"
+        },
+        {
+          "id": "typecheck_clean",
+          "text": "svelte-check reports zero errors in the new feature files"
+        },
+        {
+          "id": "v9_features_object",
+          "text": "The table declares a tableFeatures({...}) object with explicit features and row-model slots (createTable + createTableState/getters), not v8 createSvelteTable/get*RowModel options"
+        },
+        {
+          "id": "external_atoms_prefs",
+          "text": "Column visibility/order slices are external atoms from createTablePrefs passed via the atoms option (no onColumnVisibilityChange/onColumnOrderChange handlers)"
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "tickets-casual-no-skill-name",
+      "prompt": "can you build me a screen that lists all support tickets in a nice table — needs to be sortable, i want to filter by status and by priority, search by text, and there should be a button to download everything as an xlsx. ticket fields are: created date, subject, requester, status, priority, assigned agent.",
+      "expected_output": "A support-tickets-style feature with the full bt1-data-table stack even though the skill is not named. Table component with: created-date column (dateRange filter + sortFn), status + priority faceted filters, global search box, XLSX export button wired to exportTableXlsx. Page component with $effect fetch. Infra copied. Type-checks clean.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "infra_files_copied",
+          "text": "The data-table infrastructure files (data-table-column-header.svelte, table-prefs.svelte.ts, table-export.ts, table-meta.d.ts) are present under $lib/components/ui/data-table/"
+        },
+        {
+          "id": "createTablePrefs_used",
+          "text": "Column show/hide and reorder state is managed by createTablePrefs, not hand-rolled $state + localStorage"
+        },
+        {
+          "id": "metadata_driven_export",
+          "text": "XLSX export uses exportTableXlsx fed by per-column meta.export, with no separate hand-maintained header/value mapping"
+        },
+        {
+          "id": "result_shape_truncation",
+          "text": "The remote function does count-then-capped-fetch and returns { rows, total, returned, truncated, cap }"
+        },
+        {
+          "id": "cells_escape_html",
+          "text": "Every dynamic value rendered into a createRawSnippet cell is HTML-escaped (txt/bool/escape)"
+        },
+        {
+          "id": "date_column_explicit_sort",
+          "text": "The date column pairs a dateRange filter with an explicit sortFn"
+        },
+        {
+          "id": "faceted_filters",
+          "text": "Categorical columns use faceted multi-select filters (filterOptions 'auto' or a fixed list)"
+        },
+        {
+          "id": "typecheck_clean",
+          "text": "svelte-check reports zero errors in the new feature files"
+        },
+        {
+          "id": "v9_features_object",
+          "text": "The table declares a tableFeatures({...}) object with explicit features and row-model slots (createTable + createTableState/getters), not v8 createSvelteTable/get*RowModel options"
+        },
+        {
+          "id": "external_atoms_prefs",
+          "text": "Column visibility/order slices are external atoms from createTablePrefs passed via the atoms option (no onColumnVisibilityChange/onColumnOrderChange handlers)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "products-references-estadisticas",
+      "prompt": "Build a data table like the estadísticas datos one, but for our product catalog. Products have: sku, name, category, price, stock quantity, active flag, and last-updated date.",
+      "expected_output": "A productos feature reproducing the estadísticas-datos table. sku/name as text-filter mono/plain cells, category faceted ('auto' or fixed), price/stock numeric cells, active flag boolean cell + filter, last-updated date column with dateRange filter + sortFn. Column prefs via createTablePrefs, export via exportTableXlsx with meta.export. Page + route. Type-checks clean.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "infra_files_copied",
+          "text": "The data-table infrastructure files (data-table-column-header.svelte, table-prefs.svelte.ts, table-export.ts, table-meta.d.ts) are present under $lib/components/ui/data-table/"
+        },
+        {
+          "id": "createTablePrefs_used",
+          "text": "Column show/hide and reorder state is managed by createTablePrefs, not hand-rolled $state + localStorage"
+        },
+        {
+          "id": "metadata_driven_export",
+          "text": "XLSX export uses exportTableXlsx fed by per-column meta.export, with no separate hand-maintained header/value mapping"
+        },
+        {
+          "id": "result_shape_truncation",
+          "text": "The remote function does count-then-capped-fetch and returns { rows, total, returned, truncated, cap }"
+        },
+        {
+          "id": "cells_escape_html",
+          "text": "Every dynamic value rendered into a createRawSnippet cell is HTML-escaped (txt/bool/escape)"
+        },
+        {
+          "id": "date_column_explicit_sort",
+          "text": "The date column pairs a dateRange filter with an explicit sortFn"
+        },
+        {
+          "id": "faceted_filters",
+          "text": "Categorical columns use faceted multi-select filters (filterOptions 'auto' or a fixed list)"
+        },
+        {
+          "id": "typecheck_clean",
+          "text": "svelte-check reports zero errors in the new feature files"
+        },
+        {
+          "id": "v9_features_object",
+          "text": "The table declares a tableFeatures({...}) object with explicit features and row-model slots (createTable + createTableState/getters), not v8 createSvelteTable/get*RowModel options"
+        },
+        {
+          "id": "external_atoms_prefs",
+          "text": "Column visibility/order slices are external atoms from createTablePrefs passed via the atoms option (no onColumnVisibilityChange/onColumnOrderChange handlers)"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "intake-asks-before-building",
+      "prompt": "Necesito una tabla para ver las cotizaciones. Hazla con el skill de data tables.",
+      "expected_output": "The agent does NOT start coding. It asks the intake questionnaire in ONE message: it fills what the vague prompt provides, proposes defaults for the optional items (export, filters, global search, initial sort, pagination, cap, batch selection, detail sheet, cache), and asks only the required items it cannot infer (data source, permission, column list with labels). Coding starts only after the user answers.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "asks_before_building",
+          "text": "The first reply asks the missing required spec items (data source, permission, columns) instead of inventing them"
+        },
+        {
+          "id": "single_message_intake",
+          "text": "Questions arrive in one numbered message, each with the proposed default, not one-by-one"
+        },
+        {
+          "id": "no_reasking_stated_items",
+          "text": "The agent does not re-ask what the prompt already stated (it wants a data table with the bt1 stack)"
+        },
+        {
+          "id": "spec_block_saved",
+          "text": "After the user answers, the resolved spec is saved as the SPEC comment block at the top of the table component (fuente/columnas/filtros/export/orden/cap/batch/detalle)"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "tickets-kanban-grouping",
+      "prompt": "Quiero una pantalla de tickets de soporte con el skill de data tables: tabla con filtros y export, pero además poder agrupar por estado o por agente, y un tablero kanban por estado donde arrastrar un ticket cambie su estado. Campos: id, fecha de creación, asunto, solicitante, estado (abierto/en_progreso/cerrado), prioridad, agente asignado.",
+      "expected_output": "One feature with the bt1 stack. data.remote.ts has get_tickets (query, count + cap + truncated, rows with string id) and set_estado (command that writes and then calls `await requested(get_tickets, N).refreshAll()`). The table registers columnGroupingFeature/createGroupedRowModel, rowExpandingFeature/createExpandedRowModel and rowAggregationFeature, sets autoResetExpanded: false, marks date/id/subject columns enableGrouping: false, and keeps VIEWS = table + kanban with KANBAN = {column: 'estado', lanes: [abierto, en_progreso, cerrado]}. The page reads `$derived(get_tickets(filters))` + `.current` and passes onMove that calls set_estado(...).updates(q.withOverride(...)). Header drag-and-drop uses prefs.moveTo. Type-checks clean.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "grouping_features_registered",
+          "text": "tableFeatures registers columnGroupingFeature + groupedRowModel, rowExpandingFeature + expandedRowModel and rowAggregationFeature with only the aggregation fns used"
+        },
+        {
+          "id": "auto_reset_expanded_false",
+          "text": "createTable options include autoResetExpanded: false (and paginateExpandedRows: false)"
+        },
+        {
+          "id": "non_groupable_columns",
+          "text": "Date, id and free-text columns set enableGrouping: false; categorical columns stay groupable"
+        },
+        {
+          "id": "kanban_contract",
+          "text": "KANBAN names one column and an ordered lanes array; the kanban block reads table.getSortedRowModel().rows with grouping forced to that column"
+        },
+        {
+          "id": "no_unused_views",
+          "text": "VIEWS contains only the views the spec asked for (table + kanban); the cards block was removed"
+        },
+        {
+          "id": "command_refreshes_query",
+          "text": "The state-change command calls requested(get_tickets, N).refreshAll() after writing, and the page invokes it with .updates(q.withOverride(...))"
+        },
+        {
+          "id": "page_uses_query_current",
+          "text": "The page derives the query with $derived(get_tickets(filters)) and reads .current/.loading/.error — no $effect fetch with cancellation flags"
+        },
+        {
+          "id": "row_id_and_getRowId",
+          "text": "The row type has a string id and createTable sets getRowId: r => r.id"
+        },
+        {
+          "id": "header_dnd_moveTo",
+          "text": "Header reorder drops call prefs.moveTo(fromId, toId) from the copied table-prefs.svelte.ts (not a DnD library)"
+        },
+        {
+          "id": "cells_escape_html",
+          "text": "Every dynamic value rendered into a createRawSnippet cell is HTML-escaped; the card snippet uses plain Svelte interpolation"
+        },
+        {
+          "id": "typecheck_clean",
+          "text": "svelte-check reports zero errors in the new feature files"
+        }
+      ]
+    }
+  ]
+}

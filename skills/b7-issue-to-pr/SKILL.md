@@ -122,7 +122,7 @@ Agente: `Agent(subagent_type="b-pipeline:b7-impl")` en M/L, `b7-impl-s` en S. Si
 
 - Rutas a `.b7/triage.json`, `.b7/screens/`, `.b7/context.md`, `$WORKTREE`.
 - Layout colocado, Remote Functions, sin state global, errores `error(STATUS,{message,code})`.
-- Si hay form crear/editar: pointer a `skills/b2-build-feature/references/forms-recipe.md`. Si `data_table: true`: usar skill `bt1-data-table` si existe, fallback shadcn Table + paginación server-side.
+- Si hay form crear/editar: pointer a `skills/b2-build-feature/references/forms-recipe.md`. Si `data_table: true`: usar skill `bt1-data-table`; shadcn Table + paginación server-side solo si el volumen supera su cap de fetch-once.
 - Si el plan modifica símbolos existentes: Phase 1.5 de b2 (impact set) y persistir `publish-docs.sh state-set impact_files=<csv|[]>`; scope-growth se declara en el sticky antes de codear.
 
 Tras cada pasada, al inicio de cada iteración `bash "$G" heartbeat "$WORKTREE"`, luego skip-by-scope sobre el diff vs base (`check:machine` si hay `.ts|.svelte|.js`; `lint` si además `.css`; `test:unit` si hay `.test|.spec`), re-corriendo solo lo que estaba rojo en `.b7/iter-status.json`:

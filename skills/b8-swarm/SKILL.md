@@ -72,7 +72,7 @@ Decidir la rama **antes** del worktree:
 - Sin `--theme` → rama `swarm/<ids-ordenados>` (ej. `swarm/192-193`). El título/cuerpo del PR igual llevan un resumen humano derivado del triage.
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 . "$PLUGIN_ROOT/scripts/lib.sh"
 DEFAULT_BRANCH="$(bp_default_branch)" || { echo "ABORT: no pude resolver la rama default"; exit 1; }
 BRANCH="refactor/<theme>"   # o swarm/<ids>

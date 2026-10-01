@@ -37,7 +37,7 @@ $ARGUMENTS
 
    > Create worktree from **current branch** (`<current-branch>`) or from **la rama default**? (la resuelve el script vía `bp_default_branch`)
 
-   En los pasos siguientes, `<plugin-root>` es la raíz del plugin. Resolverla portable como `"${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"` — funciona con el plugin instalado vía Claude Code marketplace o en el dev location. `<skill-dir>` es `<plugin-root>/skills/b1-add-worktree`.
+   En los pasos siguientes, `<plugin-root>` es la raíz del plugin. Resolverla portable con `PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"` — en Claude Code `${CLAUDE_PLUGIN_ROOT}` llega ya sustituido por la ruta de esta versión; en pi viene del entorno; en Codex cae al marker. `<skill-dir>` es `<plugin-root>/skills/b1-add-worktree`.
 
 4. **Ensure clean working tree**: Before running the script, run `bash <skill-dir>/scripts/assert-clean.sh . --fix` en el repo padre y actuar según exit code: `0` = continuar; `6` = código sin commitear — commitear primero (pedir confirmación al usuario); `7` = artefactos persistentes — revisarlos a mano con el usuario antes de seguir.
 

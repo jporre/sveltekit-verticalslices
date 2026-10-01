@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.18.0] — 2026-10-01
+
+Rendimiento en los tres harness (Claude Code, pi, Codex), a partir del costo medido de 25 corridas de b10.
+
+### Fix — Codex pisaba el marker de Claude Code
+
+- Codex corre el mismo `hooks/hooks.json`: su `SessionStart` reescribía `~/.claude/b-pipeline.root` con su cache (`~/.codex/plugins/cache/.../1.16.0`) y todas las sesiones de Claude Code pasaban a ejecutar esos scripts (mismo bug que pi en 1.15.1). `write-root-marker.sh` ya no escribe si su raíz está bajo `~/.codex`. Regresión: `hooks/tests/write-root-marker.test.sh`.
+
+### Fix — los skills ejecutan los scripts de SU versión
+
+- Los 22 snippets `PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-…marker…}"` pasan a `PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT=<marker|glob>`. Claude Code sustituye `${CLAUDE_PLUGIN_ROOT}` (forma exacta, no `:-`) en el contenido de los skills de plugin por la ruta de la versión cargada: se acaba el desfase entre el texto del skill (p. ej. 1.12.0 en un proyecto) y los scripts del marker (el último que escribió, de otra versión). pi lo toma del entorno; Codex y las `references/` (leídas con Read, sin sustitución) caen al marker. `screens-step.md` apuntaba a un fallback inexistente (`~/.claude/skills/b-pipeline`).
+
+### Fix — run report con triage y costo por agente
+
+- `triage_*` nacían "—" en `init-state` y nada los escribía: el run report salía siempre con el triage vacío. `publish-docs.sh run-report` los toma de `.b7/triage.json`.
+- El run report anexa el desglose por agente de `cost-report.py --top 0` (main, cada build, review, recorrido del navegador) bajo `## Costo`: dónde se fue cada dólar sin re-analizar el transcript a mano. Regresión ampliada en `publish-docs-run-report.test.sh`.
+
+### Feat — `drive.sh`: olas desatendidas en cualquier harness
+
+- `skills/b10-ship/scripts/drive.sh <claude|pi|codex> <args de b10>` automatiza la regla "una ola por sesión": relanza una sesión headless nueva (`claude -p`, `pi -p`, `codex exec`) mientras la salida termine en `B10_WAVE_DONE`; sale 0 con `B10_DONE` y corta con `DRIVE_STOP` ante cualquier gate humano o falla. Env: `DRIVE_MODEL`, `DRIVE_FLAGS` (claude: `--permission-mode auto` por default), `DRIVE_MAX_WAVES`, `DRIVE_LOG_DIR`. Regresión: `skills/b10-ship/tests/drive.test.sh` (harness falsos; la rama `codex` no está probada contra el CLI real).
+
 ## [1.17.1] — 2026-10-01
 
 ### Feat — quick-wins en Claude Code: skill `qw`

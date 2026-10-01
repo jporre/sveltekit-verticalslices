@@ -65,7 +65,7 @@ Crear en `<out_dir>/`:
 - El dev server del worktree lo levanta **b7** (paso 5.0) en `$PORT`. Verificar que responde y que sirve el checkout correcto:
   - **Si vino `worktree`** (invocado por b7): gatear con `verify-port` — confirma que el proceso que escucha en `<port>` tiene su cwd EN ese worktree, no en el checkout de la rama default. Esto previene el incidente de revisar pantallas contra la rama default cuando un dev server viejo ocupa el puerto:
     ```bash
-    PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+    PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
     bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" verify-port "<port>" "<worktree>"
     ```
     Exit 40 (nadie escucha) o 41 (lo sirve otro cwd) → abortar con `verdict: warn`, `"infra_fail": true`, criterios `not-evaluated` y `findings: [{severity:error, message:"verify-port falló: :<port> no sirve el worktree (¿b7 paso 5.0 lo levantó? ¿dev server viejo en el puerto?)"}]`. NUNCA evaluar contra un server que no sea el del worktree — solo cambia el verdict reportado, no el gate.

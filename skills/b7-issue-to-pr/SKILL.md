@@ -69,7 +69,7 @@ Cada feature se triagea, diseña, implementa y revisa como pantallas (`screens[]
 ### 0. Bootstrap (script)
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 G="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh"
 PD="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/publish-docs.sh"
 bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/run.sh" $ARGUMENTS   # preflight + lock + cache-issue + context-snapshot + init-state

@@ -34,7 +34,7 @@ Desde el repo principal. Resolver según el primer token de `$ARGUMENTS`:
 ```bash
 REPO_MAIN="$(git rev-parse --show-toplevel)"
 ARG="<primer-token-de-$ARGUMENTS>"
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 . "$PLUGIN_ROOT/scripts/lib.sh"
 
 # Modo issue (número pelado o "issue N"): buscar el PR que lo cierra.
@@ -74,7 +74,7 @@ gh pr view "$PR" --json number,title,isDraft,mergeable,mergeStateStatus,reviewDe
 Solo si existe `$WORKTREE`. El squash-merge debe incluir TODO el trabajo; cambios sueltos o commits sin push se pierden silenciosamente.
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
 ```
 
@@ -94,7 +94,7 @@ git -C "$WORKTREE" push origin "$BRANCH"
 
 ```bash
 # Lector único del marker (cubre comentarios Y reviews). NO parsear el marker a mano.
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 . "$PLUGIN_ROOT/scripts/lib.sh"
 bp_b6_verdict "$PR"
 # exit 0 -> imprime: B6_VERDICT verdict=.. blockers=N warnings=M human=required|no pr=P
@@ -131,7 +131,7 @@ HAS_LABEL=$(gh pr view "$PR" --json labels --jq '[.labels[].name] | contains(["m
 if [ "$HAS_LABEL" = "true" ]; then
   # UN solo sweep del endpoint de events vía bp_label_event (scripts/lib.sh):
   # emite "actor<TAB>created_at" del último evento labeled (vacío si no hubo).
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
   . "$PLUGIN_ROOT/scripts/lib.sh"
   APPROVAL=$(bp_label_event "$PR" merge-approved)
   ACTOR="${APPROVAL%%$'\t'*}"          # vacío si no hubo evento labeled
@@ -221,7 +221,7 @@ Solo si existe `$WORKTREE` y (el usuario eligió "Mergear y limpiar" O la aproba
 [ -f "$WORKTREE/.b7/dev-server.pid" ] && kill "$(cat "$WORKTREE/.b7/dev-server.pid")" 2>/dev/null || true
 
 # PROHIBIDO remove --force con trabajo sin commitear. Verificar primero:
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
 ```
 

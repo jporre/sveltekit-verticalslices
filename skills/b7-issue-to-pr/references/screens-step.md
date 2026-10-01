@@ -57,7 +57,7 @@ Sin sección declarada: flujo A→B histórico de abajo, y dejar en el run-repor
 **A. Intentar sesión scriptada (`mint-dev-session.sh`).** Inserta una fila de sesión válida en la DB del worktree y devuelve la cookie — sin ritual manual. Requiere `B7_SESSION_USER_ID` o `B7_SESSION_EMAIL` en el entorno del run:
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/skills/b-pipeline}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 MINT="$PLUGIN_ROOT/skills/b7-screen-review/scripts/mint-dev-session.sh"
 AUTH_COOKIE=""
 if COOKIE_LINE=$(bash "$MINT" mint "$WORKTREE" 2>>"$WORKTREE/.b7/dev-server.log"); then

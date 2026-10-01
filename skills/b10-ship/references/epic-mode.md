@@ -22,7 +22,7 @@ El label NO toca los gates humanos que sobreviven: batch complex post-triage, ba
 ### Loop principal
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 EPIC_SCRIPTS="$PLUGIN_ROOT/skills/b10-ship/scripts"
 bash "$EPIC_SCRIPTS/epic-state.sh" <EPIC>    # snapshot PARALELO: topologia + reconcile live por sub-issue
 ```
@@ -61,7 +61,7 @@ y una línea al usuario: *"Ola \<K\> cerrada — pantalla \<ruta\> entregada: re
 - **Por qué `/clear` y no `/compact`:** `/compact` cuesta un pase de output completo (resumir 150k+) **más** un cache write del prefijo nuevo, y conserva contexto que ya no decide nada. Con estado durable en disco, `/clear` cuesta cero y arranca la ola siguiente en ~30k. Nunca proponer `/compact` acá.
 - **Sin fricción nueva:** el corte cae exactamente en el gate de aprobaciones de fin de ola (momento 2), donde el humano ya estaba presente. No agrega una parada — reusa la que existe.
 - **Excepción:** ola de 1 issue `simple` sin screens → seguir de corrido; parar ahí sería fricción sin ahorro.
-- **Desatendido** (`epic-auto-merge` vigente, sin humano): igual cortar por ola, pero emitir `PushNotification` con la línea `B10_WAVE_DONE` en vez de esperar respuesta — el resume queda listo para la próxima sesión.
+- **Desatendido** (`epic-auto-merge` vigente, sin humano): igual cortar por ola, pero emitir `PushNotification` con la línea `B10_WAVE_DONE` en vez de esperar respuesta — el resume queda listo para la próxima sesión. Con `scripts/drive.sh <claude|pi|codex> --epic=<N>` el relanzamiento es automático: una sesión headless nueva por ola hasta `B10_DONE` o el primer gate humano.
 
 Esta regla es la única defensa contra el modo de falla dominante del pipeline: sesiones largas donde el 68% del gasto ocurre sobre >150k de contexto.
 

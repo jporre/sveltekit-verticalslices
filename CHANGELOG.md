@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.1] — 2026-10-01
+
+### Feat — quick-wins en Claude Code: skill `qw`
+
+- **`skills/qw/SKILL.md`**: `/b-pipeline:qw [pedido]` carga las mismas reglas de `pi/quick-wins.ts` (el usuario dicta, el agente ejecuta, sin preguntas ni alcance extra, tests solo de lo tocado). Con pedido lo ejecuta ya; vacío, deja el modo activo. `disable-model-invocation: true`: solo lo invoca el usuario.
+- Diferencias con la extensión de pi: no hay `off` por comando (se sale pidiéndolo en texto) y una compactación del contexto puede borrarlo — reinvocar. En pi sigue la extensión `/qw`; el skill aparece además como `/skill:qw`.
+
 ## [1.17.0] — 2026-10-01
 
 ### Feat — `bt1-data-table` entra al plugin

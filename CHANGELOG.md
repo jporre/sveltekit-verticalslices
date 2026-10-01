@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.18.1] — 2026-10-01
+
+### Fix — `create-epic.sh` abortaba con `set -u`
+
+- El reemplazo de snippets de 1.18.0 dejó `PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"` también en `create-epic.sh`, que corre con `set -euo pipefail`: sin la variable en el entorno (Claude Code no la exporta a scripts) el fallback abortaba con `unbound variable`. En scripts `.sh` no hay sustitución de Claude Code, así que vuelve `${CLAUDE_PLUGIN_ROOT:-}`. La forma exacta sin default queda solo en el contenido de los skills, donde Claude Code la sustituye.
+
 ## [1.18.0] — 2026-10-01
 
 Rendimiento en los tres harness (Claude Code, pi, Codex), a partir del costo medido de 25 corridas de b10.

@@ -47,7 +47,7 @@ Si no hay PR, informa al usuario que necesitas un PR existente.
 Ejecuta el script que recopila todo el contexto del PR:
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 # Agregar `--light` como segundo arg si el usuario/orquestador pasó ese flag (fuerza modo light).
 bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/pr-context.sh" <PR_NUMBER> [--light]
 ```
@@ -131,7 +131,7 @@ bajo `src/lib/features/`, `*.remote.ts` fuera de `server/`, `*.remote.ts` bajo `
 nuevo sin `docs/readme.md`):
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh" "$(gh pr view "$PR" --json baseRefName -q .baseRefName)"
 # → SLICE_CHECK ok | SLICE_CHECK violations=<n>
 ```
@@ -357,7 +357,7 @@ repo, PR = número; así corridas concurrentes no se pisan), y dejar que `verdic
 compute y estampe el marker desde los counts:
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 VERDICT="$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh"
 # 1) estampar el marker computado
 bash "$VERDICT" stamp /tmp/pr-review-<repo>-<PR>.md      # imprime B6_VERDICT ... y anexa el marker

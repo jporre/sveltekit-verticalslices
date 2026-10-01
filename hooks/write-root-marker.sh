@@ -13,6 +13,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [ -d "$ROOT/skills" ] || exit 0   # sanity: no escribir basura si la estructura no calza
+# Codex corre este mismo hooks.json desde su cache: si escribiera, todas las sesiones de
+# Claude Code pasarían a ejecutar los scripts de esa copia (mismo bug que pi en 1.15.1).
+case "$ROOT" in "$HOME"/.codex/*) exit 0 ;; esac
 mkdir -p "$HOME/.claude"
 printf '%s\n' "$ROOT" > "$HOME/.claude/b-pipeline.root"
 exit 0

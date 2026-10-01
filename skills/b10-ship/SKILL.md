@@ -29,7 +29,7 @@ El estado canónico vive en GitHub (labels, comentarios con markers, PRs). **Rec
 ### 0. Preflight + lock
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 B10="$PLUGIN_ROOT/skills/b10-ship/scripts/run.sh"
 bash "$B10" preflight        # 20=killswitch, 12=gh auth, 18=tree sucio, 17=backpressure, 19=env-check, 2=script faltante
 bash "$B10" acquire-lock     # 21=otro run activo (stale a las 6h); emite B10_LOCK_TOKEN
@@ -92,7 +92,7 @@ Parsear la última línea `B7_DONE issue=<N> pr=<url|none> status=<s>`. b7 puede
 ### 4. Verify
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 WT=<B10_WORKTREE si existe>
 [ -n "$WT" ] && bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WT" --fix
 # exit 6 -> Skill b-pipeline:b3-git-commit en el worktree + push (el PR debe contener TODO)

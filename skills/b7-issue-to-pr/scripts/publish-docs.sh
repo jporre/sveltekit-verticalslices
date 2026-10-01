@@ -310,10 +310,32 @@ cmd_run_report() {
   case "$out" in ''|'—')
     out="$(bp_state_dir "$WORKTREE")/b7-runs/$(date -u +%Y%m%dT%H%M%SZ)-issue-$(state_get issue_number).md" ;;
   esac
+  # triage_* nacen "—" en init-state y nadie más los escribía: se toman de .b7/triage.json.
+  python3 - "$STATE_PATH" "$WORKTREE/.b7/triage.json" <<'PY'
+import json, pathlib, sys
+state_p, triage_p = map(pathlib.Path, sys.argv[1:3])
+if not triage_p.is_file():
+    sys.exit(0)
+try:
+    t = json.loads(triage_p.read_text())
+except ValueError:
+    sys.exit(0)
+d = json.loads(state_p.read_text())
+for key, src in (("verdict", "verdict"), ("type", "type"), ("scope", "scope"),
+                 ("complexity", "estimated_complexity"), ("security", "security_review_required"),
+                 ("summary", "summary")):
+    v = t.get(src)
+    if v not in (None, ""):
+        d[f"triage_{key}"] = str(v).lower() if isinstance(v, bool) else str(v)
+state_p.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
+PY
   render_template "$TEMPLATES/run-report.md" "$out"
   cost="$(cd "$WORKTREE" && python3 "$PLUGIN_ROOT/scripts/cost-report.py" --brief 2>/dev/null || true)"
   cost="${cost:-COST n/a}"
   printf '\n## Costo\n\n%s\n' "$cost" >> "$out"
+  # Desglose por agente: dónde se fue el costo sin re-analizar el transcript a mano.
+  agents="$(cd "$WORKTREE" && python3 "$PLUGIN_ROOT/scripts/cost-report.py" --top 0 2>/dev/null | sed -n '/^fuente/,/^TOTAL/p' || true)"
+  [ -n "$agents" ] && printf '\n```text\n%s\n```\n' "$agents" >> "$out"
   echo "publish-docs/run-report: wrote $out ($cost)"
 }
 

@@ -34,7 +34,7 @@ Escribir la spec cuesta más que ejecutarla. El ahorro real: el loop mecánico n
 ## Flujo
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 B11="$PLUGIN_ROOT/skills/b11-spec-exec"
 REPO="$(git rev-parse --show-toplevel)"                            # worktrees valen: los scripts validan con rev-parse, no con .git/
 DIR="${TMPDIR:-/tmp}/b11/$(basename "$REPO")/<slug-del-cambio>"    # fuera del repo (no ensucia git status) y NUNCA bajo ~/.claude:

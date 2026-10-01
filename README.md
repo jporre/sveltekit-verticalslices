@@ -231,6 +231,16 @@ Epic mode adds three opt-in behaviors, all off by default and all still gated:
 
 **Fast mode is one switch.** A live `epic-auto-merge` label (human actor) turns on the whole package at once — auto-merge drain, parallel wave builds (`B7_PARALLEL=1` implied), automatic same-scope clustering via `b8-swarm`, and the dynamic backpressure cap — no flags or env vars needed; `b0`'s gate can stamp the label at creation when you pick fast execution. Removing the label reverts everything to sequential + per-PR gates. The four human gates (complex batch, waiver batch, `epic-approved`, CI-failure stop) never turn off.
 
+**Unattended waves (any harness).** Epic mode runs one wave per session (a fresh context per wave instead of dragging 150k+ tokens). `skills/b10-ship/scripts/drive.sh` automates the `/clear` + re-invoke loop: it starts a new headless session per wave until `B10_DONE`, and stops at any human gate or failure.
+
+```bash
+bash skills/b10-ship/scripts/drive.sh claude --epic=242   # claude -p, --permission-mode auto by default
+bash skills/b10-ship/scripts/drive.sh pi --epic=242       # pi -p /skill:b10-ship
+bash skills/b10-ship/scripts/drive.sh codex --epic=242    # codex exec
+```
+
+Env: `DRIVE_MODEL`, `DRIVE_FLAGS`, `DRIVE_MAX_WAVES` (10), `DRIVE_LOG_DIR`.
+
 See `skills/b10-ship/references/epic-mode.md` for the full mechanics if you are auditing or extending the pipeline.
 
 ### `b7-issue-to-pr` — issue → draft PR (stops before merge)
@@ -299,7 +309,7 @@ Triage reads and writes these labels; they are the pipeline's control plane. Cre
   - `PreToolUse` on **Bash** → `block-env-dump.sh`: blocks a dump verb (`cat`, `grep`, `head`, …) whose argument is a secret-bearing env file (e.g. `.env`). Evaluated per command segment, so `source .env` or `process.env.X` elsewhere in the same line do not trip it. Vectors: `hooks/tests/block-env-dump.test.sh`.
   - `PreToolUse` on **Read** → `block-env-dump.sh`: same guard when Claude tries to read those files directly.
   - `PostToolUse` on **Bash** → `link-worktree-env.sh`: after `setup-worktree.sh` runs, symlinks the parent repo's untracked `.env*` files into each worktree. Non-fatal and idempotent; lives in a hook so the setup script itself stays free of secret-touching patterns that trip the harness safety classifier in headless runs.
-  - `SessionStart` → `write-root-marker.sh`: writes the plugin's install path to `~/.claude/b-pipeline.root` so the pipeline's scripts can find it (skill snippets do not receive `CLAUDE_PLUGIN_ROOT`).
+  - `SessionStart` → `write-root-marker.sh`: writes the plugin's install path to `~/.claude/b-pipeline.root`. It is only a fallback: in Claude Code the skill snippets use `${CLAUDE_PLUGIN_ROOT}`, which Claude Code substitutes with the exact path of the loaded version; pi exports it to the environment. The marker serves Codex and the `references/` files. When Codex runs the same hook from `~/.codex`, it does not write the marker.
 
   All hooks run **locally only** — no network calls, no telemetry; they merely allow or block an action (or write a local marker). Everything else in the plugin runs on demand, and GitHub access uses your own authenticated `gh` CLI.
 - **Same guards in pi.** The `pi/b-pipeline-compat.ts` extension reuses the exact same hook scripts: `tool_call` on bash/read feeds them the same JSON payload and blocks on exit 2, `tool_execution_end` runs the `.env*` symlink step, and session start exports `CLAUDE_PLUGIN_ROOT` (same root-marker fallback). One implementation, both harnesses.

@@ -54,5 +54,18 @@ if grep -qE '^COST (session=|n/a)' "$report"; then ok "aborted también deja la 
 bash "$PD" aborted --worktree "$wt" >/dev/null 2>&1 || true
 if [ "$(state_val abort_reason)" = "budget: 26 archivos > 25" ]; then ok "aborted sin razón conserva abort_reason"; else fail "aborted sin razón pisó abort_reason='$(state_val abort_reason)'"; fi
 
+# 4. Triage desde .b7/triage.json (antes quedaba "—") + desglose de costo por agente.
+cat > "$wt/.b7/triage.json" <<'JSON'
+{"verdict":"ready","type":"feat","scope":"bandeja","language":"es","screens":[],"estimated_complexity":"medium","security_review_required":false,"summary":"Filtro mis tareas"}
+JSON
+slug="$(printf '%s' "$wt" | sed 's/[^A-Za-z0-9]/-/g')"
+mkdir -p "$HOME/.claude/projects/$slug"
+printf '%s\n' '{"type":"user","message":{"role":"user","content":"/b-pipeline:b7-issue-to-pr 59"},"timestamp":"2026-10-01T10:00:00Z"}' \
+  '{"type":"assistant","message":{"id":"m1","model":"x","usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":1000,"cache_creation_input_tokens":100},"content":[]},"timestamp":"2026-10-01T10:00:01Z"}' \
+  > "$HOME/.claude/projects/$slug/s1.jsonl"
+bash "$PD" run-report --worktree "$wt" >/dev/null 2>&1 || true
+if grep -q -- '- verdict: ready' "$report" && grep -q -- '- complexity: medium' "$report" && grep -q -- '- security review required: false' "$report" && grep -q -- '- summary: Filtro mis tareas' "$report"; then ok "triage del run report viene de .b7/triage.json"; else fail "triage sigue vacío en el run report"; fi
+if grep -q '^fuente ' "$report" && grep -q '^main ' "$report" && grep -q '^TOTAL ' "$report"; then ok "run report trae el desglose de costo por agente"; else fail "sin tabla de costo por agente"; fi
+
 [ "$fails" -eq 0 ] || { echo "$fails assertion(s) fallaron"; exit 1; }
 echo "publish-docs-run-report: OK"

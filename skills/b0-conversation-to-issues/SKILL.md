@@ -234,7 +234,7 @@ Script del Workflow: cargar (Read) `scripts/draft-bodies.workflow.js` e invocar 
 Correr el preview (no toca GitHub):
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 B0="$PLUGIN_ROOT/skills/b0-conversation-to-issues/scripts/create-epic.sh"
 bash "$B0" "$PLAN_JSON" --dry-run
 ```

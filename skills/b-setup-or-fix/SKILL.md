@@ -56,7 +56,7 @@ Orden fijo: primero lo que habilita (config, seguridad), después mover archivos
 ## FASE 0: Preflight
 
 ```bash
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)}"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 . "$PLUGIN_ROOT/scripts/lib.sh"
 
 grep -q '"@sveltejs/kit"' package.json || echo "ABORT: no es un proyecto SvelteKit"   # gate barato ANTES de crear rama o pagar el baseline

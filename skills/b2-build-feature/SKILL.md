@@ -291,15 +291,14 @@ Todo lo demás (upsert único, `$derived` para queries, `fields.as`, namespace i
 | Feature has 4+ screens                        | `references/complex-features.md`       |
 | URL-synced page state (filter/tab/month)      | `references/url-synced-state.md`       |
 | Screen has a create/edit form (`form()` + shadcn) | `references/forms-recipe.md`        |
-| Screen lists/filters/exports DB records       | `bt1-data-table` skill — invoke it, do NOT hand-roll the table |
+| Screen lists/filters/exports DB records       | `bt1-data-table` skill (`../bt1-data-table/SKILL.md`) — invoke it, do NOT hand-roll the table |
 | Remote function details / forms               | `using-remote-functions` skill         |
 | Drizzle / Postgres table patterns             | `postgresql-table-design` skill        |
 | Svelte 5 runes                                | `svelte-runes` skill                   |
 | Auth & permissions                            | `../b6-pr-review/references/security-checklist.md` |
 
-> Los skills externos (`bt1-data-table`, `using-remote-functions`, `postgresql-table-design`,
-> `svelte-runes`) son del entorno del usuario: si no aparecen en la lista de skills
-> disponibles, seguir con las references del plugin y decirlo en el reporte.
+> Los skills externos (`using-remote-functions`, `postgresql-table-design`, `svelte-runes`)
+> son del entorno del usuario: si no aparecen en la lista de skills disponibles, seguir con las references del plugin y decirlo en el reporte.
 
 ## Complexity Guide
 

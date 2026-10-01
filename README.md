@@ -115,6 +115,8 @@ pi install git:github.com/jporre/sveltekit-verticalslices@v1.12.0   # git
 
 pi descubre los skills de `skills/` (invocables como `/skill:b10-ship 42`) y carga la extensión `pi/b-pipeline-compat.ts`, que activa los mismos guardrails que los hooks de Claude Code (bloqueo de `git worktree add` directo, bloqueo de dumps de `.env`, symlinks de `.env*` a los worktrees) y exporta `CLAUDE_PLUGIN_ROOT` para que los scripts del plugin resuelvan su raíz igual que en Claude Code.
 
+También carga `pi/quick-wins.ts`: `/quickwins` (alias `/qw`, `on`/`off` o alterna) activa un modo por sesión para cambios chicos que no justifican el pipeline — el usuario dicta el cambio cerrado y el agente lo ejecuta sin preguntar ni ampliar alcance, corre solo los tests de lo tocado y reporta breve. Útil con un modelo barato (p. ej. GLM Flash) para ahorrar tokens.
+
 > **Nota de compatibilidad**: skills, guardrails y agentes (`b7-impl`, `b7-impl-s`, `b7-screen-review` — portados a `pi-agents/`) están verificados en pi. Los orquestadores llevan una nota **Multi-harness** que mapea las tools de Claude Code (`AskUserQuestion`, `Agent`, `Skill`, `Workflow`) a sus equivalentes en pi (pregunta en texto, tool `subagent`, carga del SKILL.md con `read`, `subagent` con `workflowScript`).
 
 ---
@@ -173,6 +175,7 @@ Skills are namespaced `b-pipeline:<skill>`.
 | **b6-pr-review** | Reviews a PR across five areas and writes a durable verdict marker (`<!-- b6:verdict=... -->`). |
 | **b9-close** | Canonical close: merges the PR, closes the issue, and cleans the worktree — behind a human approval gate. |
 | **b11-spec-exec** | Two-tier mechanical change. The session writes an executable SPEC (file copies + exact find/replace edits + acceptance commands + expected `git status`), a deterministic validator rehearses it on a throwaway clone, a cheap model (GLM 5.3 Flash via OpenRouter, or Haiku) applies it in an isolated `claude -p`, and the validator certifies the result byte for byte. For changes already decided file by file — renames, version bumps, docs/config, installing pre-written files — never for work that needs discovery. In epic mode `b0` stamps `lane:b11` on eligible mechanical slices (`kind:docs\|tests\|infra`, ≤ 6 planned files, no `src/routes/` or logic migrations) and `b10` phase 3 dispatches them through this skill; the SPEC is always written by a fresh scoped agent, never a fork. |
+| **bt1-data-table** | Client-side data table for SvelteKit 5 on `@tanstack/svelte-table` v9, fed by a fetch-once Remote Function `query` (capped, with a truncated badge): sorting, substring/date-range/faceted filters, global search, group-by with aggregates, column show/hide + reorder persisted to localStorage, pagination, XLSX export, plus cards and kanban views with drag-and-drop. Escapes every cell (no stored XSS via `createRawSnippet`). `b2` invokes it for any screen the triage flags `data_table: true`; also usable standalone. |
 | **b-setup-or-fix** | Standalone "genie in a bottle" — **user-invoked only, never chained by the pipeline**. Audits an entire degraded SvelteKit repo (load functions / manual fetch instead of Remote Functions, Svelte 4 syntax, over-engineering, duplicates, comment noise) and migrates it rung by rung (E1 security → E6 docs) toward the same doctrine b2 builds with and b6 reviews against — or installs that base in a fresh project (`--init`). Every rung is verified against a baseline and human-gated before any edit. |
 
 The visual reviewer `b7-screen-review` is a plugin **agent**, not a skill: it is defined in `agents/b7-screen-review.md` (Claude Code) / `pi-agents/b7-screen-review.md` (pi, same contract) and spawned by `b7-issue-to-pr` / `b8-swarm` — one per screen in parallel. It verifies each screen against the triage's visual acceptance criteria using the `agent-browser` CLI.
@@ -329,6 +332,7 @@ The orchestrators are the happy path, but every skill works standalone:
 /b-pipeline:b6-pr-review 128        # just review PR #128
 /b-pipeline:b9-close 128            # just merge PR #128 and clean up (with the gate)
 /b-pipeline:b11-spec-exec "bump version to 1.14.0"   # spec -> rehearse -> cheap model applies -> certify
+/b-pipeline:bt1-data-table facturas      # tanstack data table (+ cards/kanban) for a feature
 /b-pipeline:b-setup-or-fix --audit       # diagnose the whole repo, touch nothing
 /b-pipeline:b-setup-or-fix               # full rescue: audit -> human gate -> verified rungs
 ```

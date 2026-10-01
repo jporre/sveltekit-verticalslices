@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.17.0] — 2026-10-01
+
+### Feat — `bt1-data-table` entra al plugin
+
+- **`skills/bt1-data-table/`** (antes skill suelto en `~/.claude/skills/`): tabla client-side para SvelteKit 5 sobre `@tanstack/svelte-table` v9 alimentada por una Remote Function `query` fetch-once con cap (default 5000 + badge de truncado) — orden, filtros substring/rango de fechas/faceted, búsqueda global, group-by con agregados, columnas ocultar/reordenar persistidas en localStorage, paginación, export XLSX, vistas cards y kanban con drag-and-drop; celdas escapadas (sin XSS almacenado vía `createRawSnippet`). Incluye `assets/`, `references/` y `evals/`. Invocable como `/b-pipeline:bt1-data-table` (pi: `/skill:bt1-data-table`).
+- b2, b7 y b8 dejan de tratarlo como skill externo opcional (`si existe` / `si está disponible`): pantallas con `data_table: true` lo invocan siempre; shadcn Table + paginación server-side queda solo para volúmenes sobre el cap del fetch-once. b2 lo apunta también por ruta (`../bt1-data-table/SKILL.md`) para subagentes sin la tool `Skill`.
+
+### Feat — `quick-wins` entra al plugin (pi)
+
+- **`pi/quick-wins.ts`** (antes en `~/.pi/agent/extensions/`): `/quickwins` / `/qw` alterna un modo por sesión que inyecta al system prompt «el usuario dicta el cambio, tú lo ejecutas» — sin preguntas, sin alcance extra, tests solo de lo tocado. Para cambios chicos sin el pipeline completo. El manifest no cambia: `pi.extensions: ["./pi"]` ya carga todo `.ts` del directorio.
+- Tras actualizar el plugin, borrar las copias sueltas (`~/.pi/agent/extensions/quick-wins.ts`, `bt1-data-table` en `~/.claude/skills`, `~/.pi/agent/skills`, `~/.codex/skills`, `~/.agents/skills`) — si no, pi registra `/qw` dos veces y los skills duplicados compiten.
+
 ## [1.16.0] — 2026-09-14
 
 ### Feat — `triage-from-labels`: fast-path de b0 por script, fuente única (#60)

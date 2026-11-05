@@ -71,20 +71,20 @@ gh pr view "$PR" --json number,title,isDraft,mergeable,mergeStateStatus,reviewDe
 
 ## PASO 1.5: Sincronizar el worktree (todo commiteado y pusheado ANTES del merge)
 
-Solo si existe `$WORKTREE`. El squash-merge debe incluir TODO el trabajo; cambios sueltos o commits sin push se pierden silenciosamente.
+Solo si existe `$WORKTREE`. El merge debe incluir TODO el trabajo; cambios sueltos o commits sin push se pierden silenciosamente.
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
 bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WORKTREE" --fix
 ```
 
-- **exit 6** (código sin commitear) → invocar `Skill b-pipeline:b3-git-commit` desde el worktree para commitearlo, y **verificar antes de seguir**: la línea `B3_DONE commits=<n> head=<sha>` presente, `assert-clean.sh "$WORKTREE"` con exit 0, y tras el push `git -C "$WORKTREE" rev-list --count @{u}..HEAD` == 0 — reportar el SHA como evidencia. Si algo falla, ABORTAR con diagnóstico: continuar con un commit fantasma hace que el squash-merge pierda ese trabajo EN SILENCIO.
+- **exit 6** (código sin commitear) → invocar `Skill b-pipeline:b3-git-commit` desde el worktree para commitearlo, y **verificar antes de seguir**: la línea `B3_DONE commits=<n> head=<sha>` presente, `assert-clean.sh "$WORKTREE"` con exit 0, y tras el push `git -C "$WORKTREE" rev-list --count @{u}..HEAD` == 0 — reportar el SHA como evidencia. Si algo falla, ABORTAR con diagnóstico: continuar con un commit fantasma hace que el merge pierda ese trabajo EN SILENCIO.
 - **exit 7** (artefactos persistentes) → reportar, no bloquea.
 
 ```bash
 # Push incondicional (idempotente, no-op si ya está al día). No condicionar a
 # `git log origin/B..B`: si el ref remoto local está stale/pruned, ese check da 0
-# y los commits sin push se perderían del squash.
+# y los commits sin push se perderían del merge.
 git -C "$WORKTREE" push origin "$BRANCH"
 ```
 
@@ -107,6 +107,12 @@ bp_b6_verdict "$PR"
 
 ## PASO 3: Resumen pre-merge
 
+Estrategia de merge (#69): flag explícito del usuario (`--merge`/`--rebase`/`--squash`) gana; si no hay, la del historial del repo:
+
+```bash
+bash "$PLUGIN_ROOT/skills/b9-close/scripts/merge-strategy.sh"   # MERGE_STRATEGY=squash|rebase|merge MERGE_STRATEGY_SRC="8/10 PRs recientes"
+```
+
 Presenta compacto:
 
 ```
@@ -115,7 +121,7 @@ Issues:       #<i1>, #<i2>...  (se cierran solos al mergear vía "Closes #")
 Branch:       <branch>          Worktree: <path o ninguno>
 Mergeable:    <estado>          CI: <ok|fail|n/a>
 b6-review:    presente (<fecha>) — <K blockers, M warnings>
-Estrategia:   squash + delete-branch
+Estrategia:   <MERGE_STRATEGY> (<MERGE_STRATEGY_SRC>) + delete-branch
 ```
 
 Con `--auto-merge` emitir el mismo resumen igual (queda como registro del drain) y seguir de inmediato al PASO 4 sin esperar respuesta.
@@ -183,7 +189,7 @@ gh pr comment "$PR" --body "auto-merged bajo epic-auto-merge #${EPIC_N} (b6 bloc
 
 **Canal interactivo — `AskUserQuestion`:**
 
-> ¿Mergear PR #<N> a la rama default con squash y limpiar el worktree?
+> ¿Mergear PR #<N> a la rama default con <MERGE_STRATEGY> y limpiar el worktree?
 
 Opciones: **Mergear y limpiar** / **Solo mergear (conservar worktree)** / **Cancelar**.
 
@@ -196,8 +202,8 @@ Solo con aprobación concedida por alguno de los tres canales del PASO 4:
 ```bash
 # Un-draft si está en draft (no se puede mergear un draft).
 gh pr ready "$PR"
-# Squash-merge: cierra el PR, borra la rama remota, y "Closes #<issue>" cierra el issue.
-gh pr merge "$PR" --squash --delete-branch
+# Merge con la estrategia del PASO 3: cierra el PR, borra la rama remota, y "Closes #<issue>" cierra el issue.
+gh pr merge "$PR" --"$MERGE_STRATEGY" --delete-branch
 ```
 
 Verificar (TODOS los issues, no solo el primero — un `Closes` mal formateado deja issues abiertos):
@@ -283,7 +289,7 @@ Reporte (terminar SIEMPRE con la línea machine-readable):
 
 ```
 === PR #<N> CERRADO ===
-Merge:        squash a la rama default (<sha corto>)
+Merge:        <MERGE_STRATEGY> a la rama default (<sha corto>)
 Issues:       #<i1>, #<i2>... CLOSED
 Rama remota:  borrada
 Worktree:     removido (<path>) | conservado | n/a
@@ -299,7 +305,7 @@ B9_MERGED pr=<N> sha=<sha-corto> issues=<i1,i2,...>
 ## Reglas
 
 - **"tarea N" == issue #N.**
-- **Squash por default** (historia limpia en la rama default). Si el usuario pide `--merge` o `--rebase`, respetarlo.
+- **Estrategia del repo** (`merge-strategy.sh`: mayoría de los últimos 10 PRs entre las permitidas; sin historial, squash). Un flag explícito del usuario gana.
 - **No correr `pnpm build`/`check`** acá — eso ya pasó en b7/BF. b9 solo cierra.
 
 ## Relación con los otros skills b

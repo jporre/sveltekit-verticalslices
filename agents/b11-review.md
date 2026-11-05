@@ -1,6 +1,6 @@
 ---
 name: b11-review
-description: "Revisor de una SPEC de b11-spec-exec ya ejecutada por el modelo barato y certificada por validate-spec.py --check. Una pasada, máximo 20 tool uses: alcance, fidelidad, informe del ejecutor contra la realidad y sentido del cambio. Emite REVIEW veredicto=APROBADO|OBSERVACIONES|RECHAZADO."
+description: 'Revisa una SPEC de b11-spec-exec ya ejecutada y certificada. Una pasada, ≤20 tool uses. Emite REVIEW veredicto=APROBADO|OBSERVACIONES|RECHAZADO.'
 tools: Bash, Read, Grep, Glob
 effort: medium
 ---

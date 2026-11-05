@@ -1,6 +1,6 @@
 ---
 name: b7-impl
-description: Agente de implementación de b7-issue-to-pr para los carriles M y L (mismo contrato que b2-build-feature, toolset acotado, sin MCP ni subagentes). El orquestador pasa el modelo por parámetro del tool subagent (sonnet en carril M, opus en L).
+description: 'Implementación de b7 (carriles M y L): invoca b2-build-feature con toolset acotado, sin MCP ni Agent.'
 tools: read, bash, edit, write, grep, find, ls
 skills: b2-build-feature
 skillPath: ../skills

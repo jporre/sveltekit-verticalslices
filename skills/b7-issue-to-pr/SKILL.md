@@ -1,6 +1,6 @@
 ---
 name: b7-issue-to-pr
-description: 'Pipeline autónomo issue -> PR DRAFT centrado en pantallas; se detiene en el PR draft, NO mergea. Entrada directa SOLO cuando el usuario quiere parar en el PR: "issue N hasta PR", "abre PR del issue N", "sin merge". NO es la entrada default de "resuelve/trabaja/arregla el issue N" — eso rutea a b10-ship (que invoca este skill como fase de build); un cluster de issues relacionadas en un solo PR es b8-swarm.'
+description: 'Issue -> PR DRAFT sin merge. Solo si piden parar en el PR ("issue N hasta PR", "sin merge"); "resuelve el issue N" es b10-ship.'
 allowed-tools: Bash, Read, Edit, Write, Skill, Agent
 context: fork
 # model: sin definir a propósito — hereda el de la sesión (alias opus/sonnet no resuelven vía OpenRouter).

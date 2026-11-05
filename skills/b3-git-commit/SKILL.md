@@ -1,6 +1,6 @@
 ---
 name: b3-git-commit
-description: 'Commits en formato conventional commits: analiza el diff, agrupa cambios en commits lógicos y garantiza working tree limpio al terminar. Usar cuando el usuario pida commitear, o cuando otro skill del pipeline b (b2/b7/b8/b9/b10) necesite crear commits.'
+description: 'Commits conventional: agrupa el diff en commits lógicos y deja el working tree limpio. Al pedir commitear; lo encadenan b2/b7/b8/b9/b10.'
 allowed-tools: Bash
 ---
 

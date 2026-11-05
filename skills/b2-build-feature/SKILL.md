@@ -1,7 +1,7 @@
 ---
 name: b2-build-feature
 # model/allowed-tools omitidos a propósito: hereda los de la sesión
-description: 'Construye cualquier pantalla SvelteKit — CRUD, form, dashboard o página de datos — desde una descripción directa del usuario ("crear pantalla", "build feature", o una pantalla descrita sin la palabra feature) o desde un issue triageado. Ruteo de issues, PR y merge pertenecen a b7/b8/b10, que invocan este skill como fase de build.'
+description: 'Construye una pantalla SvelteKit (CRUD, form, dashboard, página de datos) desde una descripción directa ("crear pantalla") o un issue triageado. Issues, PR y merge son de b7/b8/b10.'
 ---
 
 # Build Feature

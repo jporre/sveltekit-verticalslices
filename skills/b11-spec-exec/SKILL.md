@@ -1,6 +1,6 @@
 ---
 name: b11-spec-exec
-description: 'Cambio mecánico en dos niveles: la sesión escribe una SPEC ejecutable (copias + ediciones exactas + aceptación), un validador determinista la ensaya en un clon, un modelo barato (GLM 5.3 Flash vía OpenRouter, o Haiku) la aplica en un `claude -p` aislado y el validador certifica byte a byte. Usar cuando el cambio ya está decidido archivo por archivo y no requiere descubrimiento: renames, bumps de versión, docs/config, ediciones dictadas, instalación de archivos ya escritos. NO para features ni bugs que exijan explorar o decidir (eso es b7/b2).'
+description: 'Cambio mecánico ya decidido archivo por archivo (renames, bumps, docs/config, ediciones dictadas): SPEC ejecutada por un modelo barato y certificada por un validador. No para features ni bugs que exijan explorar.'
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Agent
 ---
 

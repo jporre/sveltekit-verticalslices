@@ -1,6 +1,7 @@
 ---
 name: b-setup-or-fix
-description: 'El experto: audita un repo SvelteKit degradado (load functions y fetch manual en vez de remote functions, sintaxis Svelte 4, sobre-ingeniería, funciones duplicadas, exceso de comentarios, features desparramados) y lo migra por peldaños hacia la base canónica del plugin — o instala esa base en un proyecto nuevo. Usar SOLO cuando el usuario lo invoque directo: "rescata este repo", "limpia este proyecto", "audita el codebase", "define la base del proyecto", "genio de la botella". NO es review de un PR (eso es b6-pr-review) ni construcción de un feature nuevo (eso es b2-build-feature); ningún skill del pipeline lo encadena automático.'
+description: 'Audita un repo SvelteKit degradado y lo migra por peldaños a la base canónica del plugin, o instala esa base en un proyecto nuevo ("rescata este repo", "audita el codebase"). Solo invocación directa del usuario.'
+disable-model-invocation: true
 allowed-tools: Bash, Read, Write, Edit, Grep, Glob, AskUserQuestion, Skill, Agent
 # model/effort omitidos a propósito: hereda los de la sesión — el diagnóstico y las migraciones necesitan el modelo más capaz disponible
 ---

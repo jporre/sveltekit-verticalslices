@@ -1,6 +1,6 @@
 ---
 name: b10-ship
-description: 'Orquestador del pipeline issue -> worktree cerrado. ENTRADA DEFAULT para trabajo issue-shaped: cualquier pedido de resolver/trabajar/shipear UN issue ("resuelve el issue N") o de drenar un epic ("procesa el epic N") sin pedir parar en el PR draft rutea aquí. Idempotente: re-correr el mismo comando retoma donde quedó. NO usar si piden explícitamente parar en el PR draft (eso es b7-issue-to-pr) ni para un cluster de issues relacionadas en un solo PR (eso es b8-swarm).'
+description: 'ENTRADA DEFAULT para resolver un issue ("resuelve el issue N") o drenar un epic ("procesa el epic N") hasta el merge. Idempotente. Parar en PR draft es b7; varias issues en un PR es b8.'
 allowed-tools: Bash, Read, Write, Skill, Agent, Workflow, AskUserQuestion, PushNotification
 # model: sin definir — hereda el de la sesión (alias no resuelven vía OpenRouter).
 ---

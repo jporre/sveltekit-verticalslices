@@ -1,6 +1,6 @@
 ---
 name: b8-swarm
-description: 'Resuelve un CLUSTER de issues relacionadas (misma área, p.ej. serie "Fase X.Y") en UN solo PR draft. Usar cuando pidan varias issues del mismo scope juntas: "en una sola PR", lista de números que tocan la misma área. NO mergea (eso es b9-close). Issues no relacionadas van una por una vía b10-ship.'
+description: 'Varias issues relacionadas de la misma área en UN solo PR draft ("en una sola PR"). No mergea (eso es b9). Issues no relacionadas: b10-ship una por una.'
 allowed-tools: Bash, Read, Edit, Write, Skill, Agent, Workflow
 # model: sin definir — hereda el de la sesión (alias no resuelven vía OpenRouter).
 effort: medium

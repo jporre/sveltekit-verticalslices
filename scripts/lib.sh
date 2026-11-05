@@ -196,6 +196,16 @@ bp_selftest() {
   # bp_default_branch: en un repo git debe resolver no-vacio
   out="$(bp_default_branch || true)"
   [ -n "$out" ] || { echo "lib.sh selftest: default_branch vacío en repo git" >&2; fails=1; }
+  # project.json gana sobre la detección; sin él, lockfile/script dev/package.json
+  local t; t="$(mktemp -d)"
+  printf '{"devDependencies":{"@sveltejs/kit":"^3.0.1"},"scripts":{"dev":"vite dev --port 5180"}}' >"$t/package.json"
+  : >"$t/bun.lock"
+  out="$(bp_pm "$t") $(bp_dev_port "$t") $(bp_sk_major "$t")"
+  [ "$out" = "bun 5180 3" ] || { echo "lib.sh selftest: detección -> '$out' (esperaba 'bun 5180 3')" >&2; fails=1; }
+  mkdir -p "$t/.b-pipeline"; printf '{"v":1,"pm":"npm","port":4000}' >"$t/.b-pipeline/project.json"
+  out="$(bp_pm "$t") $(bp_dev_port "$t") $(bp_project nada def "$t")"
+  [ "$out" = "npm 4000 def" ] || { echo "lib.sh selftest: project.json -> '$out' (esperaba 'npm 4000 def')" >&2; fails=1; }
+  rm -rf "$t"
   [ "$fails" -eq 0 ] || return 1
   echo "BP_LIB=ok"
 }

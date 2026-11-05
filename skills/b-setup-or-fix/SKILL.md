@@ -167,7 +167,8 @@ Para proyecto nuevo o sano (E2-E4 en cero y menos de 3 features — E5/E6 son se
 4. `CLAUDE.md` del repo con la doctrina en ~10 líneas + punteros a `slice-spec.md`.
 5. `docs/ARCHITECTURE.md` semilla (stack, mapa de slices, decisiones).
 6. Primer slice vía `../b2-build-feature/scripts/scaffold-slice.sh` solo si el usuario nombra un feature concreto — nada especulativo (YAGNI: cero capas, cero scaffolding "para después").
-7. Verificar (`rung-verify.sh E1`) y commitear vía b3: `chore(genie): base sveltekit`.
+7. Config del pipeline por proyecto (pm, puertos, rama base, cookie — sin secretos): `bash "$PLUGIN_ROOT/scripts/project-config.sh" init` → `.b-pipeline/project.json`; ajustar a mano si algún valor detectado no aplica.
+8. Verificar (`rung-verify.sh E1`) y commitear vía b3: `chore(genie): base sveltekit`.
 
 Termina con `B11_RESULT mode=init rungs_done=E1 rungs_blocked= features=<n>`.
 

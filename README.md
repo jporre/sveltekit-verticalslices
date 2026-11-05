@@ -70,13 +70,15 @@ A few ideas explain the whole design:
 | **`pi-subagents` package (pi only)** | Resolves the plugin's agents (`b7-impl`, `b7-impl-s`, `b7-screen-review`) from `pi-agents/`. | `pi list` |
 | **`gh` CLI, authenticated** | All GitHub state (issues, labels, PRs, comments) goes through `gh`. | `gh auth status` |
 | **A git repo with a GitHub remote** | The pipeline reads issues and opens PRs against `origin`. | `gh repo view` |
-| **A SvelteKit project** | `b2-build-feature` is SvelteKit-specific (Remote Functions, Svelte 5, Drizzle, shadcn-svelte). | — |
+| **A SvelteKit project** | `b2-build-feature` is SvelteKit-specific (Remote Functions, Svelte 5, Drizzle, shadcn-svelte). SvelteKit 2 and 3 are supported; the major is detected and SK3 deltas (`#lib`, config in `vite.config`, `refreshAll`…) live in `skills/b2-build-feature/references/sveltekit-3.md`. | — |
 | **Node + a dev server** | The worktree runs `vite` so screens can be verified. | `npm run dev` works |
 | **`agent-browser` CLI** | Visual screen review drives its own browser (navigation, auth cookie, screenshots, console). | `agent-browser --help` |
 
 > If you only want issue → draft PR and you do not need visual review, `agent-browser` is optional — screens are skipped with a note when the dev server or browser is unavailable.
 
 > The default branch name is detected, never assumed — `main`, `master`, or anything else works with zero configuration.
+
+> Optional per-project config: `bash scripts/project-config.sh init` writes `.b-pipeline/project.json` (package manager, dev port, worktree port start, base branch, auth cookie name; add `"plan_project": "<KEY>"` by hand for the Itsaplan bridge in b9). Non-secret values only; without it everything is auto-detected (`project-config.sh show` prints the resolved values).
 
 ---
 

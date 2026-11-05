@@ -56,8 +56,9 @@ CHANGED="$(git diff --name-only "$MB"; git ls-files --others --exclude-standard)
 SVELTE_CSV="$(printf '%s\n' "$CHANGED" | grep -E '\.svelte$' | paste -s -d, -)" || true
 
 # --- Gate 2: type check ---
-if ! pnpm check:machine; then
-  echo "FAIL: pnpm check:machine con errores" >&2
+PM="$(bp_pm "$REPO_ROOT")"
+if ! "$PM" run check:machine; then
+  echo "FAIL: $PM run check:machine con errores" >&2
   CHECK_S=fail; result; exit 4
 fi
 CHECK_S=ok
@@ -70,7 +71,7 @@ done <<EOF
 $CHANGED
 EOF
 if [ "${#FMT_FILES[@]}" -gt 0 ]; then
-  pnpm exec prettier --write --ignore-unknown "${FMT_FILES[@]}" >/dev/null 2>&1 \
+  "$PM" exec prettier --write --ignore-unknown "${FMT_FILES[@]}" >/dev/null 2>&1 \
     || echo "WARN: format falló (no-gate)" >&2
 fi
 
@@ -97,8 +98,8 @@ REACT_S=ok
 
 # --- Gate 5: test:unit SOLO si el diff toca tests ---
 if printf '%s\n' "$CHANGED" | grep -qE '\.(test|spec)\.'; then
-  if ! pnpm test:unit -- --run --reporter=dot; then
-    echo "FAIL: pnpm test:unit con fallas" >&2
+  if ! "$PM" run test:unit -- --run --reporter=dot; then
+    echo "FAIL: $PM run test:unit con fallas" >&2
     TEST_S=fail; result; exit 6
   fi
   TEST_S=ok

@@ -51,8 +51,17 @@ else
 fi
 has jq   && okline "jq"   || missing HARD jq "usado por ~85 llamadas en los scripts del plugin"
 has perl && okline "perl" || missing HARD perl "timeouts portables del codegraph-probe (no usa timeout, ausente en macOS base)"
-has node && okline "node" || missing HARD node "runtime + dev servers de los worktrees"
-has pnpm && okline "pnpm" || missing HARD pnpm "setup-worktree.sh hardcodea pnpm install/exec vite"
+. "$(cd "$(dirname "$0")" && pwd)/../../../scripts/lib.sh"
+PM="$(bp_pm .)"
+if has node; then
+  okline "node"
+  if [ "$(bp_sk_major .)" = 3 ] && ! node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>22||(a==22&&b>=17)?0:1)'; then
+    missing HARD node-22.17 "SvelteKit 3 exige Node >= 22.17 (hay $(node -v))"
+  fi
+else
+  missing HARD node "runtime + dev servers de los worktrees"
+fi
+has "$PM" && okline "$PM (pm del proyecto)" || missing HARD "$PM" "pm detectado del proyecto: worktrees y local-ci lo usan"
 git remote get-url origin >/dev/null 2>&1 && okline "remote origin" || missing HARD origin "el pipeline abre PRs contra origin"
 
 if has codegraph; then
@@ -65,8 +74,15 @@ else
   missing REC codegraph "recomendable: grounding b0/b1 y callers b6 sistematicos; fallback rg ya cubre"
 fi
 has agent-browser && okline "agent-browser" || missing REC agent-browser "recomendable: verificacion visual de screens; sin el b6 marca blocker en PRs que tocan UI"
-ls .github/workflows/*.y*ml >/dev/null 2>&1 && okline "CI (github actions)" || missing REC ci "recomendable: b9-close re-chequea CI verde; epic-auto-merge lo exige"
-[ -f .github/pull_request_template.md ] && okline "PR template" || missing REC pr-template "recomendable: b4 exige matchear .github/pull_request_template.md"
+ls .github/workflows/*.y*ml >/dev/null 2>&1 && okline "CI (github actions)" || echo "-- CI github: no (opcional — la suite corre local con local-ci.sh)"
+[ -f .b-pipeline/project.json ] && okline "project.json" || missing REC project-config "project-config.sh init: pm, puertos, rama base, cookie"
+LCI_MISS=""
+for s in "check:machine|check" "test:unit|test" "build"; do
+  python3 -c 'import json,sys; sc=json.load(open("package.json")).get("scripts",{}); sys.exit(0 if any(k in sc for k in sys.argv[1].split("|")) else 1)' "$s" || LCI_MISS="$LCI_MISS ${s%%|*}"
+done
+[ -z "$LCI_MISS" ] && okline "scripts de local-ci" || missing REC local-ci-scripts "faltan en package.json:$LCI_MISS — local-ci.sh los salta y la suite queda incompleta"
+grep -q '## Auth de pruebas' CLAUDE.md 2>/dev/null && okline "auth de pruebas (CLAUDE.md)" || missing REC auth-browser "sin la sección el review en browser no sabe obtener sesión (base-setup.md § 3)"
+[ -f .github/pull_request_template.md ] && okline "PR template (b4 lo respeta)" || echo "-- PR template: no (opcional)"
 ENV_TRK="$(git ls-files '.env*' 2>/dev/null | head -1)"
 [ -z "$ENV_TRK" ] && okline ".env no trackeado" || missing REC env-tracked "'$ENV_TRK' commiteado: los worktrees heredan .env* solo si NO esta trackeado (symlink de archivos untracked)"
 grep -q 'codegraph' .gitignore 2>/dev/null && okline ".codegraph gitignored" || missing REC codegraph-ignore "agregar '.codegraph/' a .gitignore: la db es local por diseño"

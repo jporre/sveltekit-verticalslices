@@ -1,6 +1,6 @@
 ---
 name: b-setup-or-fix
-description: 'Audita un repo SvelteKit degradado y lo migra por peldaños a la base canónica del plugin, o instala esa base en un proyecto nuevo ("rescata este repo", "audita el codebase"). Solo invocación directa del usuario.'
+description: 'Asistente de setup: deja un proyecto SvelteKit listo para el pipeline (herramientas, project.json, auth de pruebas en browser, suite local) y rescata por peldaños el código degradado ("prepara este repo", "rescata este repo"). Solo invocación directa del usuario.'
 disable-model-invocation: true
 allowed-tools: Bash, Read, Write, Edit, Grep, Glob, AskUserQuestion, Skill, Agent
 # model/effort omitidos a propósito: hereda los de la sesión — el diagnóstico y las migraciones necesitan el modelo más capaz disponible
@@ -12,7 +12,7 @@ allowed-tools: Bash, Read, Write, Edit, Grep, Glob, AskUserQuestion, Skill, Agen
 $ARGUMENTS
 ```
 
-Sin argumentos: flujo completo (diagnóstico → gate → escalera). Flags:
+Sin argumentos: flujo completo (diagnóstico → asistente de entorno → gate → escalera). Flags:
 
 - **`--init`** — proyecto nuevo o sano: instala la base (E1 + docs semilla) y termina. No audita.
 - **`--audit`** — solo FASES 0-2: diagnóstico + plan, ningún archivo se toca. Termina en el reporte.
@@ -22,7 +22,9 @@ Sin argumentos: flujo completo (diagnóstico → gate → escalera). Flags:
 ---
 
 
-# b-setup-or-fix — base sana o rescate de repo SvelteKit
+# b-setup-or-fix — asistente de setup y rescate de repo SvelteKit
+
+Objetivo: que el usuario diga lo que necesita y el pipeline lo entregue sin fricción. Este skill deja el proyecto en ese estado: entorno completo, config del pipeline, auth de pruebas declarada, suite local verde y código en la doctrina. Termina SIEMPRE con `SETUP_READY=yes|no pendientes=<csv>`.
 
 > **Multi-harness:** en pi, los mecanismos de Claude Code se mapean a equivalentes (`AskUserQuestion`→pregunta en texto, `Agent(subagent_type=…)`→tool `subagent`, `Skill(bN-…)`→`read` del SKILL.md de ese skill, `Workflow`→tool `subagent` con `workflowScript`, `PushNotification`→omitir). Tabla completa: README § *Instalación alternativa: pi*. En Claude Code todo funciona como está escrito.
 
@@ -92,6 +94,16 @@ El script **cuenta**; el juicio LLM **filtra** antes de que algo sea hallazgo:
 - `// ponytail:` marca simplificación deliberada: NO es hallazgo salvo que el techo nombrado ya se superó.
 - Hallazgos con formato parseable de b6: `- **E<n>**: <archivo:línea> <descripción en una línea>`.
 
+## FASE 1.5: Asistente de entorno (siempre; con `--audit` solo lista)
+
+Con `PIPELINE_RESULT` del audit, cerrar cada faltante por la vía que corresponda — el usuario no tiene que saber qué falta:
+
+- **Se arregla solo** (local, en la rama genie, commit `chore(genie): setup pipeline` vía b3): `project-config` → `bash "$PLUGIN_ROOT/scripts/project-config.sh" init`; `codegraph-ignore` → agregar `.codegraph/` a `.gitignore`; `local-ci-scripts` → agregar a `package.json` los scripts que falten SOLO si su herramienta ya está instalada (`check:machine`: `svelte-kit sync && svelte-check --output machine`; `test:unit`: `vitest` si hay vitest; `build`: `vite build`). Nunca instalar dependencias sin preguntar.
+- **Se pregunta, en el MISMO AskUserQuestion del gate de FASE 2** (una sola ronda): estrategia de auth de pruebas si falta `auth-browser` (opciones del análisis de `base-setup.md` § 3); clave de Itsaplan para `plan_project` (opcional, "no uso Plan" es válido).
+- **Se indica el comando, no se ejecuta** (tocan la máquina o cuentas): instalar `gh`/`jq`/`node`/pm/`agent-browser`, `! gh auth login`, `gh repo create --source . --push` si falta `origin`.
+
+Al final de la corrida, `bash "$PLUGIN_ROOT/scripts/local-ci.sh"` una vez: es la prueba de que el pipeline puede validar este repo. `LOCAL_CI=fail` con errores preexistentes (baseline) no bloquea: se reporta como pendiente.
+
 ## FASE 2: Plan + GATE HUMANO (obligatorio, sin excepción)
 
 Presentar el plan como tabla y **preguntar vía AskUserQuestion** hasta qué peldaño subir y, si el repo es grande, qué features entran en esta corrida:
@@ -151,9 +163,10 @@ Reporte final, corto y con el delta primero:
 
 ```text
 B11_RESULT mode=init|audit|rescate rungs_done=<csv> rungs_blocked=<csv> features=<n>
+SETUP_READY=yes|no pendientes=<faltantes duros + recomendables sin cerrar + LOCAL_CI fail, csv>
 ```
 
-Sugerir el siguiente paso (abrir PR vía b4, o próxima corrida con los features restantes) — **sin ejecutarlo**.
+`SETUP_READY=yes` = `hard=` vacío y `LOCAL_CI=pass`: el usuario ya puede pedir "resuelve el issue N". Sugerir el siguiente paso (abrir PR vía b4, o próxima corrida con los features restantes) — **sin ejecutarlo**.
 
 ---
 
@@ -167,10 +180,10 @@ Para proyecto nuevo o sano (E2-E4 en cero y menos de 3 features — E5/E6 son se
 4. `CLAUDE.md` del repo con la doctrina en ~10 líneas + punteros a `slice-spec.md`.
 5. `docs/ARCHITECTURE.md` semilla (stack, mapa de slices, decisiones).
 6. Primer slice vía `../b2-build-feature/scripts/scaffold-slice.sh` solo si el usuario nombra un feature concreto — nada especulativo (YAGNI: cero capas, cero scaffolding "para después").
-7. Config del pipeline por proyecto (pm, puertos, rama base, cookie — sin secretos): `bash "$PLUGIN_ROOT/scripts/project-config.sh" init` → `.b-pipeline/project.json`; ajustar a mano si algún valor detectado no aplica.
-8. Verificar (`rung-verify.sh E1`) y commitear vía b3: `chore(genie): base sveltekit`.
+7. Asistente de entorno (FASE 1.5) completo: project.json, scripts de local-ci, auth de pruebas, `plan_project`.
+8. Verificar (`rung-verify.sh E1` + `local-ci.sh`) y commitear vía b3: `chore(genie): base sveltekit`.
 
-Termina con `B11_RESULT mode=init rungs_done=E1 rungs_blocked= features=<n>`.
+Termina con `B11_RESULT mode=init rungs_done=E1 rungs_blocked= features=<n>` + `SETUP_READY=...`.
 
 ---
 

@@ -15,6 +15,11 @@ Quick wins: más rápido, más barato y SvelteKit 3.
 - Issue suelto: b7 (y b8, lane b11) la corre UNA vez antes del PR; una falla vuelve al loop de fix. En epic, los PRs llevan `--no-local-ci` y la suite corre una sola vez en el epic-review sobre la rama integrada; si falla, se crea un issue `fix:` vinculado al epic y el loop sigue solo, sin pedir intervención.
 - El CI de GitHub sigue siendo opcional (auto-merge ya no lo exige).
 
+### Feat — b-setup-or-fix como asistente de setup
+
+- Nueva FASE 1.5: con el diagnóstico del entorno, arregla solo lo local y seguro (project.json, `.codegraph/` en .gitignore, scripts de local-ci si la herramienta ya está), pregunta las decisiones en la misma ronda del gate (auth de pruebas en browser, clave de Itsaplan) e indica el comando para lo que toca la máquina o cuentas. Cierra con `local-ci.sh` y `SETUP_READY=yes|no pendientes=<csv>`.
+- `audit.sh`: exige el pm del proyecto (no pnpm fijo) y Node >= 22.17 en SvelteKit 3; detecta project.json, scripts de local-ci y la sección de auth; GitHub Actions y PR template pasan a informativos.
+
 ### Feat — SvelteKit 3
 
 - `bp_sk_major` detecta el major; el context snapshot de b7 dice `SvelteKit <N>`, usa `#lib` como alias en SK3 y apunta a la nueva referencia `skills/b2-build-feature/references/sveltekit-3.md` (tabla delta: `$lib`→`#lib`, config solo en `vite.config`, `$app/env/*`, `refreshAll`, `goto({shallow})`, `Response.json`, `src/params.ts`, mínimos Node 22.17/TS 6/Vite 8).

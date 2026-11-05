@@ -17,7 +17,7 @@ Quick wins: más rápido, más barato y SvelteKit 3.
 
 ### Feat — b-setup-or-fix como asistente de setup
 
-- Nueva FASE 1.5: con el diagnóstico del entorno, arregla solo lo local y seguro (project.json, `.codegraph/` en .gitignore, scripts de local-ci si la herramienta ya está), pregunta las decisiones en la misma ronda del gate (auth de pruebas en browser, clave de Itsaplan) e indica el comando para lo que toca la máquina o cuentas. Cierra con `local-ci.sh` y `SETUP_READY=yes|no pendientes=<csv>`.
+- Nueva FASE 1.5: con el diagnóstico del entorno, arregla solo lo local y seguro (project.json, `.codegraph/` en .gitignore, scripts de local-ci si la herramienta ya está), pregunta las decisiones en la misma ronda del gate (auth de pruebas en browser) e indica el comando para lo que toca la máquina o cuentas. Cierra con `local-ci.sh` y `SETUP_READY=yes|no pendientes=<csv>`.
 - `audit.sh`: exige el pm del proyecto (no pnpm fijo) y Node >= 22.17 en SvelteKit 3; detecta project.json, scripts de local-ci y la sección de auth; GitHub Actions y PR template pasan a informativos.
 
 ### Feat — SvelteKit 3
@@ -27,16 +27,16 @@ Quick wins: más rápido, más barato y SvelteKit 3.
 
 ### Feat — `.b-pipeline/project.json` (#63 parcial)
 
-- Config mínima por proyecto, sin secretos: `pm`, `port`, `worktree_port_start`, `base_branch`, `cookie_name`, `plan_project`. `scripts/project-config.sh init|show`; helpers `bp_project`, `bp_pm`, `bp_dev_port`, `bp_sk_major` en `lib.sh` (cubiertos por el selftest). b-setup-or-fix lo crea en modo base.
+- Config mínima por proyecto, sin secretos: `pm`, `port`, `worktree_port_start`, `base_branch`, `cookie_name`. `scripts/project-config.sh init|show`; helpers `bp_project`, `bp_pm`, `bp_dev_port`, `bp_sk_major` en `lib.sh` (cubiertos por el selftest). b-setup-or-fix lo crea en modo base.
 - Ya no hay valores fijos: `verify.sh` y `setup-worktree.sh` usan el pm del proyecto (no más `pnpm` hardcodeado), el puerto inicial de worktrees sale de la config, `mint-dev-session.sh` toma la cookie de `B7_COOKIE_NAME` → `cookie_name` → `auth-session`, y el snapshot muestra los comandos reales.
 
 ### Feat — b9 respeta la estrategia de merge del repo (#69)
 
 - `skills/b9-close/scripts/merge-strategy.sh`: clasifica los últimos 10 PRs mergeados (2 padres = merge, `(#N)` en el asunto = squash, resto = rebase) y elige la mayoría entre las permitidas por el repo; sin historial, squash. Un flag explícito del usuario gana.
 
-### Feat — puente con Itsaplan (opt-in)
+### Feat — puente con Itsaplan (vía MCP, sin config)
 
-- Con `"plan_project": "<KEY>"` en project.json, b9 mueve cada `<KEY>-N` citado en el PR o sus issues a la columna `completed` de Plan vía MCP y marca su checklist. Fail-open: sin MCP o con error reporta `Plan: n/a` y sigue.
+- Si el MCP de Plan está conectado, b9 toma las claves de proyecto de `list_projects`, mueve cada `<KEY>-N` citado en el PR o sus issues a la columna `completed` y marca su checklist. Fail-open: sin MCP, sin referencias o con error reporta `Plan: n/a` y sigue.
 
 ### Fix
 

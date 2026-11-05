@@ -281,16 +281,16 @@ gh pr edit "$PR" --remove-label merge-approved --remove-label awaiting-approval 
 
 ```
 
-**Puente Plan (opt-in, fail-open):** solo si `.b-pipeline/project.json` declara `"plan_project": "<KEY>"` (Itsaplan). Mueve cada par `<KEY>-N` citado en los issues/PR a su columna `completed` — así el usuario no técnico ve el cierre sin entrar a GitHub:
+**Puente Plan (fail-open, sin config):** SOLO si las tools `mcp__plan__*` están disponibles en la sesión. `list_projects` da las claves de proyecto (`SI`, `OPS`…); con ellas buscar las referencias `<KEY>-N` en el PR y sus issues:
 
 ```bash
-. "$PLUGIN_ROOT/scripts/lib.sh"; PK="$(bp_project plan_project "")"
-[ -n "$PK" ] && PLAN_KEYS=$( { gh pr view "$PR" --json title,body --jq '.title+"\n"+.body'; for i in $ISSUES; do gh issue view "$i" --json title,body --jq '.title+"\n"+.body'; done; } 2>/dev/null \
-  | grep -oE "\\b$PK-[0-9]+\\b" | sort -u | tr '\n' ' ')
+PK="<claves de list_projects separadas por |>"   # p.ej. SI|OPS
+PLAN_KEYS=$( { gh pr view "$PR" --json title,body --jq '.title+"\n"+.body'; for i in $ISSUES; do gh issue view "$i" --json title,body --jq '.title+"\n"+.body'; done; } 2>/dev/null \
+  | grep -oE "\\b($PK)-[0-9]+\\b" | sort -u | tr '\n' ' ')
 echo "PLAN_KEYS=${PLAN_KEYS:-}"
 ```
 
-Por cada clave, SOLO si las tools `mcp__plan__*` están disponibles: `get_issue_by_number` (projectKey + número) → `get_project` → `update_issue` con el `columnId` cuyo `stateType` es `completed`; marcar sus checklist items pendientes (`update_checklist_item`). Sin `plan_project`, sin MCP, sin claves o con error: reportar `Plan: n/a|<error>` y seguir — nunca bloquea el cierre ni el modo headless. Sin comentario en Plan (el cierre ya es el estado).
+Por cada clave: `get_issue_by_number` (projectKey + número) → `get_project` → `update_issue` con el `columnId` cuyo `stateType` es `completed`; marcar sus checklist items pendientes (`update_checklist_item`). Así el usuario no técnico ve el cierre sin entrar a GitHub. Sin MCP, sin referencias o con error: reportar `Plan: n/a|<error>` y seguir — nunca bloquea el cierre ni el modo headless. Sin comentario en Plan (el cierre ya es el estado).
 
 > Sin comentario de progreso en el epic: `sub_issues_summary` nativo ya muestra completed/total vivo en la UI de GitHub — comentarlo por cada cierre era ruido duplicado (N comentarios por epic).
 

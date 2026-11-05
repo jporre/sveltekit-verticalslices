@@ -99,7 +99,7 @@ El script **cuenta**; el juicio LLM **filtra** antes de que algo sea hallazgo:
 Con `PIPELINE_RESULT` del audit, cerrar cada faltante por la vía que corresponda — el usuario no tiene que saber qué falta:
 
 - **Se arregla solo** (local, en la rama genie, commit `chore(genie): setup pipeline` vía b3): `project-config` → `bash "$PLUGIN_ROOT/scripts/project-config.sh" init`; `codegraph-ignore` → agregar `.codegraph/` a `.gitignore`; `local-ci-scripts` → agregar a `package.json` los scripts que falten SOLO si su herramienta ya está instalada (`check:machine`: `svelte-kit sync && svelte-check --output machine`; `test:unit`: `vitest` si hay vitest; `build`: `vite build`). Nunca instalar dependencias sin preguntar.
-- **Se pregunta, en el MISMO AskUserQuestion del gate de FASE 2** (una sola ronda): estrategia de auth de pruebas si falta `auth-browser` (opciones del análisis de `base-setup.md` § 3); clave de Itsaplan para `plan_project` (opcional, "no uso Plan" es válido).
+- **Se pregunta, en el MISMO AskUserQuestion del gate de FASE 2** (una sola ronda): estrategia de auth de pruebas si falta `auth-browser` (opciones del análisis de `base-setup.md` § 3). Itsaplan no se configura: b9 lo usa vía MCP si está conectado.
 - **Se indica el comando, no se ejecuta** (tocan la máquina o cuentas): instalar `gh`/`jq`/`node`/pm/`agent-browser`, `! gh auth login`, `gh repo create --source . --push` si falta `origin`.
 
 Al final de la corrida, `bash "$PLUGIN_ROOT/scripts/local-ci.sh"` una vez: es la prueba de que el pipeline puede validar este repo. `LOCAL_CI=fail` con errores preexistentes (baseline) no bloquea: se reporta como pendiente.
@@ -180,7 +180,7 @@ Para proyecto nuevo o sano (E2-E4 en cero y menos de 3 features — E5/E6 son se
 4. `CLAUDE.md` del repo con la doctrina en ~10 líneas + punteros a `slice-spec.md`.
 5. `docs/ARCHITECTURE.md` semilla (stack, mapa de slices, decisiones).
 6. Primer slice vía `../b2-build-feature/scripts/scaffold-slice.sh` solo si el usuario nombra un feature concreto — nada especulativo (YAGNI: cero capas, cero scaffolding "para después").
-7. Asistente de entorno (FASE 1.5) completo: project.json, scripts de local-ci, auth de pruebas, `plan_project`.
+7. Asistente de entorno (FASE 1.5) completo: project.json, scripts de local-ci, auth de pruebas.
 8. Verificar (`rung-verify.sh E1` + `local-ci.sh`) y commitear vía b3: `chore(genie): base sveltekit`.
 
 Termina con `B11_RESULT mode=init rungs_done=E1 rungs_blocked= features=<n>` + `SETUP_READY=...`.

@@ -80,7 +80,7 @@ A few ideas explain the whole design:
 
 > No GitHub Actions required: `scripts/local-ci.sh` runs check + tests + build locally — once before each single-issue PR, and once per epic at the epic review.
 
-> Optional per-project config: `bash scripts/project-config.sh init` writes `.b-pipeline/project.json` (package manager, dev port, worktree port start, base branch, auth cookie name; add `"plan_project": "<KEY>"` by hand for the Itsaplan bridge in b9). Non-secret values only; without it everything is auto-detected (`project-config.sh show` prints the resolved values).
+> Optional per-project config: `bash scripts/project-config.sh init` writes `.b-pipeline/project.json` (package manager, dev port, worktree port start, base branch, auth cookie name). Non-secret values only; without it everything is auto-detected (`project-config.sh show` prints the resolved values).
 
 ---
 

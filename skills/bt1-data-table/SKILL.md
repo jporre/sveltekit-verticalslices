@@ -1,20 +1,6 @@
 ---
 name: bt1-data-table
-description: >-
-  Generate a feature-rich client-side data table for SvelteKit 5 + Svelte 5,
-  powered by @tanstack/svelte-table (v9) and fed by remote functions: sorting,
-  substring/date-range/faceted filters, global search, group-by with expandable
-  rows and aggregates, column show-hide + reorder persisted to localStorage,
-  pagination, XLSX export, plus cards-grid and kanban views with drag-and-drop.
-  Trigger WHENEVER the user asks for a data table, "tabla de datos", a
-  sortable/filterable/searchable/exportable table, a tanstack table, a grouped
-  table, a kanban or "tablero", a cards/grid view of records, a list or admin
-  view of database records, or a screen "to browse/list" rows — including
-  casual phrasings like "build me a screen that lists X" or "necesito una
-  pantalla para listar Y". Prefer this over hand-rolling a <table>: it ships
-  the tanstack wiring, view templates and reusable helpers, and prevents the
-  stored-XSS hole from raw createRawSnippet cells. NOT for a static table of a
-  few fixed rows or chart/dashboard visuals.
+description: 'Tabla de datos SvelteKit + Svelte 5 con @tanstack/svelte-table y remote functions: orden, filtros, búsqueda, group-by, columnas persistentes, export XLSX, vistas cards/kanban. Para cualquier tabla o listado de registros ("data table", "pantalla para listar X", kanban). No para tablas estáticas chicas.'
 ---
 
 # bt1-data-table

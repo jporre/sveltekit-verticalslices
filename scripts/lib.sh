@@ -31,6 +31,16 @@
 #                                      {type} {issue} {slug}; default
 #                                      '{type}/{issue}-{slug}' = comportamiento
 #                                      histórico feat/<n>-<slug>.
+#   bp_project <clave> [default] [dir]  valor de .b-pipeline/project.json (#63,
+#                                      mínimo: pm, port, worktree_port_start,
+#                                      base_branch, cookie_name) o el default.
+#   bp_pm [dir]                        package manager: project.json > campo
+#                                      packageManager > lockfile > pnpm.
+#   bp_dev_port [dir]                  puerto del dev server del repo principal:
+#                                      project.json > --port del script dev >
+#                                      5173 (Vite). Nunca asumir un puerto fijo.
+#   bp_sk_major [dir]                  major de @sveltejs/kit (2|3|?), instalado
+#                                      o declarado en package.json.
 #   bp_slug <path>                     slug de Claude Code para ~/.claude/projects:
 #                                      [^A-Za-z0-9] -> '-' por carácter (mismo
 #                                      regex que scripts/cost-report.py).
@@ -81,8 +91,48 @@ for d in (sorted({int(x) for x in re.findall(r"#(\d+)", m.group(1))}) if m else 
 '
 }
 
+bp_project() {
+  local key="$1" def="${2:-}" dir="${3:-}" root f v=""
+  root="$(git -C "${dir:-.}" rev-parse --show-toplevel 2>/dev/null || echo "${dir:-.}")"
+  f="$root/.b-pipeline/project.json"
+  [ -f "$f" ] && v="$(python3 -c 'import json,sys; v=json.load(open(sys.argv[1])).get(sys.argv[2]); print("" if v is None else v)' "$f" "$key" 2>/dev/null)"
+  printf '%s\n' "${v:-$def}"
+}
+
+bp_pm() {
+  local dir="${1:-.}" root pm
+  pm="$(bp_project pm "" "$dir")"
+  [ -n "$pm" ] && { printf '%s\n' "$pm"; return 0; }
+  root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || echo "$dir")"
+  pm="$(sed -n 's/.*"packageManager"[[:space:]]*:[[:space:]]*"\([a-z]*\)@.*/\1/p' "$root/package.json" 2>/dev/null | head -1)"
+  [ -n "$pm" ] && { printf '%s\n' "$pm"; return 0; }
+  if [ -f "$root/pnpm-lock.yaml" ]; then echo pnpm
+  elif [ -f "$root/bun.lock" ] || [ -f "$root/bun.lockb" ]; then echo bun
+  elif [ -f "$root/yarn.lock" ]; then echo yarn
+  elif [ -f "$root/package-lock.json" ]; then echo npm
+  else echo pnpm; fi
+}
+
+bp_dev_port() {
+  local dir="${1:-.}" root p
+  p="$(bp_project port "" "$dir")"
+  [ -n "$p" ] && { printf '%s\n' "$p"; return 0; }
+  root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || echo "$dir")"
+  p="$(sed -n 's/.*"dev"[[:space:]]*:[[:space:]]*"[^"]*--port[= ]\([0-9][0-9]*\).*/\1/p' "$root/package.json" 2>/dev/null | head -1)"
+  printf '%s\n' "${p:-5173}"
+}
+
+bp_sk_major() {
+  local dir="${1:-.}" root v
+  root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || echo "$dir")"
+  v="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([0-9]*\)\..*/\1/p' "$root/node_modules/@sveltejs/kit/package.json" 2>/dev/null | head -1)"
+  [ -n "$v" ] || v="$(sed -n 's/.*"@sveltejs\/kit"[[:space:]]*:[[:space:]]*"[^0-9]*\([0-9]*\).*/\1/p' "$root/package.json" 2>/dev/null | head -1)"
+  printf '%s\n' "${v:-?}"
+}
+
 bp_default_branch() {
   local b
+  b="$(bp_project base_branch)" && [ -n "$b" ] && { printf '%s\n' "$b"; return 0; }
   b="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)" \
     && { printf '%s\n' "${b#origin/}"; return 0; }
   b="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)" \
@@ -146,6 +196,16 @@ bp_selftest() {
   # bp_default_branch: en un repo git debe resolver no-vacio
   out="$(bp_default_branch || true)"
   [ -n "$out" ] || { echo "lib.sh selftest: default_branch vacío en repo git" >&2; fails=1; }
+  # project.json gana sobre la detección; sin él, lockfile/script dev/package.json
+  local t; t="$(mktemp -d)"
+  printf '{"devDependencies":{"@sveltejs/kit":"^3.0.1"},"scripts":{"dev":"vite dev --port 5180"}}' >"$t/package.json"
+  : >"$t/bun.lock"
+  out="$(bp_pm "$t") $(bp_dev_port "$t") $(bp_sk_major "$t")"
+  [ "$out" = "bun 5180 3" ] || { echo "lib.sh selftest: detección -> '$out' (esperaba 'bun 5180 3')" >&2; fails=1; }
+  mkdir -p "$t/.b-pipeline"; printf '{"v":1,"pm":"npm","port":4000}' >"$t/.b-pipeline/project.json"
+  out="$(bp_pm "$t") $(bp_dev_port "$t") $(bp_project nada def "$t")"
+  [ "$out" = "npm 4000 def" ] || { echo "lib.sh selftest: project.json -> '$out' (esperaba 'npm 4000 def')" >&2; fails=1; }
+  rm -rf "$t"
   [ "$fails" -eq 0 ] || return 1
   echo "BP_LIB=ok"
 }

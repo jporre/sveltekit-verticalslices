@@ -82,8 +82,8 @@ Hay dos modos según venga o no `auth_cookie`.
 b7 usa `mint-dev-session.sh` para insertar una sesión válida en la DB del worktree y te pasa `auth_cookie=auth-session=<token>`. Setear la cookie ANTES de navegar (`--url` la ancla al origen correcto) y abrir la ruta:
 
 ```bash
-# auth_cookie viene como "auth-session=<token>" — separar nombre y valor
-agent-browser cookies set auth-session "<token>" --url "http://localhost:<port>/" --sameSite Lax --session "$SESSION"
+# auth_cookie viene como "<nombre>=<token>" (nombre según project.json; default auth-session) — separar nombre y valor
+agent-browser cookies set "<nombre>" "<token>" --url "http://localhost:<port>/" --sameSite Lax --session "$SESSION"
 agent-browser open "http://localhost:<port><route>" --session "$SESSION"
 agent-browser get url --session "$SESSION"
 ```

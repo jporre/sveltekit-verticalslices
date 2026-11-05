@@ -30,7 +30,7 @@ let cache: Item[] = [];
 // BIEN — no existe; si el cache es real, mecanismo explícito (KV, tabla) decidido con el usuario
 ```
 
-5. **Secrets hardcodeados** (SEC-D) → `$env/static/private` o `$env/dynamic/private`.
+5. **Secrets hardcodeados** (SEC-D) → `$env/static/private` o `$env/dynamic/private` (SK3: `$app/env/private`).
 
 Salida: check/build verdes, cero SEC pendientes fuera del plan.
 

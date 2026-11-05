@@ -1,7 +1,7 @@
 ---
 name: b2-build-feature
 # model/allowed-tools omitidos a propósito: hereda los de la sesión
-description: 'Construye cualquier pantalla SvelteKit — CRUD, form, dashboard o página de datos — desde una descripción directa del usuario ("crear pantalla", "build feature", o una pantalla descrita sin la palabra feature) o desde un issue triageado. Ruteo de issues, PR y merge pertenecen a b7/b8/b10, que invocan este skill como fase de build.'
+description: 'Construye una pantalla SvelteKit (CRUD, form, dashboard, página de datos) desde una descripción directa ("crear pantalla") o un issue triageado. Issues, PR y merge son de b7/b8/b10.'
 ---
 
 # Build Feature
@@ -24,6 +24,8 @@ code (shadcn `$lib/components/ui`, `$lib/server/db`, cross-feature helpers) stay
 table, the legacy tolerance (editing an existing `src/lib/features/` feature follows ITS
 pattern; NEW features never go there), and the colocated `docs/readme.md` doc every new
 feature ships with. When in doubt about where a file goes, that spec wins.
+
+**SvelteKit 3**: si el context snapshot dice `SK_MAJOR=3`, aplica `references/sveltekit-3.md` (`#lib` con extensión, `$app/env`, `error(status, msg, { code })`, etc.). Los ejemplos de este skill usan la sintaxis SK2.
 
 ## Two Entry Points
 

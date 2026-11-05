@@ -58,9 +58,10 @@ Derivar de commit messages, nombre de branch (e.g., `fix/issue-123`) y archivos 
 
 ## Push Changes
 
-Ensure all commits are pushed:
+Ensure all commits are pushed. Sin remote no hay PR: abortar ANTES de intentar el push.
 
 ```bash
+git remote get-url origin >/dev/null 2>&1 || { echo "B4_ABORT sin remote origin — crear con: gh repo create --source . --push"; exit 1; }
 git push origin HEAD
 ```
 

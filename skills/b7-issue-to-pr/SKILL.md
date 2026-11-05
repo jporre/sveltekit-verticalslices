@@ -1,6 +1,6 @@
 ---
 name: b7-issue-to-pr
-description: 'Pipeline autónomo issue -> PR DRAFT centrado en pantallas; se detiene en el PR draft, NO mergea. Entrada directa SOLO cuando el usuario quiere parar en el PR: "issue N hasta PR", "abre PR del issue N", "sin merge". NO es la entrada default de "resuelve/trabaja/arregla el issue N" — eso rutea a b10-ship (que invoca este skill como fase de build); un cluster de issues relacionadas en un solo PR es b8-swarm.'
+description: 'Issue -> PR DRAFT sin merge. Solo si piden parar en el PR ("issue N hasta PR", "sin merge"); "resuelve el issue N" es b10-ship.'
 allowed-tools: Bash, Read, Edit, Write, Skill, Agent
 context: fork
 # model: sin definir a propósito — hereda el de la sesión (alias opus/sonnet no resuelven vía OpenRouter).
@@ -52,13 +52,13 @@ B7_DONE issue=<N> pr=<url|none> status=ok|needs-human-review|bailed|aborted scre
 
 ```
 <issue> [--dry-run | --wet] [--max-iterations=N] [--budget-files=N] [--no-pr]
-        [--no-screens] [--light-review] [--no-changelog] [--lang=es|en]
+        [--no-screens] [--light-review] [--no-changelog] [--no-local-ci] [--lang=es|en]
         [--directives="<texto>"] [--force-complex]
 ```
 
 **Argumentos recibidos:** `$ARGUMENTS` — única vía de entrada al fork. Primer token = issue; resto = flags; texto libre = `--directives`. Vacío o sin sustituir → abortar pidiendo el número.
 
-Defaults: `--wet`, `--max-iterations=6`, `--budget-files=25`, screens habilitadas, `--lang` autodetectado. `--dry-run` hace worktree + sticky + implementación, sin PR ni label `in-review`. `--light-review`/`--no-changelog` los pasa b10 en modo epic (review light para todo carril; CHANGELOG al rollup).
+Defaults: `--wet`, `--max-iterations=6`, `--budget-files=25`, screens habilitadas, `--lang` autodetectado. `--dry-run` hace worktree + sticky + implementación, sin PR ni label `in-review`. `--light-review`/`--no-changelog`/`--no-local-ci` los pasa b10 en modo epic (review light para todo carril; CHANGELOG al rollup).
 
 ## Principio: enfocado en pantallas
 
@@ -133,7 +133,7 @@ pnpm check:machine -- --threshold error 2>&1 | tee .b7/iter-$N-check.log   # ide
 
 Si falla: `scripts/log-filter.sh` → `.tail`; `scripts/error-hash.sh` → `.hash`; hash igual al de la iteración anterior = **abort por no-progress**; si no, alimentar al agente solo el `.tail` + delta del plan.
 
-Pasada final cuando todo está verde: `(cd "$WORKTREE" && bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh")` (exit 0 habilita commit; 3-6 vuelve al loop). Hard stops: iteraciones 6 (3 en S), 25 archivos, 1500 líneas netas, 30 min, hash repetido. `bash "$G" check-budget "$WORKTREE"` mide. Hitar budget = abort + comentar issue.
+Pasada final cuando todo está verde: `(cd "$WORKTREE" && bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh")` (exit 0 habilita commit; 3-6 vuelve al loop). Después, salvo `--no-local-ci`, la suite completa UNA vez: `bash "$PLUGIN_ROOT/scripts/local-ci.sh" "$WORKTREE"` (check + tests + build, local, reemplaza al CI de GitHub); `LOCAL_CI=fail` vuelve al loop con el tail como error. Incluir la línea `LOCAL_CI=...` en el body del PR. Hard stops: iteraciones 6 (3 en S), 25 archivos, 1500 líneas netas, 30 min, hash repetido. `bash "$G" check-budget "$WORKTREE"` mide. Hitar budget = abort + comentar issue.
 
 ### 5. Revisión visual (sub-agente por pantalla)
 

@@ -1,6 +1,6 @@
 ---
 name: b1-add-worktree
-description: 'Crea un git worktree aislado para una branch. Usar cuando el usuario pida un worktree o un workspace aislado para trabajar. Requiere el nombre del worktree como argumento.'
+description: 'Crea un git worktree aislado para una branch (argumento: nombre). Paso interno de b7/b8; directo solo si piden un worktree.'
 allowed-tools: Bash, AskUserQuestion
 context: fork
 ---

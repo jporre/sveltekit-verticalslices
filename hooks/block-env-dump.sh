@@ -92,17 +92,43 @@ _segment_dumps_env() {
   done
   base="${w##*/}"
   case "$base" in
-    cat|bat|less|more|head|tail|grep|egrep|fgrep|awk|sed|strings|xxd|od|nl|tac) ;;
+    cat|bat|less|more|head|tail|strings|xxd|od|nl|tac) ;;
+    # El primer argumento no-opción es patrón/programa, no archivo (#70): se
+    # salta. Con -e/-f el patrón va en la opción y no hay posicional que saltar.
+    grep|egrep|fgrep|awk|sed)
+      local rest="" t skip=1
+      set -f
+      for t in ${seg#"$w"}; do
+        case "$t" in
+          -e|-f|--regexp*|--file*|--expression*) skip=0 ;;
+          -*) ;;
+          *) if [ "$skip" = 1 ]; then skip=0; continue; fi; rest="$rest $t" ;;
+        esac
+      done
+      set +f
+      _is_sensitive_env_path "$rest"; return ;;
     *) return 1 ;;
   esac
   _is_sensitive_env_path "${seg#"$w"}"
+}
+
+# Quita el cuerpo de los heredocs (<<X / <<'X' / <<-"X" … X): es datos, no comandos (#70).
+_strip_heredocs() {
+  awk '
+    d != "" { t = $0; if (strip) sub(/^\t+/, "", t); if (t == d) d = ""; next }
+    { print; l = $0; gsub(/<<</, "   ", l)
+      if (match(l, /<<-?[ \t]*["\047]?[A-Za-z_][A-Za-z0-9_]*["\047]?/)) {
+        h = substr(l, RSTART, RLENGTH); strip = (h ~ /^<<-/)
+        gsub(/^<<-?[ \t]*|["\047]/, "", h); d = h
+      }
+    }'
 }
 
 _cmd_dumps_env() {
   local seg
   while IFS= read -r seg; do
     if _segment_dumps_env "$seg"; then return 0; fi
-  done < <(printf '%s\n' "$cmd" | tr ';|&()`\n' '\n\n\n\n\n\n\n')
+  done < <(printf '%s\n' "$cmd" | _strip_heredocs | tr ';|&()`\n' '\n\n\n\n\n\n\n')
   return 1
 }
 

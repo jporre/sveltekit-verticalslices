@@ -1,6 +1,6 @@
 ---
 name: b8-swarm
-description: 'Resuelve un CLUSTER de issues relacionadas (misma área, p.ej. serie "Fase X.Y") en UN solo PR draft. Usar cuando pidan varias issues del mismo scope juntas: "en una sola PR", lista de números que tocan la misma área. NO mergea (eso es b9-close). Issues no relacionadas van una por una vía b10-ship.'
+description: 'Varias issues relacionadas de la misma área en UN solo PR draft ("en una sola PR"). No mergea (eso es b9). Issues no relacionadas: b10-ship una por una.'
 allowed-tools: Bash, Read, Edit, Write, Skill, Agent, Workflow
 # model: sin definir — hereda el de la sesión (alias no resuelven vía OpenRouter).
 effort: medium
@@ -107,6 +107,8 @@ Si algún triage trae `screens[]` y no se pasó `--no-screens` (y no es `--dry-r
 Cluster backend puro (sin screens) → saltar, anotar en el reporte. Un `fail` visual con sesión válida → devolver al build de ese issue.
 
 ### 6. UN PR draft (`b4-pull-request`, 1 vez) — solo en `--wet`
+
+Antes del PR, salvo en modo epic (lo corre el epic-review): suite completa UNA vez sobre el cluster, `bash "$PLUGIN_ROOT/scripts/local-ci.sh" "$WORKTREE"`. `LOCAL_CI=fail` → devolver al build del issue que rompe (el tail dice cuál); la línea `LOCAL_CI=...` va en el body del PR.
 
 - `scripts/publish-docs.sh` de b7 NO sirve tal cual (es por-issue). Para b8, armar el cuerpo del PR a mano o con un `agent()` de redacción (haiku): título = resumen del cluster; cuerpo con sección por issue + **una línea `Closes #N` por cada issue ready commiteado**.
 - `b4-pull-request --draft --label auto-pr-bot --body-file <cuerpo>`.

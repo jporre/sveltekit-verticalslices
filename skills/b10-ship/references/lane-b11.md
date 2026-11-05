@@ -21,7 +21,7 @@ Se llega acá cuando el reconcile emitió `B10_TRIAGE=ready … lane=b11` (label
 
    `b11-review` obligatorio si la spec toca `src/` (mismo dispatch del paso 4 de b11). Dos fallas seguidas del ejecutor con `SPEC OK` → `LANE_FALLBACK=b7`.
 
-4. **Tests acotados.** vitest SOLO sobre los archivos tocados (`CI=true pnpm test:unit --run <archivos>` en el worktree, si el repo tiene vitest y la spec tocó `src/` o tests). La suite completa la corre b6 — no pagarla dos veces (issue #57: 28 de 67 min fueron la suite entera dentro del fork).
+4. **Tests acotados.** vitest SOLO sobre los archivos tocados (`CI=true <pm> run test:unit --run <archivos>` en el worktree, pm de `bp_pm`; si el repo tiene vitest y la spec tocó `src/` o tests). Antes del commit, salvo en modo epic (la corre el epic-review), la suite completa UNA vez: `bash "$PLUGIN_ROOT/scripts/local-ci.sh" <worktree>` — local, sin depender del CI de GitHub (b6 no ejecuta tests). Nunca la suite dentro del fork del ejecutor (issue #57: 28 de 67 min fueron la suite entera dentro del fork).
 
 5. **Commit + PR + review.** `Skill b-pipeline:b3-git-commit` en el worktree; PR con `gh pr create --head <rama>` **desde el worktree** (b4 aborta en el cwd del repo principal); `Skill b-pipeline:b6-pr-review "<PR> --auto --light"`.
 

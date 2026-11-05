@@ -24,6 +24,7 @@ const config = {
 Van donde la config YA vive — verificar antes de crear nada:
 - `vite.config.{js,ts}` pasa opciones a `sveltekit({...})` → mergear los flags ahí. Desde @sveltejs/kit 2.62.0 la config puede ir inline en el plugin y en ese caso `svelte.config.js` se IGNORA (crearlo sería un no-op silencioso). `sv create` >= 0.16.0 (jun 2026) scaffoldea así, sin `svelte.config.js`.
 - Existe `svelte.config.js` y `sveltekit()` va sin opciones → mergear ahí (adapter, preprocess, etc. se respetan).
+- SK3 (`SK_MAJOR=3`): `svelte.config.js` ya no se soporta, solo `sveltekit({...})` en `vite.config`; remote functions siguen experimentales (mismos flags). Delta completo: `../../b2-build-feature/references/sveltekit-3.md`.
 - Ninguno tiene config → flags dentro de `sveltekit({...})` en `vite.config`.
 
 Requiere SvelteKit >= 2.27; si la versión no alcanza, proponer el upgrade al usuario — no forzarlo.

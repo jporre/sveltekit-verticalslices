@@ -1,6 +1,6 @@
 ---
 name: b1-triage-issue
-description: 'Triage de un GitHub issue: evalúa, etiqueta y postea el comentario de evaluación antes de desarrollar. Usar cuando pidan triage/evaluar/revisar el issue #N o "tarea N" (tarea = issue en este codebase), o cuando otro skill (b10-ship, b7-issue-to-pr, b8-swarm) necesite un issue triageado. NO es la entrada de "resuelve el issue N" (eso es b10-ship) ni de features descritas sin issue (eso es b2-build-feature).'
+description: 'Triage de un issue de GitHub ("tarea N"): evalúa, etiqueta y comenta antes de desarrollar. Lo encadenan b7/b8/b10; "resuelve el issue N" es b10-ship.'
 context: fork
 agent: Explore
 effort: low

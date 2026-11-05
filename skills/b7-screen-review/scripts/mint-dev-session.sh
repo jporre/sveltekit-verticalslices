@@ -174,14 +174,16 @@ JSON
 
   log "sesión lista para user=${resolved_user} (expira ${expires}); hash en .b7/dev-session.json"
   # ÚNICA línea con el token en claro (stdout):
-  printf 'B7_SESSION_COOKIE=auth-session=%s\n' "$token"
+  # nombre de cookie: B7_COOKIE_NAME > .b-pipeline/project.json cookie_name > auth-session
+  local cname="${B7_COOKIE_NAME:-$(sed -n 's/.*"cookie_name"[[:space:]]*:[[:space:]]*"\([A-Za-z0-9_.-]*\)".*/\1/p' "$wt/.b-pipeline/project.json" 2>/dev/null | head -1)}"
+  printf 'B7_SESSION_COOKIE=%s=%s\n' "${cname:-auth-session}" "$token"
 }
 
 cmd_verify() {
   local url="$ARG"
   [ -z "$url" ] && die "usage: verify <url>   (cookie via env B7_SESSION_COOKIE)"
   local cookie="${B7_SESSION_COOKIE:-}"
-  [ -z "$cookie" ] && die "B7_SESSION_COOKIE no seteado (esperado: auth-session=<token>)"
+  [ -z "$cookie" ] && die "B7_SESSION_COOKIE no seteado (esperado: <cookie_name>=<token>)"
   command -v curl >/dev/null 2>&1 || die "curl no disponible"
 
   local resp status location

@@ -243,3 +243,17 @@ async function handleDelete(id: string) {
 ```
 
 Nota: el estado global mutable en servidor (variables a nivel de módulo en `.server.ts`) se cubre en el Área 3 (seguridad) y en `security-checklist.md`, sección 6.
+
+## SK3 (solo si el context snapshot dice `SK_MAJOR=3`)
+
+Marcar como hallazgo; detalle en `../../b2-build-feature/references/sveltekit-3.md`:
+
+- `$app/stores` → `$app/state`
+- imports `$env/...` o `$app/environment` → `$app/env/private`, `$app/env/public`, `$app/env`
+- `invalidateAll` → `refreshAll`
+- `pushState`/`replaceState` → `goto(url, { shallow: true, state })`
+- `json()`/`text()` de `@sveltejs/kit` → `Response.json` / `new Response`
+- `base`/`assets`/`resolveRoute` de `$app/paths` → `resolve`/`asset`
+- `svelte.config.js` con opciones, o `$lib` en vez de `#lib` con extensión
+- `error(status, { message, code })` → `error(status, 'msg', { code })`
+- `redirect` a URL externa sin `{ external: true }`

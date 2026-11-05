@@ -146,6 +146,11 @@ cmd_preflight() {
     echo "preflight: gh not authenticated" >&2
     return 12
   fi
+  # Remote: sin origin el push del final falla tras todo el trabajo — cortar antes.
+  if ! git remote get-url origin >/dev/null 2>&1; then
+    echo "preflight: el repo no tiene remote 'origin' (crear con: gh repo create --source . --push)" >&2
+    return 12
+  fi
 
   # Issue must be open and not opted-out
   local issue_json state body labels
@@ -400,6 +405,16 @@ cmd_context_snapshot() {
   local repo_root pkg_name
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   pkg_name="$(python3 -c "import json; print(json.load(open('$repo_root/package.json')).get('name','?'))" 2>/dev/null || echo '?')"
+  # Valores por proyecto (scripts/lib.sh + .b-pipeline/project.json, #63): nada fijo.
+  local sk pm port lib_alias sk_note cfg_note
+  sk="$(bp_sk_major "$repo_root")"; pm="$(bp_pm "$repo_root")"; port="$(bp_dev_port "$repo_root")"
+  if [ "$sk" = 3 ]; then
+    lib_alias='#lib'
+    sk_note='- SK_MAJOR=3: aplicar skills/b2-build-feature/references/sveltekit-3.md (`#lib/...` con extensión, config solo en vite.config, `$app/env/*`, `error(status, "msg", {code})`)'
+  else
+    lib_alias='$lib'; sk_note="- SK_MAJOR=$sk"
+  fi
+  [ -f "$repo_root/.b-pipeline/project.json" ] && cfg_note="" || cfg_note="- WARN project.json ausente: valores detectados (project-config.sh init para fijarlos)"
 
   cat > "$out" <<EOF
 # Contexto de proyecto (snapshot para sub-skills)
@@ -409,7 +424,8 @@ cmd_context_snapshot() {
 
 ## Stack
 - Paquete: \`$pkg_name\`
-- SvelteKit 2 + Svelte 5 (runes, async components)
+- SvelteKit $sk + Svelte 5 (runes, async components)
+$sk_note
 - Remote Functions (\`server/data.remote.ts\` por feature) para todo acceso a datos + lógica de negocio simple
 - TailwindCSS 4 + shadcn-svelte + @lucide/svelte
 - Drizzle ORM + Postgres 18 (uuidv7 para IDs nuevos)
@@ -417,7 +433,7 @@ cmd_context_snapshot() {
 - svelte-sonner para notificaciones
 
 ## Aliases
-- \`\$lib\` → \`src/lib\`
+- \`$lib_alias\` → \`src/lib\` (usar ESTE alias en imports nuevos)
 - \`\$src\` → \`src\`
 - \`\$components\` → \`src/lib/components\`
 - \`\$api\` → \`src/routes/api\`
@@ -456,11 +472,12 @@ Spec completa: skills/b2-build-feature/references/slice-spec.md (en el plugin).
 - NUNCA imprimir valores de .env (cat/grep/head/printenv/env, etc.); usar \`hooks/env-probe.sh\` (fingerprints, no valores). El hook block-env-dump.sh lo bloquea.
 
 ## Comandos rápidos
-- \`pnpm dev\` (puerto 6024)
-- \`pnpm check:machine -- --threshold error\`
-- \`pnpm test:unit -- --run --reporter=dot\`
-- \`pnpm lint -- --quiet\`
-- \`pnpm format\`
+- \`$pm run dev\` (puerto $port del repo principal; el worktree usa ./dev.sh con su propio puerto — verificar con lsof antes de abrir el browser)
+- \`$pm run check:machine -- --threshold error\`
+- \`$pm run test:unit -- --run --reporter=dot\`
+- \`$pm run lint -- --quiet\`
+- \`$pm run format\`
+$cfg_note
 
 ## Anti-patrones a evitar (importante)
 - \`onclick={() => goto('/x')}\` → usar \`href="/x"\` directo

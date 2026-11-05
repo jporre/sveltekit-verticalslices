@@ -1,6 +1,6 @@
 ---
 name: b10-ship
-description: 'Orquestador del pipeline issue -> worktree cerrado. ENTRADA DEFAULT para trabajo issue-shaped: cualquier pedido de resolver/trabajar/shipear UN issue ("resuelve el issue N") o de drenar un epic ("procesa el epic N") sin pedir parar en el PR draft rutea aquí. Idempotente: re-correr el mismo comando retoma donde quedó. NO usar si piden explícitamente parar en el PR draft (eso es b7-issue-to-pr) ni para un cluster de issues relacionadas en un solo PR (eso es b8-swarm).'
+description: 'ENTRADA DEFAULT para resolver un issue ("resuelve el issue N") o drenar un epic ("procesa el epic N") hasta el merge. Idempotente. Parar en PR draft es b7; varias issues en un PR es b8.'
 allowed-tools: Bash, Read, Write, Skill, Agent, Workflow, AskUserQuestion, PushNotification
 # model: sin definir — hereda el de la sesión (alias no resuelven vía OpenRouter).
 ---
@@ -134,7 +134,7 @@ B10_DONE issue=<N> phase_final=<done|stopped-at-*> pr=<url|none>
 
 Leer `references/epic-mode.md` ANTES de despachar — loop principal, drain-first con snapshot, paralelismo (triage/verify/wave-build), batch de aprobaciones por ola, cap dinámico de backpressure y gate de epic-review viven ahí.
 
-**Switch único — modo rápido:** si el epic trae `epic-auto-merge` vigente (actor humano no-bot; lo estampa b0 en el gate o el usuario a mano), el modo rápido se activa COMPLETO sin flags ni env vars: drenaje auto-merge + wave-build (`B7_PARALLEL=1` implícito, `B10_WAVE_MAX=4`) + cluster automático por scope + cap dinámico + screen-review solo donde se entrega pantalla (builds con `--no-screens --light-review --no-changelog`; los issues con label `kind:ui` y el closing_slice van SIN `--no-screens`: son la entrega de la pantalla al usuario). Quitar el label del epic apaga todo y vuelve a secuencial+gates. Detalle en epic-mode.md ("Modo rápido").
+**Switch único — modo rápido:** si el epic trae `epic-auto-merge` vigente (actor humano no-bot; lo estampa b0 en el gate o el usuario a mano), el modo rápido se activa COMPLETO sin flags ni env vars: drenaje auto-merge + wave-build (`B7_PARALLEL=1` implícito, `B10_WAVE_MAX=4`) + cluster automático por scope + cap dinámico + screen-review solo donde se entrega pantalla (builds con `--no-screens --light-review --no-changelog --no-local-ci`; los issues con label `kind:ui` y el closing_slice van SIN `--no-screens`: son la entrega de la pantalla al usuario). Quitar el label del epic apaga todo y vuelve a secuencial+gates. Detalle en epic-mode.md ("Modo rápido").
 
 ## Runs zombie
 

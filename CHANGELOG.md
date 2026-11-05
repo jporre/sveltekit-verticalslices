@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.19.0] — 2026-11-05
+
+Quick wins: más rápido, más barato y SvelteKit 3.
+
+### Perf — menos contexto fijo
+
+- Descripciones de skills y agents ≤300 caracteres (bt1 bajó de ~1000, b0 de 871): ~50% menos texto cargado en cada llamada. `b-setup-or-fix` lleva `disable-model-invocation: true` (solo lo invoca el usuario; nada lo encadena).
+- b6: los gates mecánicos (fix sin test, evidencia visual de PRs de bot) salen ya formateados en la sección `GATE_FINDINGS` de `pr-context.sh`; el skill los copia tal cual en vez de re-derivarlos desde ~35 líneas de reglas (#61). El fix sin test ya no se reporta en PRs de bot, donde lo cubre dod-check #8.
+
+### Feat — CI local, en el momento que importa
+
+- `scripts/local-ci.sh [dir]`: check + tests + build del proyecto (los scripts que declare el package.json, con su pm), local, sin GitHub Actions. Última línea `LOCAL_CI=pass|fail steps=... log=...`.
+- Issue suelto: b7 (y b8, lane b11) la corre UNA vez antes del PR; una falla vuelve al loop de fix. En epic, los PRs llevan `--no-local-ci` y la suite corre una sola vez en el epic-review sobre la rama integrada; si falla, se crea un issue `fix:` vinculado al epic y el loop sigue solo, sin pedir intervención.
+- El CI de GitHub sigue siendo opcional (auto-merge ya no lo exige).
+
+### Feat — b-setup-or-fix como asistente de setup
+
+- Nueva FASE 1.5: con el diagnóstico del entorno, arregla solo lo local y seguro (project.json, `.codegraph/` en .gitignore, scripts de local-ci si la herramienta ya está), pregunta las decisiones en la misma ronda del gate (auth de pruebas en browser) e indica el comando para lo que toca la máquina o cuentas. Cierra con `local-ci.sh` y `SETUP_READY=yes|no pendientes=<csv>`.
+- `audit.sh`: exige el pm del proyecto (no pnpm fijo) y Node >= 22.17 en SvelteKit 3; detecta project.json, scripts de local-ci y la sección de auth; GitHub Actions y PR template pasan a informativos.
+
+### Feat — SvelteKit 3
+
+- `bp_sk_major` detecta el major; el context snapshot de b7 dice `SvelteKit <N>`, usa `#lib` como alias en SK3 y apunta a la nueva referencia `skills/b2-build-feature/references/sveltekit-3.md` (tabla delta: `$lib`→`#lib`, config solo en `vite.config`, `$app/env/*`, `refreshAll`, `goto({shallow})`, `Response.json`, `src/params.ts`, mínimos Node 22.17/TS 6/Vite 8).
+- `audit.sh` reporta `sk3_svelte_config=present` si un repo SK3 conserva `svelte.config.js`. Punteros en b2, b-setup-or-fix, base-setup, migrate-to-remote, fix-ladder, antipatterns y url-synced-state.
+
+### Feat — `.b-pipeline/project.json` (#63 parcial)
+
+- Config mínima por proyecto, sin secretos: `pm`, `port`, `worktree_port_start`, `base_branch`, `cookie_name`. `scripts/project-config.sh init|show`; helpers `bp_project`, `bp_pm`, `bp_dev_port`, `bp_sk_major` en `lib.sh` (cubiertos por el selftest). b-setup-or-fix lo crea en modo base.
+- Ya no hay valores fijos: `verify.sh` y `setup-worktree.sh` usan el pm del proyecto (no más `pnpm` hardcodeado), el puerto inicial de worktrees sale de la config, `mint-dev-session.sh` toma la cookie de `B7_COOKIE_NAME` → `cookie_name` → `auth-session`, y el snapshot muestra los comandos reales.
+
+### Feat — b9 respeta la estrategia de merge del repo (#69)
+
+- `skills/b9-close/scripts/merge-strategy.sh`: clasifica los últimos 10 PRs mergeados (2 padres = merge, `(#N)` en el asunto = squash, resto = rebase) y elige la mayoría entre las permitidas por el repo; sin historial, squash. Un flag explícito del usuario gana.
+
+### Feat — puente con Itsaplan (vía MCP, sin config)
+
+- Si el MCP de Plan está conectado, b9 toma las claves de proyecto de `list_projects`, mueve cada `<KEY>-N` citado en el PR o sus issues a la columna `completed` y marca su checklist. Fail-open: sin MCP, sin referencias o con error reporta `Plan: n/a` y sigue.
+
+### Fix
+
+- `block-env-dump.sh` (#70): ya no bloquea comandos que solo *mencionan* `.env` — el patrón de grep/sed/awk y los cuerpos de heredocs/here-strings no cuentan como lectura (`ls -a | grep -E "^\.env"`, `gh issue create` con heredoc). Siguen bloqueados `grep KEY .env`, `sed -n 1p .env`, `grep -e K .env.local`. Regresión ampliada.
+- b4 y el preflight de b7 abortan ANTES del trabajo/push si el repo no tiene remote `origin` (antes fallaba al final).
+
 ## [1.18.1] — 2026-10-01
 
 ### Fix — `create-epic.sh` abortaba con `set -u`

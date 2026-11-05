@@ -160,7 +160,7 @@ Sugerir el siguiente paso (abrir PR vía b4, o próxima corrida con los features
 
 Para proyecto nuevo o sano (E2-E4 en cero y menos de 3 features — E5/E6 son señales blandas y no bloquean el modo). Sin `--init`, el gate de FASE 2 corre igual antes de tocar nada. Aplica `references/base-setup.md` completo:
 
-1. Flags `kit.experimental.remoteFunctions: true` + `compilerOptions.experimental.async: true` — donde viva la config: `sveltekit({...})` en `vite.config` o `svelte.config.js` (regla de ubicación en `base-setup.md`; kit >= 2.62 ignora `svelte.config.js` si el plugin recibe opciones).
+1. Flags `kit.experimental.remoteFunctions: true` + `compilerOptions.experimental.async: true` — donde viva la config: `sveltekit({...})` en `vite.config` o `svelte.config.js` (regla de ubicación en `base-setup.md`; kit >= 2.62 ignora `svelte.config.js` si el plugin recibe opciones; en SK3 solo `vite.config` — ver `../b2-build-feature/references/sveltekit-3.md`).
 2. `$lib/server/auth.ts` con `requireUser`/`requirePermission` (formato `verbo:sustantivo`) si no existen.
 3. **Auth de pruebas del browser**: analizar el repo (¿usuario seed solo-dev? ¿endpoint de login solo-dev? ¿mint en DB? ¿o login manual + cookies?), decidir la estrategia CON el usuario y declararla en la sección `## Auth de pruebas (browser)` del CLAUDE.md — análisis y template en `base-setup.md` § 3. b7-screen-review y el walkthrough de epic-review leen esa sección.
 4. `CLAUDE.md` del repo con la doctrina en ~10 líneas + punteros a `slice-spec.md`.

@@ -25,6 +25,8 @@ table, the legacy tolerance (editing an existing `src/lib/features/` feature fol
 pattern; NEW features never go there), and the colocated `docs/readme.md` doc every new
 feature ships with. When in doubt about where a file goes, that spec wins.
 
+**SvelteKit 3**: si el context snapshot dice `SK_MAJOR=3`, aplica `references/sveltekit-3.md` (`#lib` con extensión, `$app/env`, `error(status, msg, { code })`, etc.). Los ejemplos de este skill usan la sintaxis SK2.
+
 ## Two Entry Points
 
 This skill has two starting paths:

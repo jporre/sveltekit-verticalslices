@@ -90,6 +90,7 @@ function setMonth(m: string) {
   if (m === currentMonth) return
   currentMonth = m
   // pushState updates the URL (bookmarkable, browser back works)
+  // SK3: pushState is deprecated → goto(url, { shallow: true, state: {} })
   // WITHOUT re-running +page.server.ts. The remote query reacts.
   const url = new URL(page.url)
   url.searchParams.set('month', m)

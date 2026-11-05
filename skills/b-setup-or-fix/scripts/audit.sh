@@ -91,6 +91,11 @@ KIT_VERSION=$(node -e "try{console.log(require('./node_modules/@sveltejs/kit/pac
 echo "sveltekit=$KIT_VERSION"
 # kit >= 2.62 acepta config inline en sveltekit() dentro de vite.config; sv >= 0.16 ya no genera svelte.config.js
 CFG="svelte.config.js vite.config.js vite.config.ts"
+# SK3: svelte.config.js ya no se soporta; la config vive solo en sveltekit({...}) (references/sveltekit-3.md de b2)
+case "$KIT_VERSION" in 3.*)
+  CFG="vite.config.js vite.config.ts"
+  [ -f svelte.config.js ] && echo "sk3_svelte_config=present (mover opciones a sveltekit({...}) en vite.config: npx sv migrate sveltekit-3)" ;;
+esac
 grep -qE 'remoteFunctions[[:space:]]*:[[:space:]]*true' $CFG 2>/dev/null && echo "remote_functions_flag=yes" || echo "remote_functions_flag=no"
 grep -qE 'async[[:space:]]*:[[:space:]]*true' $CFG 2>/dev/null && echo "async_flag=yes" || echo "async_flag=no"
 FEATURES=$(find "$SRC/routes" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')

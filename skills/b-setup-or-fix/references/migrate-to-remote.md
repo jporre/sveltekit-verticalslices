@@ -2,7 +2,7 @@
 
 > Templates canónicos completos (CRUD entero): `../../b2-build-feature/references/feature-templates.md` — incluye el **Template 5 (escritura multi-tabla con `db.transaction` dentro de la remote function)**, que aplica igual en la migración: si la lógica legacy encadena dos writes sin atomicidad, la remote function los envuelve en transacción. Forms con shadcn y campos no-nativos: `../../b2-build-feature/references/forms-recipe.md`. Este archivo solo trae el mapeo legacy → remote, receta por receta. Si el skill `using-remote-functions` está disponible, sus docs (QUERY/FORM/COMMAND/SINGLE-FLIGHT) profundizan cada tipo.
 
-Prerrequisitos (E1 ya los dejó): flags `kit.experimental.remoteFunctions: true` y `compilerOptions.experimental.async: true` donde viva la config (`vite.config` o `svelte.config.js` — ver `base-setup.md`); SvelteKit >= 2.27.
+Prerrequisitos (E1 ya los dejó): flags `kit.experimental.remoteFunctions: true` y `compilerOptions.experimental.async: true` donde viva la config (`vite.config` o `svelte.config.js` — ver `base-setup.md`; en SK3 solo `vite.config`, remote sigue experimental — `../../b2-build-feature/references/sveltekit-3.md`); SvelteKit >= 2.27.
 
 Reglas fijas de toda función migrada:
 

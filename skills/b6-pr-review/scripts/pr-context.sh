@@ -121,6 +121,25 @@ else
 fi
 
 echo ""
+echo "=== GATE_FINDINGS ==="
+# Findings mecánicos YA formateados (#61): b6 los copia tal cual al reporte, sin
+# turno de transcripción. Fix sin test: solo PRs humanos — en PRs de bot (b7) ya lo
+# reporta dod-check #8 y aquí sería un hallazgo duplicado.
+UI_T=false; printf '%s\n' "$FILES" | grep -qE '(^|/)src/routes/|\.svelte$|\.remote\.ts$' && UI_T=true
+BOT=false; echo "$META" | jq -e 'any(.labels[]?; .name == "auto-pr-bot")' >/dev/null && BOT=true
+GF=0
+if [ "$BOT" = false ] && printf '%s\n' "$HEAD_REF" | grep -qE '^fix/' && ! printf '%s\n' "$FILES" | grep -qE '\.(test|spec)\.'; then
+  echo "- **WARNING**: #$PR fix sin test de regresión — agregar un test que falle sin el fix, o justificar por qué no aplica"; GF=1
+fi
+if [ "$BOT" = true ] && [ "$UI_T" = true ]; then
+  case "$EVIDENCE" in
+    none) echo "- **BLOCKER**: #$PR PR de bot toca UI sin evidencia visual ni skip declarado — correr b7 paso 5 o declarar skip válido"; GF=1 ;;
+    skipped) echo "- **WARNING**: #$PR screen-review omitido${SKIP_REASON:+ ($SKIP_REASON)} — evaluar si el PR necesita evidencia visual antes del merge"; GF=1 ;;
+  esac
+fi
+[ "$GF" = 0 ] && echo "(ninguno)"
+
+echo ""
 echo "=== CHANGED_SYMBOLS ==="
 # Símbolos exportados tocados por el diff (best-effort, JS/TS). Reusa $DIFF.
 # NEW = agregado sin versión eliminada; MODIFIED = firma tocada (línea +/-) o

@@ -62,6 +62,7 @@ Lee el output completo. El script entrega:
 - **PR_COMMITS**: historial de commits
 - **PR_CHECKS**: estado de los checks de CI (`gh pr checks`). Alimenta el punto 6 del Área 1.
 - **CLASSIFY_FILES**: archivos clasificados por tipo (LOAD_SERVER, REMOTE_FUNCTION, API_ENDPOINT, SVELTE_COMPONENT, etc.)
+- **GATE_FINDINGS**: líneas `- **SEVERIDAD**:` ya formateadas de los gates mecánicos — se copian tal cual.
 - **FIX_REGRESSION_GATE**: `FIX_WITHOUT_TEST=true|false` — true cuando el PR es `fix/*` y el diff no toca ningún archivo `.(test|spec).` (gate de regresión; ver Área 2)
 - **SCREEN_EVIDENCE**: `UI_TOUCHED=true|false` + `BOT_PR=true|false` + `EVIDENCE=screenshots|skipped|none` (con skip la línea trae `EVIDENCE=skipped reason=<r>`; reason ausente = marker viejo) — gate de evidencia visual para PRs de bot que tocan UI (ver Área 2)
 - **CHANGED_SYMBOLS**: símbolos exportados del diff (líneas `NEW:` / `MODIFIED:` / `REMOVED:`, best-effort) + línea `CODEGRAPH: ok|absent` (probe informativo). Alimenta el punto 6 del Área 2 y el paso 2 del Área 5.
@@ -139,39 +140,7 @@ bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh" "$(gh pr view
 Cada `VIOLATION` es un finding de arquitectura (BLOCKER/WARNING según el punto 2 de abajo).
 El juicio LLM cubre lo que el script no ve (duplicación, indirección, código muerto).
 
-**Gate de regresión (mecánico, del contexto):** si `FIX_REGRESSION_GATE` trae
-`FIX_WITHOUT_TEST=true`, el PR es un `fix/*` que no toca ningún test. Emitir un
-WARNING pidiendo el test de regresión (el que falla sin el fix y pasa con el) o una
-justificación explícita de por qué no aplica:
-
-```
-- **WARNING**: <PR> fix sin test de regresión — agregar un test que falle sin el fix, o justificar por qué no aplica
-```
-
-Con `FIX_WITHOUT_TEST=false` (o PR no-`fix/*`) no hay finding por este gate.
-
-**Gate de evidencia visual (mecánico, del contexto):** la sección `SCREEN_EVIDENCE`
-trae `UI_TOUCHED`, `BOT_PR` y `EVIDENCE`. El gate aplica SOLO con `BOT_PR=true` (label
-`auto-pr-bot`) Y `UI_TOUCHED=true`. A PRs humanos (`BOT_PR=false`) el gate NO aplica;
-con `UI_TOUCHED=false` tampoco hay finding.
-
-Con el gate activo y `EVIDENCE=none`, emitir este BLOCKER:
-
-```
-- **BLOCKER**: <PR> PR de bot toca UI sin evidencia visual ni skip declarado — correr b7 paso 5 o declarar skip válido
-```
-
-Con el gate activo y `EVIDENCE=skipped`, emitir este WARNING (skip declarado no bloquea)
-citando el reason de la línea (`EVIDENCE=skipped reason=<r>`); si la línea no trae reason
-(marker viejo), omitir el paréntesis:
-
-```
-- **WARNING**: <PR> screen-review omitido (<r>) — evaluar si el PR necesita evidencia visual antes del merge
-```
-
-Con `EVIDENCE=screenshots` no hay finding por este gate. El BLOCKER se resuelve dentro
-del loop de b7: re-correr el paso 5 (screen-review + attach.sh) o postear el marker de
-skip válido en el PR — nunca requiere intervención fuera del loop.
+**Gates mecánicos (fix sin test, evidencia visual):** copiar las líneas de `GATE_FINDINGS` del contexto TAL CUAL al reporte (`(ninguno)` = sin findings). No re-derivarlas. Un BLOCKER de evidencia se resuelve en el loop de b7: re-correr el paso 5 o postear el marker de skip.
 
 Evalúa:
 

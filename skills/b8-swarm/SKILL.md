@@ -108,6 +108,8 @@ Cluster backend puro (sin screens) → saltar, anotar en el reporte. Un `fail` v
 
 ### 6. UN PR draft (`b4-pull-request`, 1 vez) — solo en `--wet`
 
+Antes del PR, salvo en modo epic (lo corre el epic-review): suite completa UNA vez sobre el cluster, `bash "$PLUGIN_ROOT/scripts/local-ci.sh" "$WORKTREE"`. `LOCAL_CI=fail` → devolver al build del issue que rompe (el tail dice cuál); la línea `LOCAL_CI=...` va en el body del PR.
+
 - `scripts/publish-docs.sh` de b7 NO sirve tal cual (es por-issue). Para b8, armar el cuerpo del PR a mano o con un `agent()` de redacción (haiku): título = resumen del cluster; cuerpo con sección por issue + **una línea `Closes #N` por cada issue ready commiteado**.
 - `b4-pull-request --draft --label auto-pr-bot --body-file <cuerpo>`.
 - El PR cierra **todas** las issues `Closes #` al mergear (GitHub las parsea sin importar el merge method).

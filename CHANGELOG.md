@@ -9,6 +9,12 @@ Quick wins: más rápido, más barato y SvelteKit 3.
 - Descripciones de skills y agents ≤300 caracteres (bt1 bajó de ~1000, b0 de 871): ~50% menos texto cargado en cada llamada. `b-setup-or-fix` lleva `disable-model-invocation: true` (solo lo invoca el usuario; nada lo encadena).
 - b6: los gates mecánicos (fix sin test, evidencia visual de PRs de bot) salen ya formateados en la sección `GATE_FINDINGS` de `pr-context.sh`; el skill los copia tal cual en vez de re-derivarlos desde ~35 líneas de reglas (#61). El fix sin test ya no se reporta en PRs de bot, donde lo cubre dod-check #8.
 
+### Feat — CI local, en el momento que importa
+
+- `scripts/local-ci.sh [dir]`: check + tests + build del proyecto (los scripts que declare el package.json, con su pm), local, sin GitHub Actions. Última línea `LOCAL_CI=pass|fail steps=... log=...`.
+- Issue suelto: b7 (y b8, lane b11) la corre UNA vez antes del PR; una falla vuelve al loop de fix. En epic, los PRs llevan `--no-local-ci` y la suite corre una sola vez en el epic-review sobre la rama integrada; si falla, se crea un issue `fix:` vinculado al epic y el loop sigue solo, sin pedir intervención.
+- El CI de GitHub sigue siendo opcional (auto-merge ya no lo exige).
+
 ### Feat — SvelteKit 3
 
 - `bp_sk_major` detecta el major; el context snapshot de b7 dice `SvelteKit <N>`, usa `#lib` como alias en SK3 y apunta a la nueva referencia `skills/b2-build-feature/references/sveltekit-3.md` (tabla delta: `$lib`→`#lib`, config solo en `vite.config`, `$app/env/*`, `refreshAll`, `goto({shallow})`, `Response.json`, `src/params.ts`, mínimos Node 22.17/TS 6/Vite 8).

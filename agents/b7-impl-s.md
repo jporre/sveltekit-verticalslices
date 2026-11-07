@@ -2,6 +2,7 @@
 name: b7-impl-s
 description: Agente de implementación del carril rápido S de b7-issue-to-pr. Se invoca SOLO cuando classify-run asignó lane=S (issue simple, <=5 archivos probables). Aplica el mismo contrato de b2 (feature colocado en src/routes, Remote Functions, sin state global, errores estructurados) pero con scope acotado y diffs mínimos.
 tools: Bash, Read, Edit, Write, Grep, Glob
+effort: medium
 ---
 
 # b7 — implementación carril rápido (lane S)

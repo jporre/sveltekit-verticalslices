@@ -66,9 +66,9 @@ EOF
 
 If commit fails due to hooks, fix and create NEW commit (don't amend).
 
-### 5. Verificación final (OBLIGATORIO — no saltar)
+### 5. Verificación final
 
-El skill NUNCA termina con working tree sucio. Como último paso, SIEMPRE correr:
+El skill termina con el working tree limpio. Último paso:
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"

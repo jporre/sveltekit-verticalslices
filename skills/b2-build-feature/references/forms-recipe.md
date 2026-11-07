@@ -252,7 +252,7 @@ format to `YYYY-MM-DD` for the hidden input the schema expects.
 
 ## 6. Anti-pattern: `disabled={!isFormValid}` (do NOT do this)
 
-Real bug already paid for (memoria `feedback_disabled_submit_hides_errors`, PR #488):
+Real bug:
 gating the submit button on a client-computed `isFormValid`, with `aria-invalid` only set
 inside `handleSubmit`, makes the red error borders **unreachable** — the user can never
 submit to trigger them, so they never appear.

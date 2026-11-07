@@ -15,7 +15,7 @@ Toma un grupo de issues **relacionadas** y las resuelve como **un solo cambio co
 
 ## Por qué un PR y no N
 
-El modelo viejo de b8 corría un `b7-issue-to-pr` por issue → **N PRs independientes**. Cuando las issues son **relacionadas** (tocan los mismos archivos), eso genera conflictos: el PR #2 se basa en una rama default vieja y choca con el #1 ya mergeado, forzando rebase manual.
+Un `b7-issue-to-pr` por issue relacionada daría **N PRs** sobre los mismos archivos: cada PR parte de una rama default que el anterior ya cambió, y chocan al mergear (rebase manual).
 
 En **un PR** los cambios componen sobre una rama: sin conflicto inter-PR, una review del cambio completo, un merge atómico. Ese es el punto de este skill.
 
@@ -186,7 +186,7 @@ const A = (typeof args === 'string') ? JSON.parse(args) : (args || {})
 phase('triage')
 const triages = (await parallel(A.issues.map(n => () =>
   agent(
-`Fast-path b0 (#60), ANTES de b1: G="\${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root")}/skills/b7-issue-to-pr/scripts/guardrails.sh"; ` +
+`Fast-path b0, ANTES de b1: G="\${CLAUDE_PLUGIN_ROOT:-$(cat "$HOME/.claude/b-pipeline.root")}/skills/b7-issue-to-pr/scripts/guardrails.sh"; ` +
     `bash "$G" cache-issue ${n} ${A.worktree}/.b7/issue-${n} && bash "$G" triage-from-labels ${A.worktree}/.b7/issue-${n}/issue.json ${A.worktree}/.b7/triage-${n}.json. ` +
     `Si imprime TRIAGE_FROM_LABELS=ok NO invoques b1: lee ese triage.json y devuelve el resultado. Si imprime none: ` +
     `triage del issue #${n} con el skill b1-triage-issue (modo --auto). El skill corre read-only ` +

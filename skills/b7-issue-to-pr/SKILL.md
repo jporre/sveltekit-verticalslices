@@ -46,7 +46,7 @@ B7_DONE issue=<N> pr=<url|none> status=ok|needs-human-review|bailed|aborted scre
 
 `screens=`: `ok` = cada pantalla del triage tiene JSON de review sin `verdict: fail`; `skipped-<r>` = existe `.b7/review/SKIPPED.json` con `reason=<r>`; `fail` = algún review en fail; `none` = triage sin screens.
 
-**Frases prohibidas al cerrar** (`references/runbook.md`): "listo para commit/PR", "pendiente: abrir PR", "próximos pasos: <algo del pipeline>". Si vas a escribirlas, el run NO terminó — ejecuta el paso.
+**Cierre:** en `--wet` el run termina con branch + commits + PR + review adjunto + labels (DoD en `references/runbook.md`). Si falta alguno, ejecútalo antes de emitir `B7_DONE`; no lo dejes como próximo paso.
 
 ## Argumentos
 
@@ -118,7 +118,7 @@ El LLM solo refina un esqueleto si `acceptance_criteria_visual` vino vacío o si
 
 **Cambio mecánico sin descubrimiento** (renames, bumps, docs/config, ediciones ya decididas archivo por archivo): en vez de `b7-impl`, `Skill(b-pipeline:b11-spec-exec)` — la sesión escribe la spec ejecutable, un modelo barato la aplica en un proceso aislado y un validador la certifica byte a byte; el resto del pipeline sigue igual.
 
-Agente: `Agent(subagent_type="b-pipeline:b7-impl")` en M/L, `b7-impl-s` en S. Sin `model=`: hereda el de la sesión. **Prohibido `general-purpose`** (mete todos los schemas MCP en cada turno). Pasarle:
+Agente: `Agent(subagent_type="b-pipeline:b7-impl")` en M/L, `Agent(subagent_type="b-pipeline:b7-impl-s")` en S. Sin `model=`: hereda el de la sesión. **Prohibido `general-purpose`** (mete todos los schemas MCP en cada turno). Pasarle:
 
 - Rutas a `.b7/triage.json`, `.b7/screens/`, `.b7/context.md`, `$WORKTREE`.
 - Layout colocado, Remote Functions, sin state global, errores `error(STATUS,{message,code})`.
@@ -217,7 +217,7 @@ Una corrida real (2026-09-11) costó US$ 30: 60 % fue un `Workflow` de review co
 
 ## Referencias (carga bajo demanda — este archivo se paga en cada turno, una reference una vez)
 
-- `runbook.md` — DoD detallado, frases prohibidas, invocación headless. Al cerrar o depurar.
+- `runbook.md` — DoD detallado, cierre del run, invocación headless. Al cerrar o depurar.
 - `screens-step.md` — 5.0–5.9. Solo si la rampa no dio skip.
 - `lane-s.md` — carril S. `dry-run.md` — cierre de un dry-run.
 - `templates/` — triage-output.schema.json, issue-comment.md, pr-release-notes.md, changelog-entry.md, run-report.md.

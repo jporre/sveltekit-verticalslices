@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.19.1] — 2026-11-07
+
+Auditoría de prompts (target Opus 5.5).
+
+### Fix
+
+- `b7-impl-s` pasa a `agents/` (desde `skills/b7-issue-to-pr/agents/`, que Claude Code no carga) y el carril S lo invoca como `Agent(subagent_type="b-pipeline:b7-impl-s")`; `effort: medium` como `b7-impl`.
+- `exec-spec.sh`: precios de `haiku-5-5` y `opus-5-5`. El alias `haiku` reportaba costo `n/a` y Opus 5.5 se cobraba a tarifa de Opus 5.
+- pi-agents: sin "(sonnet)" en las descripciones de `b7-impl-s` y `b7-screen-review`.
+
+### Prompts
+
+- b7 y runbook: la lista de frases prohibidas al cerrar pasa a DoD positivo.
+- b3 paso 5 sin énfasis apilado; b8 sin narrativa de su versión anterior.
+- Fuera números de issue/PR y citas de memoria en la prosa de skills.
+
 ## [1.19.0] — 2026-11-05
 
 Quick wins: más rápido, más barato y SvelteKit 3.

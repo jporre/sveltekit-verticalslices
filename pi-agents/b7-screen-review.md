@@ -1,6 +1,6 @@
 ---
 name: b7-screen-review
-description: "Revisión visual de UNA pantalla: abre la ruta en el browser, recorre los estados requeridos, captura screenshots, evalúa acceptance_criteria_visual y emite veredicto pass/warn/fail + attach.sh. El orquestador puede pasar el modelo por parámetro del tool subagent (sonnet)."
+description: "Revisión visual de UNA pantalla: abre la ruta en el browser, recorre los estados requeridos, captura screenshots, evalúa acceptance_criteria_visual y emite veredicto pass/warn/fail + attach.sh. El orquestador puede pasar el modelo por parámetro del tool subagent."
 tools: read, bash, write
 systemPromptMode: replace
 ---

@@ -85,10 +85,10 @@ mu = d.get("modelUsage") or {}
 name, u = next(iter(mu.items())) if mu else (model, {})
 inp, outt = u.get("inputTokens", 0), u.get("outputTokens", 0)
 cr, cw = u.get("cacheReadInputTokens", 0), u.get("cacheCreationInputTokens", 0)
-# USD por millón (input, output, cache_read, cache_write): lista pública 2026-09.
+# USD por millón (input, output, cache_read, cache_write): lista pública 2026-11.
 # Override: B_PIPELINE_EXEC_PRICES=in,out,cr,cw. El total_cost_usd de claude -p no sirve para modelos que no conoce.
-TABLA = {"glm-5.3-flash": (0.15, 0.5, 0.03, 0.19), "haiku-4": (1, 5, 0.1, 1.25), "sonnet-5": (2, 10, 0.2, 2.5),
-         "opus-5": (5, 25, 0.5, 6.25), "fable-5": (10, 50, 0.25, 12.5)}
+TABLA = {"glm-5.3-flash": (0.15, 0.5, 0.03, 0.19), "haiku-5-5": (0.1, 0.5, 0.01, 0.125), "haiku-4": (1, 5, 0.1, 1.25),
+         "sonnet-5": (2, 10, 0.2, 2.5), "opus-5-5": (4, 20, 0.2, 5), "opus-5": (5, 25, 0.5, 6.25), "fable-5": (10, 50, 0.25, 12.5)}
 env_p = os.environ.get("B_PIPELINE_EXEC_PRICES")
 prices = tuple(map(float, env_p.split(","))) if env_p else next((v for k, v in TABLA.items() if k in name), None)
 usd = f"{(inp * prices[0] + outt * prices[1] + cr * prices[2] + cw * prices[3]) / 1e6:.3f}" if prices else "n/a"

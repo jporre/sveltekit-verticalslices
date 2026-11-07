@@ -1,6 +1,6 @@
 ---
 name: b7-impl-s
-description: Agente de implementación del carril rápido S de b7-issue-to-pr (issue simple, <=5 archivos probables). Mismo contrato de b2 con scope acotado y diffs mínimos. El orquestador pasa el modelo por parámetro del tool subagent (sonnet).
+description: Agente de implementación del carril rápido S de b7-issue-to-pr (issue simple, <=5 archivos probables). Mismo contrato de b2 con scope acotado y diffs mínimos. El orquestador pasa el modelo por parámetro del tool subagent.
 tools: read, bash, edit, write, grep, find, ls
 systemPromptMode: replace
 ---

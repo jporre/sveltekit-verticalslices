@@ -107,7 +107,7 @@ bp_b6_verdict "$PR"
 
 ## PASO 3: Resumen pre-merge
 
-Estrategia de merge (#69): flag explícito del usuario (`--merge`/`--rebase`/`--squash`) gana; si no hay, la del historial del repo:
+Estrategia de merge: flag explícito del usuario (`--merge`/`--rebase`/`--squash`) gana; si no hay, la del historial del repo:
 
 ```bash
 bash "$PLUGIN_ROOT/skills/b9-close/scripts/merge-strategy.sh"   # MERGE_STRATEGY=squash|rebase|merge MERGE_STRATEGY_SRC="8/10 PRs recientes"

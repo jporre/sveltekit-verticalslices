@@ -25,15 +25,9 @@ Semántica por check (lo que dod-check implementa internamente — útil al depu
 8. Gate de regresión: fix sin test en el diff → WARN (`DOD_SUMMARY=needs-human-review`, no aborta)
 9. Screen-review verificable (`screens-check`; exit 8 = run inválido)
 
-### Frases prohibidas al cerrar el run
+### Cierre del run
 
-Estas frases significan "abandoné a mitad de camino" y son síntoma del bug que este skill busca evitar. Si estás por escribirlas, el run no está terminado — ejecuta el paso pendiente:
-
-- "Ready for b3-git-commit + b4-pull-request"
-- "Listo para commit / Listo para PR"
-- "Pendiente: abrir PR / correr review"
-- "Próximos pasos: <algo del pipeline>"
-- "Worktree con cambios sin commitear" (excepto en `--dry-run` explícito)
+Si falta un paso del cierre válido, ejecútalo antes de cerrar; no lo reportes como pendiente.
 
 En `--wet` el cierre válido es: branch + commits + PR URL + review adjunto + labels actualizadas. En `--dry-run` el cierre válido es: branch + commits opcionales + worktree listo para inspección + label `in-progress` + comentario sticky.
 
@@ -41,7 +35,7 @@ En `--wet` el cierre válido es: branch + commits + PR URL + review adjunto + la
 
 | Paso | Sub-agente | Modelo | Razón |
 |------|-----------|--------|-------|
-| 4 Implementación | `Agent(b-pipeline:b7-impl)` en M/L · `agents/b7-impl-s.md` en S | el de la sesión | Aislar contexto de exploración + tool calls verbosos. Orquestador solo recibe resumen. **Nunca `general-purpose`**: su toolset `*` arrastra todos los schemas MCP al prompt del sub-agente, en cada turno del loop. |
+| 4 Implementación | `Agent(b-pipeline:b7-impl)` en M/L · `Agent(b-pipeline:b7-impl-s)` en S | el de la sesión | Aislar contexto de exploración + tool calls verbosos. Orquestador solo recibe resumen. **Nunca `general-purpose`**: su toolset `*` arrastra todos los schemas MCP al prompt del sub-agente, en cada turno del loop. |
 | 5 Revisión visual | `Agent(b-pipeline:b7-screen-review)` — agente del plugin | el de la sesión | Toolset de browser (`agent-browser`) es independiente. Paralelizar por pantalla. Output binario (PNG) no contamina contexto. |
 | Triage (`b1-triage-issue`) | Skill directo (`context: fork`) | el de la sesión | Determinístico y rápido; sub-agente sería overkill. |
 | Commit / PR / log summarizers | Skill directo | el de la sesión | Idem. |

@@ -15,7 +15,7 @@ El archivo resultante **preserva el contrato `criteria_file`** que consume `b7-s
 
 ## Paso 4 — agente de implementación e iteraciones
 
-Invocar el agente `agents/b7-impl-s.md` en vez de `b2-build-feature` (modelo: el de la sesión). Mismo contrato (feature colocado, Remote Functions, sin state global, errores estructurados), scope acotado, diffs mínimos. Los inputs del paso 4 (rutas a `.b7/triage.json`, `.b7/screens/`, `.b7/context.md`, pointers a forms-recipe y `bt1-data-table`, impact set Phase 1.5) son lane-agnósticos — pasarlos al agente tal como los define el paso 4. Además, el hard stop de **iterations baja a 3** (salvo `--max-iterations=N` explícito).
+Invocar `Agent(subagent_type="b-pipeline:b7-impl-s")` en vez de `b2-build-feature` (modelo: el de la sesión). Mismo contrato (feature colocado, Remote Functions, sin state global, errores estructurados), scope acotado, diffs mínimos. Los inputs del paso 4 (rutas a `.b7/triage.json`, `.b7/screens/`, `.b7/context.md`, pointers a forms-recipe y `bt1-data-table`, impact set Phase 1.5) son lane-agnósticos — pasarlos al agente tal como los define el paso 4. Además, el hard stop de **iterations baja a 3** (salvo `--max-iterations=N` explícito).
 
 ## Paso 5 — saltar la revisión visual SOLO si el diff es seguro
 
@@ -23,7 +23,7 @@ Regla única para TODO carril (SKILL.md paso 5): `guardrails.sh ui-touched "$WOR
 
 ## Paso 8c — review light
 
-Invocar `b6-pr-review "<PR> --auto --light"` — el `--light` (size-gate emitido por `pr-context.sh`, issue #3) recorta el review al tamaño chico del diff.
+Invocar `b6-pr-review "<PR> --auto --light"` — el `--light` (size-gate emitido por `pr-context.sh`) recorta el review al tamaño chico del diff.
 
 ## No forzar el carril
 

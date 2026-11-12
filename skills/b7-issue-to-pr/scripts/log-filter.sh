@@ -19,7 +19,7 @@ if [ -z "$LOG" ] || [ ! -f "$LOG" ]; then
 fi
 
 # Patrones de error de svelte-check, vitest, eslint, tsc, pnpm.
-PATTERNS='Error|error TS[0-9]+|✘|✗|FAIL |fail:|Cannot find|is not assignable|has no exported|Unexpected token|SyntaxError|TypeError|throws|expected.*received|Missing|undefined .* property'
+PATTERNS='Error|ERROR |error TS[0-9]+|✘|✗|FAIL |fail:|Cannot find|is not assignable|has no exported|Unexpected token|SyntaxError|TypeError|throws|expected.*received|Missing|undefined .* property'
 
 # Si no hay matches, devolver las últimas N líneas como fallback (ej: timeout sin mensaje claro).
 if ! grep -qE "$PATTERNS" "$LOG"; then

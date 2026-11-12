@@ -4,12 +4,7 @@ Leer este archivo SOLO cuando `classify-run` (paso 1b) emitió `RUN_LANE=S`. En 
 
 ## Paso 3 — render MECÁNICO de screens (sin LLM)
 
-NO gastar una pasada de modelo diseñando el esqueleto — y desde el subcomando `render-screens` es el default de TODOS los carriles (ver SKILL.md paso 3):
-
-```bash
-bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/guardrails.sh" render-screens \
-  "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/screens"
-```
+NO gastar una pasada de modelo diseñando el esqueleto: `provision` ya corrió `render-screens` (default de TODOS los carriles, ver SKILL.md paso 3) y dejó `.b7/screens/<Name>.md`.
 
 El archivo resultante **preserva el contrato `criteria_file`** que consume `b7-screen-review` (mismos campos, mismo path `.b7/screens/<Name>.md`); solo cambia que el contenido sale de sustitución de plantilla en vez de razonamiento. Refinar con LLM solo si `acceptance_criteria_visual` vino vacío o el impl del paso 4 falla por esqueleto pobre.
 

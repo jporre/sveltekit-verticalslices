@@ -25,7 +25,7 @@
 #   screen-marker <worktree-dir> <pr-number> — postea el marker <!-- b7:screen-review=... --> en el PR (enum skipped/done result=); emite SCREEN_MARKER=<body>
 #   impact-drift <worktree-dir> [default-branch] — contrasta diff real vs impact_files+files_likely; emite IMPACT_DRIFT: none|<files>. Señal, NUNCA gate (siempre exit 0)
 #   triage-gates <triage.json> [--force-complex] — validate + evidence + regression-test + verdict/complexity/security en una pasada; emite TRIAGE_GATE=ok|bail:<r>|no-pr
-#   provision <issue> <feat|fix> <slug> <scratch-dir> [wet|dry-run] — pasos 2+2b+1b: worktree headless, verify, mueve .b7, heartbeat, lane, sticky, labels; emite WORKTREE=/BRANCH=/PORT=/DEFAULT_BRANCH=/RUN_LANE=
+#   provision <issue> <feat|fix> <slug> <scratch-dir> [wet|dry-run] — pasos 2+2b+1b: worktree headless, verify, mueve .b7, heartbeat, lane, render-screens, sticky, labels; emite WORKTREE=/BRANCH=/PORT=/DEFAULT_BRANCH=/RUN_LANE=
 #   ui-touched <worktree-dir>          — UI_TOUCHED=1|0 (diff toca *.svelte, *.remote.ts o src/routes/); gobierna el skip del review visual
 #   dod-check <worktree-dir> <issue> <pr|none> — corre los 9 checks DoD del runbook en una pasada; emite DOD <n>=ok|warn|fail y DOD_SUMMARY=ok|needs-human-review|fail; exit 1 si hay fail
 #
@@ -43,7 +43,7 @@
 #   B_ENV_CHECKS          (default "bin,mcp,gh,db,codegraph,session") — subset de checks a correr (coma-separado)
 #   B_ENV_SKIP_MCP        (1 = saltar el check MCP; NUNCA setear dentro del loop por-issue de b8)
 #   B_ENV_REQUIRED_MCP    (default "svelte") — servers MCP cuyo estado Failed/Needs-auth es FAIL (resto warn)
-#   B_ENV_MCP_CACHE_SECS  (default 300) — TTL del cache de `claude mcp list` en <state-dir>/env-mcp.txt
+#   B_ENV_MCP_CACHE_SECS  (default 3600) — TTL del cache de `claude mcp list` en <state-dir>/env-mcp.txt
 #   B_ENV_CODEGRAPH_STALE_DAYS (default 7) — días tras los cuales la db de codegraph se reporta stale (warn)
 
 set -euo pipefail
@@ -87,6 +87,13 @@ lock_age_secs() {
   # bash evaluaria ese texto como expresion aritmetica -> "unbound variable".
   case "$mtime" in ''|*[!0-9]*) mtime=0 ;; esac
   echo $(( $(date +%s) - mtime ))
+}
+
+# Archivos cambiados vs <base> en <wt>, incluidos los nuevos sin trackear: los gates
+# pre-commit corren antes de b3 y `git diff <base>` solo no lista untracked.
+changed_files() {
+  git -C "$1" diff --name-only "$2" --
+  git -C "$1" ls-files --others --exclude-standard
 }
 
 cmd_state_dir() {
@@ -224,9 +231,17 @@ cmd_check_budget() {
     return 3
   fi
 
-  files="$(cd "$worktree" && git diff --name-only "$base" -- | wc -l | tr -d ' ')"
-  added="$(cd "$worktree" && git diff --shortstat "$base" -- | sed -n 's/.* \([0-9]*\) insertion.*/\1/p')"
-  removed="$(cd "$worktree" && git diff --shortstat "$base" -- | sed -n 's/.* \([0-9]*\) deletion.*/\1/p')"
+  # Índice temporal + add -A: el diff cuenta también los archivos nuevos sin
+  # trackear (el budget corre antes del commit) sin tocar el índice real.
+  local idx stat
+  idx="$(mktemp)"
+  cp "$(git -C "$worktree" rev-parse --path-format=absolute --git-path index)" "$idx" 2>/dev/null || rm -f "$idx"
+  GIT_INDEX_FILE="$idx" git -C "$worktree" add -A 2>/dev/null || true
+  files="$(GIT_INDEX_FILE="$idx" git -C "$worktree" diff --cached --name-only "$base" -- | wc -l | tr -d ' ')"
+  stat="$(GIT_INDEX_FILE="$idx" git -C "$worktree" diff --cached --shortstat "$base" --)"
+  rm -f "$idx"
+  added="$(printf '%s' "$stat" | sed -n 's/.* \([0-9]*\) insertion.*/\1/p')"
+  removed="$(printf '%s' "$stat" | sed -n 's/.* \([0-9]*\) deletion.*/\1/p')"
   added="${added:-0}"
   removed="${removed:-0}"
   local net=$((added - removed))
@@ -1113,7 +1128,7 @@ cmd_screens_check() {
           echo "screens-check: cannot find merge-base with $wt_branch" >&2
           return 3
         fi
-        ui="$(git -C "$wt" diff --name-only "$base" -- | grep -E '\.svelte$|\.remote\.ts$|^src/routes/' || true)"
+        ui="$(changed_files "$wt" "$base" | grep -E '\.svelte$|\.remote\.ts$|^src/routes/' || true)"
         if [ -n "$ui" ]; then
           echo "screens-check: FAIL skip lane-s-no-ui inválido — el diff toca UI:" >&2
           printf '%s\n' "$ui" | head -5 >&2
@@ -1203,7 +1218,7 @@ cmd_env_check() {
       local sd cache ttl
       sd="$(ensure_state_dir)"
       cache="$sd/env-mcp.txt"
-      ttl="${B_ENV_MCP_CACHE_SECS:-300}"
+      ttl="${B_ENV_MCP_CACHE_SECS:-3600}"   # `claude mcp list` tarda ~10s: 1h cubre las olas de un epic
       if [ ! -f "$cache" ] || [ "$(lock_age_secs "$cache")" -gt "$ttl" ]; then
         claude mcp list > "$cache" 2>&1 || true
       fi
@@ -1214,7 +1229,7 @@ cmd_env_check() {
           echo "B_ENV name=mcp:$srv status=warn hint=server requerido no aparece en 'claude mcp list'"
         elif printf '%s' "$line" | grep -qiE 'fail|not connected|needs? auth|authenticat|✗|✘'; then
           echo "B_ENV name=mcp:$srv status=fail hint=reconectar/autenticar server MCP '$srv'"
-          fail=1
+          fail=1; rm -f "$cache"   # un fail no se cachea: el re-intento tras reconectar re-lista
         else
           echo "B_ENV name=mcp:$srv status=ok hint=-"
         fi
@@ -1365,8 +1380,8 @@ cmd_dod_check() {
 
   # 7. Worktree limpio post-commit (exit 7 = artefactos persistentes: WARN, no fail)
   n=ok
-  bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$wt" --fix >/dev/null 2>&1
-  rc=$?
+  local rc=0   # `|| rc=$?`: con set -e un exit 6/7 mataba el script antes de emitir DOD
+  bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$wt" --fix >/dev/null 2>&1 || rc=$?
   if [ "$rc" = 7 ]; then n=warn; warn=1; elif [ "$rc" -ne 0 ]; then n=fail; fail=1; fi
   out+=("7=$n")
 
@@ -1531,6 +1546,7 @@ cmd_provision() {
   if [ -f "$WORKTREE/.b7/triage.json" ]; then
     lane_out="$(cmd_classify_run "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/state.json" 2>/dev/null || true)"
     lane="${lane_out#*RUN_LANE=}"; lane="${lane%%[^SML]*}"; lane="${lane:-M}"
+    cmd_render_screens "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/screens" >&2 || echo "provision: WARN render-screens falló" >&2
   fi
   bash "$pd" milestone started --worktree "$WORKTREE" >&2 || true
   bash "$pd" state-set mode="$mode" branch="$BRANCH" worktree_dir="$WORKTREE" --worktree "$WORKTREE" >&2 || true
@@ -1551,7 +1567,7 @@ cmd_ui_touched() {
   local db base
   db="$(cd "$wt" && bp_default_branch 2>/dev/null || true)"; db="${db:-${DEFAULT_BRANCH:-main}}"
   base="$(git -C "$wt" merge-base HEAD "$db" 2>/dev/null)" || { echo "ui-touched: rama base irresoluble" >&2; return 3; }
-  if git -C "$wt" diff --name-only "$base" | grep -qE '\.svelte$|\.remote\.ts$|^src/routes/'; then
+  if changed_files "$wt" "$base" | grep -qE '\.svelte$|\.remote\.ts$|^src/routes/'; then
     echo "UI_TOUCHED=1"; else echo "UI_TOUCHED=0"; fi
 }
 

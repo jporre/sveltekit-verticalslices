@@ -20,10 +20,13 @@ if [ -z "$LOG" ] || [ ! -f "$LOG" ]; then
   exit 2
 fi
 
-PATTERNS='Error|error TS[0-9]+|✘|✗|FAIL |Cannot find|is not assignable|SyntaxError|TypeError'
+PATTERNS='Error|ERROR |error TS[0-9]+|✘|✗|FAIL |Cannot find|is not assignable|SyntaxError|TypeError'
 
-grep -E "$PATTERNS" "$LOG" \
+# `ERROR ` = formato de `svelte-check --output machine` (timestamp + l:c normalizados abajo).
+# Sin match (p.ej. gate anti-React de verify.sh) se firma la cola del log: el hash del
+# vacío es igual en toda iteración y disparaba un no-progress falso.
+{ grep -E "$PATTERNS" "$LOG" || tail -n "$N" "$LOG"; } \
   | head -n "$N" \
-  | sed -E 's|/[A-Za-z0-9_./-]+/|/|g; s|:[0-9]+:[0-9]+|:L:C|g; s|:[0-9]+|:L|g; s|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.Z-]+||g; s|0x[0-9a-fA-F]+|0xADDR|g' \
+  | sed -E 's|^[0-9]{10,} ||; s| [0-9]+:[0-9]+ | L:C |; s|/[A-Za-z0-9_./-]+/|/|g; s|:[0-9]+:[0-9]+|:L:C|g; s|:[0-9]+|:L|g; s|[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.Z-]+||g; s|0x[0-9a-fA-F]+|0xADDR|g' \
   | shasum -a 256 \
   | awk '{print $1}'

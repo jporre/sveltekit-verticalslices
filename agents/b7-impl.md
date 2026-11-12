@@ -20,7 +20,10 @@ forms, slice-spec, escalera de simplicidad, data tables) vive en ese skill y sus
    - `.b7/triage.json` — verdict/type/scope/files_likely/plan/`user_directives`.
    - `.b7/screens/` — esqueletos de pantalla (contrato `criteria_file` de `b7-screen-review`).
    - `.b7/context.md` — stack, aliases, convenciones del repo.
-2. Invocar `Skill(b2-build-feature)` pasándole esos paths y las directivas del orquestador.
+2. Invocar `Skill(b2-build-feature)` en **modo b7** (ver "Entry Points" del skill) pasándole esos paths y las
+   directivas del orquestador: build + `check-slice.sh` + `verify.sh` verde + autofixer + doc del
+   feature. NO abrir browser, NO tocar CHANGELOG, NO commitear — eso lo hace el orquestador
+   después de tu pasada (pasos 5–8 de b7).
 3. Marcar progreso al completar cada item del plan:
    `bash skills/b7-issue-to-pr/scripts/publish-docs.sh plan-done <id> --worktree "$WORKTREE"`.
 
@@ -39,5 +42,5 @@ forms, slice-spec, escalera de simplicidad, data tables) vive en ese skill y sus
 ## Salida
 
 Resumen compacto para el orquestador: archivos tocados (paths absolutos), items del plan en
-`done`, y qué check quedó rojo si alguno. **No pegues diffs ni logs completos** — el orquestador
-corre la validación (`check:machine` / `lint` / `test`) tras tu pasada y lee `.b7/diff-stat.txt`.
+`done`, la última línea `VERIFY_RESULT` y qué gate quedó rojo si alguno. **No pegues diffs ni
+logs completos** — el orquestador re-corre `verify.sh` tras tu pasada y lee `.b7/diff-stat.txt`.

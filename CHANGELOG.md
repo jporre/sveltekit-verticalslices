@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+Auditoría de velocidad y calidad de ejecución (medida, no estimada).
+
+### Perf — b7
+
+- `check:machine` corría hasta 4 veces por run verde (verify.sh del agente, check del loop, "pasada final" de verify.sh y local-ci). Ahora `verify.sh` es el único check del loop del orquestador y `local-ci.sh --skip-check` no lo repite (`steps=check:verified,…`): 2 pasadas.
+- `b2-build-feature` gana el **modo b7** (lo declara `b7-impl`): sin browser walkthrough, CHANGELOG ni commit dentro del agente — b7 ya los hace en los pasos 5–8 y se pagaban dos veces.
+- `env-check`: el caché de `claude mcp list` (11,6 s medidos por preflight) pasa de 5 min a 1 h (`B_ENV_MCP_CACHE_SECS`); un server requerido en `fail` invalida el caché para re-listar tras reconectar.
+- Menos turnos del orquestador: `provision` corre `render-screens` (el paso 3 ya no tiene turno propio), fast-path de triage + gate en un bloque, check de iteración (heartbeat + verify + tail + hash + `NO_PROGRESS=1`) en un bloque, cierre (run-report + dod-check + release-lock) en un bloque.
+
+### Fix
+
+- Gates pre-commit ciegos a archivos nuevos sin trackear (`git diff <base>` no los lista): `ui-touched` devolvía `UI_TOUCHED=0` y `screens-check` aceptaba el skip `lane-s-no-ui` en un feature greenfield (revisión visual saltada), y `check-budget` contaba `files=0 added=0`. Ahora incluyen untracked.
+- `dod-check` moría con el exit de `assert-clean.sh` (6/7) sin emitir `DOD`/`DOD_SUMMARY` cuando quedaba código sin commitear (`set -e` antes de leer `$?`).
+- `error-hash.sh` no reconocía las líneas `<ts> ERROR …` de `svelte-check --output machine`: el hash era el del vacío y dos iteraciones rojas con errores distintos abortaban por no-progress. Ahora calza `ERROR `, normaliza timestamp y posición, y sin match firma la cola del log. `log-filter.sh` calza el mismo patrón.
+- Tests: `untracked-diff.test.sh`, `error-hash.test.sh`.
+
 ## [1.19.1] — 2026-11-07
 
 Auditoría de prompts (target Opus 5.5).

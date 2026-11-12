@@ -27,12 +27,18 @@ feature ships with. When in doubt about where a file goes, that spec wins.
 
 **SvelteKit 3**: si el context snapshot dice `SK_MAJOR=3`, aplica `references/sveltekit-3.md` (`#lib` con extensión, `$app/env`, `error(status, msg, { code })`, etc.). Los ejemplos de este skill usan la sintaxis SK2.
 
-## Two Entry Points
+## Entry Points
 
-This skill has two starting paths:
+This skill has three starting paths:
 
 1. **Direct user input** — the user describes a feature in the terminal. Proceed to Phase 0.
 2. **GitHub issue** — the user references an issue number (e.g., "build issue #42"). Before building, the issue should have been triaged with `b1-triage-issue`. If it hasn't, run triage first. When an issue number is present, read the full issue context (body + ALL comments) at the start of Phase 1 — decisions and clarifications live in the comments, not just the description.
+3. **Modo b7** — lo declara el agente `b7-impl` al invocar. El orquestador b7 ya hizo rama/worktree y triage, y después de tu pasada hace él la revisión en browser (un `b7-screen-review` por pantalla), CHANGELOG, commit y PR. Repetirlos acá duplica el tramo más lento del run. Ejecutar SOLO:
+   - Phase 1 leyendo `.b7/triage.json` + `.b7/issue.json` (body y comentarios ya cacheados: sin `gh issue view`, sin preguntas al usuario) → Phase 1.5 → Phase 2.
+   - Phase 3 pasos 0–2 (`check-slice.sh`, `verify.sh` hasta exit 0, autofixer). **Sin** paso 3 (browser).
+   - Phase 4 pasos 1 y 3 (feature `docs/readme.md` + `check-slice.sh`). **Sin** CHANGELOG, commit ni reporte al usuario.
+
+   Saltar Phase 0. Devolver al agente los archivos tocados y la última línea `VERIFY_RESULT`.
 
 ## STOP: You Are Not Writing React
 
@@ -206,7 +212,7 @@ When a feature needs more screens, split into `ui/` components and sub-route fol
 
 ### Phase 3: Verify (MANDATORY — no exceptions)
 
-Code that compiles but hasn't been tested in a browser is NOT done.
+Code that compiles but hasn't been tested in a browser is NOT done. (Modo b7: el browser lo corre el orquestador — acá solo pasos 0–2.)
 
 0. **Conformidad del slice (mecánico)** — antes de type-check, corre:
    ```bash

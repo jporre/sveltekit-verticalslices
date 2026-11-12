@@ -80,7 +80,13 @@ bash "$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts/run.sh" $ARGUMENTS   # prefligh
 
 ### 1. Triage
 
-Fast-path (issue de b0 sin comentarios humanos, #60): `bash "$G" triage-from-labels "$SCRATCH_DIR/issue.json" "$SCRATCH_DIR/triage.json"`. Con `TRIAGE_FROM_LABELS=ok` el `triage.json` ya está escrito: NO invocar b1, saltar al gate. Con `TRIAGE_FROM_LABELS=none reason=…` seguir con b1:
+Fast-path (issue de b0 sin comentarios humanos, #60), triage + gate en un solo bloque:
+
+```bash
+T="$SCRATCH_DIR/triage.json"; bash "$G" triage-from-labels "$SCRATCH_DIR/issue.json" "$T" && [ -s "$T" ] && bash "$G" triage-gates "$T" [--force-complex]
+```
+
+Con `TRIAGE_FROM_LABELS=ok` el `triage.json` ya está escrito y la línea `TRIAGE_GATE=` viene en la misma salida: NO invocar b1. Con `TRIAGE_FROM_LABELS=none reason=…` seguir con b1:
 
 `Skill(b1-triage-issue "<N> --auto")` — b1 corre read-only (`agent: Explore`), NO puede escribir archivos: NO pedírselo. Su retorno trae el triage completo en bloque fenced ```json según `templates/triage-output.schema.json` (incluye `plan[]` de 3–8 items y `user_directives` si hubo texto inline). Extraer ese bloque y persistirlo tal cual (Write) en `$SCRATCH_DIR/triage.json`. Si falta el bloque, reconstruirlo desde la línea `TRIAGE_RESULT` + labels del issue antes del gate. Luego:
 
@@ -102,17 +108,13 @@ eval "$(bash "$G" provision <N> <feat|fix> <slug-corto> "$SCRATCH_DIR" <wet|dry-
 export WORKTREE BRANCH PORT DEFAULT_BRANCH RUN_LANE   # exit 30/31 = abortar, nada fue escrito en el repo
 ```
 
-Hace en una pasada: worktree headless (prohibido `git worktree add` directo, un hook lo bloquea), `verify-worktree`, mueve `.b7/*`, heartbeat, `classify-run` (S si simple y ≤5 archivos; L si complex; M el resto), milestone `started`, sticky, labels `ready→in-progress`.
+Hace en una pasada: worktree headless (prohibido `git worktree add` directo, un hook lo bloquea), `verify-worktree`, mueve `.b7/*`, heartbeat, `classify-run` (S si simple y ≤5 archivos; L si complex; M el resto), `render-screens` (paso 3), milestone `started`, sticky, labels `ready→in-progress`.
 
 Desde acá **toda** escritura opera sobre `$WORKTREE`. Si `pwd` es el repo principal, detenerse. **Carril S:** leer `references/lane-s.md` ahora (agente `b7-impl-s`, 3 iteraciones).
 
-### 3. Esqueletos de pantalla (script)
+### 3. Esqueletos de pantalla (ya hecho por `provision`)
 
-```bash
-bash "$G" render-screens "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/screens"
-```
-
-El LLM solo refina un esqueleto si `acceptance_criteria_visual` vino vacío o si el paso 4 falla por esqueleto pobre.
+`provision` dejó `.b7/screens/<Name>.md` renderizados desde el triage: no hay turno propio. Re-render manual: `bash "$G" render-screens "$WORKTREE/.b7/triage.json" "$WORKTREE/.b7/screens"`. El LLM solo refina un esqueleto si `acceptance_criteria_visual` vino vacío o si el paso 4 falla por esqueleto pobre.
 
 ### 4. Implementación (loop bounded)
 
@@ -125,15 +127,21 @@ Agente: `Agent(subagent_type="b-pipeline:b7-impl")` en M/L, `Agent(subagent_type
 - Si hay form crear/editar: pointer a `skills/b2-build-feature/references/forms-recipe.md`. Si `data_table: true`: usar skill `bt1-data-table`; shadcn Table + paginación server-side solo si el volumen supera su cap de fetch-once.
 - Si el plan modifica símbolos existentes: Phase 1.5 de b2 (impact set) y persistir `publish-docs.sh state-set impact_files=<csv|[]>`; scope-growth se declara en el sticky antes de codear.
 
-Tras cada pasada, al inicio de cada iteración `bash "$G" heartbeat "$WORKTREE"`, luego skip-by-scope sobre el diff vs base (`check:machine` si hay `.ts|.svelte|.js`; `lint` si además `.css`; `test:unit` si hay `.test|.spec`), re-corriendo solo lo que estaba rojo en `.b7/iter-status.json`:
+Tras cada pasada del agente, UN bloque por iteración `N` — `verify.sh` es el único check del loop (check:machine + format + anti-React + `test:unit` si el diff toca tests; no hay "pasada final" aparte):
 
 ```bash
-pnpm check:machine -- --threshold error 2>&1 | tee .b7/iter-$N-check.log   # idem lint -- --quiet / test:unit -- --run --reporter=dot
+bash "$G" heartbeat "$WORKTREE"; L="$WORKTREE/.b7/iter-$N-check"; S="$PLUGIN_ROOT/skills/b7-issue-to-pr/scripts"
+(cd "$WORKTREE" && bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh") > "$L.log" 2>&1; RC=$?; tail -1 "$L.log"
+if [ "$RC" -ne 0 ]; then
+  bash "$S/log-filter.sh" "$L.log" | tee "$L.tail"; bash "$S/error-hash.sh" "$L.log" > "$L.hash"
+  cmp -s "$L.hash" "$WORKTREE/.b7/iter-$((N-1))-check.hash" && echo "NO_PROGRESS=1"
+fi
 ```
 
-Si falla: `scripts/log-filter.sh` → `.tail`; `scripts/error-hash.sh` → `.hash`; hash igual al de la iteración anterior = **abort por no-progress**; si no, alimentar al agente solo el `.tail` + delta del plan.
+- `VERIFY_RESULT … check=ok react=ok` con exit 0 → verde. Si el diff toca `.css`, además `lint -- --quiet` (mismo esquema de log).
+- Exit 3-6 → alimentar al agente solo el `.tail` + delta del plan. `NO_PROGRESS=1` (mismo error que la iteración anterior) = **abort por no-progress**.
 
-Pasada final cuando todo está verde: `(cd "$WORKTREE" && bash "$PLUGIN_ROOT/skills/b2-build-feature/scripts/verify.sh")` (exit 0 habilita commit; 3-6 vuelve al loop). Después, salvo `--no-local-ci`, la suite completa UNA vez: `bash "$PLUGIN_ROOT/scripts/local-ci.sh" "$WORKTREE"` (check + tests + build, local, reemplaza al CI de GitHub); `LOCAL_CI=fail` vuelve al loop con el tail como error. Incluir la línea `LOCAL_CI=...` en el body del PR. Hard stops: iteraciones 6 (3 en S), 25 archivos, 1500 líneas netas, 30 min, hash repetido. `bash "$G" check-budget "$WORKTREE"` mide. Hitar budget = abort + comentar issue.
+Con verde, salvo `--no-local-ci`, la suite completa UNA vez: `bash "$PLUGIN_ROOT/scripts/local-ci.sh" "$WORKTREE" --skip-check` (tests + build, local, reemplaza al CI de GitHub; `--skip-check` porque `verify.sh` acaba de pasar `check:machine` sobre este mismo árbol → `check:verified`); `LOCAL_CI=fail` vuelve al loop con el tail como error. Incluir la línea `LOCAL_CI=...` en el body del PR. Hard stops: iteraciones 6 (3 en S), 25 archivos, 1500 líneas netas, 30 min, hash repetido. `bash "$G" check-budget "$WORKTREE"` mide. Hitar budget = abort + comentar issue.
 
 ### 5. Revisión visual (sub-agente por pantalla)
 
@@ -179,7 +187,15 @@ bash "$PLUGIN_ROOT/skills/b6-pr-review/scripts/verdict.sh" read <PR> || echo "WA
 
 ### 9. Run report y cierre
 
-`bash "$PD" run-report --worktree "$WORKTREE"` renderiza `templates/run-report.md` a `state.run_report_path` (`~/.claude/projects/<slug>/b7-runs/<UTC>-issue-<N>.md`) y anexa por script la línea `COST …` de `cost-report.py --brief` (`COST n/a` sin transcript) — no medir costo a mano. Después `dod-check`, `release-lock`, `B7_DONE`. En `--dry-run` leer `references/dry-run.md`.
+`bash "$PD" run-report --worktree "$WORKTREE"` renderiza `templates/run-report.md` a `state.run_report_path` (`~/.claude/projects/<slug>/b7-runs/<UTC>-issue-<N>.md`) y anexa por script la línea `COST …` de `cost-report.py --brief` (`COST n/a` sin transcript) — no medir costo a mano. Cierre en un bloque:
+
+```bash
+bash "$PD" run-report --worktree "$WORKTREE"
+bash "$G" dod-check "$WORKTREE" <N> "${PR_NUMBER:-none}"   # DOD 1..9 + DOD_SUMMARY; un fail se corrige y se re-corre (references/runbook.md)
+bash "$G" release-lock "$(jq -r '.lock_file // empty' "$WORKTREE/.b7/state.json")"
+```
+
+Luego la línea `B7_DONE`. En `--dry-run` leer `references/dry-run.md`.
 
 ## Sub-agentes
 

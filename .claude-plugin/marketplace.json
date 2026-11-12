@@ -9,8 +9,8 @@
   "plugins": [
     {
       "name": "b-pipeline",
-      "description": "Pipeline conversacion -> issue -> PR -> merge: genesis de issues (b0), triage, worktrees, build, commit, PR, review, orquestadores y cierre con gate humano.",
-      "version": "1.19.1",
+      "description": "Pipeline conversacion -> issue -> PR -> merge: genesis de issues (b0), triage, worktrees, build, commit, PR, review, orquestadores y cierre de una pasada.",
+      "version": "1.20.0",
       "source": "./"
     }
   ]

@@ -144,7 +144,7 @@ En `--dry-run` se saltan labels y comentarios.
 
 Precondición: el marker `b7:screen-review=` del paso 6 ya posteado en el PR — el gate SCREEN_EVIDENCE de b6 lo lee; sin marker ni PNGs adjuntos, blocker determinístico.
 
-`b6-pr-review` con el número del PR (review del **diff combinado**, no por issue). Adjuntar como comentario. Findings `high|critical` → volver al build del issue culpable (si el budget alcanza) o marcar `needs-human-review`.
+`Skill(b6-pr-review "<PR> --auto")` (review del **diff combinado**, no por issue). Adjuntar como comentario. Findings `high|critical` → volver al build del issue culpable (si el budget alcanza) o marcar `needs-human-review`.
 
 ### 9. Reporte + cierre
 

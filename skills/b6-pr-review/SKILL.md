@@ -1,6 +1,6 @@
 ---
 name: b6-pr-review
-description: 'Review de un PR de GitHub (calidad, seguridad, anti-patrones SvelteKit) con veredicto publicado. "Revisar PR N"; lo encadenan b7/b8/b9/b10 (--auto, --light).'
+description: 'Review de un PR de GitHub (calidad, seguridad, anti-patrones SvelteKit) con veredicto publicado. "Revisar PR N" pedido por un humano = terminar: sincroniza, revisa y con 0 blockers encadena b9-close (merge + limpieza). Lo encadenan b7/b8/b9/b10 (--auto, --light).'
 context: fork
 effort: low
 ---
@@ -15,7 +15,9 @@ $ARGUMENTS
 >
 > **Por qué fork:** el diff completo, los archivos leídos enteros y el contexto de `pr-context.sh` son 10-40 KB que, sin fork, se quedan en el contexto de la sesión y se re-leen en cada request hasta el final. El fork los quema al terminar y devuelve solo el handoff del Paso 5. El contrato con los orquestadores no cambia: viaja por el marker `<!-- b6:verdict -->` en el PR y la línea `B6_VERDICT`, no por el contexto.
 
-**Flag `--auto`** (para orquestadores como b7/b10 — modo desatendido): no ofrecer acciones interactivas en el Paso 5; publicar el reporte directo como comentario del PR (con el marker de veredicto) y terminar con la línea `B6_VERDICT`.
+**Pedir la revisión es pedir terminar.** Sin `--auto` lo pidió un humano: el PR está listo para cerrarse. Lo obvio se hace, no se pregunta ni se reporta — lo que falta commitear se commitea y se pushea (Paso 0), la descripción mala se reescribe (Área 1), el reporte se publica, y con 0 blockers el handoff ordena el cierre (`NEXT` del Paso 5). Este skill nunca usa `AskUserQuestion`.
+
+**Flag `--auto`** (lo pasan los orquestadores b7/b8/b9/b10): el orquestador ya sincronizó el worktree y decide qué sigue — saltar el sync del Paso 0 y no emitir `NEXT`. Todo lo demás es idéntico.
 
 **Flag `--light`** (revisión acotada para PRs chicos): reduce la profundidad de lectura sin cambiar el reporte ni el veredicto. **Modo efectivo = flag O size-gate**: el `pr-context.sh` emite la sección `=== REVIEW_MODE ===` con `light` o `full` según su size-gate (los umbrales viven en el script); si se pasa `--light`, se fuerza `light` aunque el gate diga `full`. Las reglas por área del modo `light` están en los callouts `> Modo light:` de las Áreas 2–5.
 
@@ -41,6 +43,19 @@ gh pr view --json number --jq '.number' 2>/dev/null
 ```
 
 Si no hay PR, informa al usuario que necesitas un PR existente.
+
+**Sin `--auto` — sincronizar antes de revisar.** El review tiene que cubrir TODO el trabajo; revisar con cambios sueltos obliga a re-revisar después.
+
+```bash
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
+BRANCH=$(gh pr view <PR_NUMBER> --json headRefName --jq .headRefName)
+WT=$(git worktree list --porcelain | awk -v b="refs/heads/$BRANCH" '/^worktree /{wt=$2} $0=="branch "b{print wt}')
+[ -n "$WT" ] && { bash "$PLUGIN_ROOT/skills/b1-add-worktree/scripts/assert-clean.sh" "$WT" --fix; echo "ASSERT_EXIT=$?"; }
+```
+
+- `ASSERT_EXIT=6` (código sin commitear) → `Skill b-pipeline:b3-git-commit` desde `$WT`; seguir solo con su línea `B3_DONE`.
+- Con `$WT`: `git -C "$WT" push origin "$BRANCH"` siempre (idempotente).
+- Sin `$WT` (la branch no está en ningún checkout local): nada que sincronizar.
 
 ## Paso 1: Recolectar contexto (ejecutar INMEDIATAMENTE)
 
@@ -105,7 +120,15 @@ modelo: sale de la regla `blockers>0 -> request-changes; warnings>0 -> approve-w
 
 ### Área 1: Calidad del PR (redacción y comprensibilidad)
 
-**PRs de bot (`BOT_PR=true`): solo 3 checks mecánicos** — el body lo genera `publish-docs.sh` por plantilla determinística; revisar la redacción de tu propia plantilla en cada PR es ceremonia. (1) `Closes #N` presente, (2) body no vacío ni placeholder (BLOCKER si lo es), (3) checks de CI (punto 6 de abajo). Sin findings de redacción/scope/commits — el scope-growth ya lo expone IMPACT_DRIFT de b7 y los commits los formatea b3.
+**La descripción mala se arregla, no se reporta.** En un PR propio (autor de `PR_META` == `gh api user -q .login`) o de bot: título que no describe el cambio, body vacío, placeholder, incompleto o desactualizado respecto del diff, o `Closes #N` faltante con issue identificable (branch, commits) → reescribirlo ahora con lo ya leído del diff y anotar `OK: descripción reescrita` en el reporte:
+
+```bash
+gh pr edit <N> --title "<título>" --body-file <archivo>   # estructura: .github/pull_request_template.md, o la mínima — Resumen, Closes #N, Tipo de cambio, Cómo se probó
+```
+
+Finding solo lo que reescribir no arregla (scope mezclado, CI en fail). En un PR ajeno no se edita: van los findings de abajo.
+
+**PRs de bot (`BOT_PR=true`): solo 3 checks mecánicos** — el body lo genera `publish-docs.sh` por plantilla determinística; revisar la redacción de tu propia plantilla en cada PR es ceremonia. (1) `Closes #N` presente, (2) body no vacío ni placeholder, (3) checks de CI (punto 6 de abajo); (1) y (2) se arreglan según la regla de arriba. Sin findings de redacción/scope/commits — el scope-growth ya lo expone IMPACT_DRIFT de b7 y los commits los formatea b3.
 
 **PRs humanos:** evalúa el PR como documento, no el código:
 
@@ -116,7 +139,7 @@ modelo: sale de la regla `blockers>0 -> request-changes; warnings>0 -> approve-w
 5. **Commits**: ¿Los mensajes de commit son informativos? ¿Cada commit es atómico?
 6. **Checks de CI** (sección `PR_CHECKS`): checks en fail son WARNING (BLOCKER si el fallo viene claramente del cambio del PR).
 
-Si el body está vacío o es un placeholder, es un BLOCKER.
+En un PR ajeno, body vacío o placeholder es BLOCKER.
 
 ---
 
@@ -336,10 +359,9 @@ bash "$VERDICT" check /tmp/pr-review-<repo>-<PR>.md
 
 `stamp` emite la línea machine-readable `B6_VERDICT verdict=... blockers=N warnings=M`; terminar el output de terminal con ella (agregando `pr=<numero>`).
 
-## Paso 5: Publicar / ofrecer acciones
+## Paso 5: Publicar y entregar
 
-**Con `--auto` (desatendido):** publicar directo — el archivo ya viene estampado y
-verificado del Paso 4:
+Publicar siempre, sin preguntar — el archivo ya viene estampado y verificado del Paso 4:
 
 ```bash
 gh pr comment <N> --body-file /tmp/pr-review-<repo>-<PR>.md
@@ -349,19 +371,18 @@ Ningún otro paso escribe `/tmp/pr-review-<repo>-<PR>.md`: este skill es el úni
 
 > IMPORTANTE: usar `gh pr comment`, NO `gh pr review --comment` — un review COMMENTED aparece en `--json reviews` y NO en `--json comments`, y los parsers del pipeline (b9-close PASO 2, b10 `b6_marker`) leen ambos pero el canal canónico es el comentario. Además `--approve`/`--request-changes` NO funcionan sobre PRs propios (GitHub bloquea self-review) y los PRs del flujo b se crean con el token del usuario. El veredicto viaja en el marker `<!-- b6:verdict=... -->`, no en el review state de GitHub.
 
-**Modo interactivo:** `AskUserQuestion` con dos opciones — publicar el reporte en el PR (`gh pr comment <N> --body-file /tmp/pr-review-<repo>-<PR>.md`, incluye el marker) o dejarlo solo local. Resuelta esa, terminar.
-
-**Handoff obligatorio al cerrar (ambos modos).** Este skill corre en fork: su contexto muere acá, así que el retorno tiene que bastarse solo. Devolver, y nada más que esto:
+**Handoff obligatorio al cerrar.** Este skill corre en fork: su contexto muere acá, así que el retorno tiene que bastarse solo. Devolver, y nada más que esto:
 
 ```
 B6_VERDICT ...            (la línea del Paso 4, verbatim)
 reporte: /tmp/pr-review-<repo>-<PR>.md
 blockers: <n> · warnings: <n>   + una línea por blocker: <archivo>:<línea> — <qué>
+NEXT Skill b-pipeline:b9-close "<PR>"      (solo sin --auto y con blockers=0)
 ```
 
-**NO pegar el reporte completo ni el diff en el retorno** — eso reintroduce en la sesión principal justo lo que el fork existe para aislar. Quien quiera profundizar lee el archivo del reporte, que ya tiene todo.
+`NEXT` es una orden para la sesión principal, no una sugerencia: la ejecuta de inmediato, sin preguntar ni resumir antes — b9 mergea y limpia (los warnings no frenan; `human=required` lo resuelve b9 con su única pregunta). Con `blockers > 0` no hay `NEXT`: el retorno son los blockers y la sesión principal se los entrega al usuario tal cual, sin re-revisar por su cuenta.
 
-Los follow-ups NO van acá, son invocaciones nuevas desde la sesión principal (y arrancan con el contexto limpio, que es lo que se quiere para corregir): arreglar blockers → `b7-issue-to-pr` o edición directa sobre el worktree; mergear → `b9-close`.
+**NO pegar el reporte completo ni el diff en el retorno** — eso reintroduce en la sesión principal justo lo que el fork existe para aislar. Quien quiera profundizar lee el archivo del reporte, que ya tiene todo.
 
 ## Notas
 

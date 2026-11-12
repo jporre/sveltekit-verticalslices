@@ -40,7 +40,7 @@ You give it an issue number. It:
 4. **Commits** with conventional-commit messages.
 5. Opens a **draft PR** with release notes, technical changes, and screenshots.
 6. Runs an automated **code review** across five areas.
-7. Waits for a **human approval**, then **merges**, closes the issue, and cleans up the worktree.
+7. With a clean review, **merges**, closes the issue, and cleans up the worktree — you asked for the issue to be resolved, so it finishes. It only stops for what it cannot settle alone (blockers, conflicts, failing CI, a manual validation).
 
 It runs unattended where it is safe to do so, and **stops and asks** where judgement is required (complex builds, every merge).
 
@@ -177,7 +177,7 @@ Skills are namespaced `b-pipeline:<skill>`.
 | **b3-git-commit** | Conventional commits with intelligent staging; enforces a clean-tree gate. |
 | **b4-pull-request** | Creates the PR from the project template. |
 | **b6-pr-review** | Reviews a PR across five areas and writes a durable verdict marker (`<!-- b6:verdict=... -->`). |
-| **b9-close** | Canonical close: merges the PR, closes the issue, and cleans the worktree — behind a human approval gate. |
+| **b9-close** | Canonical finish: commits and pushes anything pending, runs the review if missing, merges the PR, closes the issue, and cleans the worktree and branch. Asking to review or close a PR in session is the approval; headless runs still need a human-set label. |
 | **b11-spec-exec** | Two-tier mechanical change. The session writes an executable SPEC (file copies + exact find/replace edits + acceptance commands + expected `git status`), a deterministic validator rehearses it on a throwaway clone, a cheap model (GLM 5.3 Flash via OpenRouter, or Haiku) applies it in an isolated `claude -p`, and the validator certifies the result byte for byte. For changes already decided file by file — renames, version bumps, docs/config, installing pre-written files — never for work that needs discovery. In epic mode `b0` stamps `lane:b11` on eligible mechanical slices (`kind:docs\|tests\|infra`, ≤ 6 planned files, no `src/routes/` or logic migrations) and `b10` phase 3 dispatches them through this skill; the SPEC is always written by a fresh scoped agent, never a fork. |
 | **bt1-data-table** | Client-side data table for SvelteKit 5 on `@tanstack/svelte-table` v9, fed by a fetch-once Remote Function `query` (capped, with a truncated badge): sorting, substring/date-range/faceted filters, global search, group-by with aggregates, column show/hide + reorder persisted to localStorage, pagination, XLSX export, plus cards and kanban views with drag-and-drop. Escapes every cell (no stored XSS via `createRawSnippet`). `b2` invokes it for any screen the triage flags `data_table: true`; also usable standalone. |
 | **qw** | Quick-wins mode for small changes that don't justify the pipeline — **user-invoked only**. `/b-pipeline:qw [change]` loads the rules for the rest of the session: execute exactly what was dictated, no questions, no extra scope, test only what was touched, short report. Same rules as the pi extension `/qw` (`pi/quick-wins.ts`). |
@@ -203,7 +203,7 @@ This is exactly what happens when you run `/b-pipeline:b10-ship <issue>` — eac
 | Conventional commits, grouped by theme | `b3-git-commit` | `b7-issue-to-pr` (step 3) | — |
 | Draft PR with `Closes #<issue>` + label sync (`ready` → `in-progress` → `in-review`) | `b4-pull-request` | `b7-issue-to-pr` (step 4) | — |
 | Auto-review across five areas, durable verdict marker (`<!-- b6:verdict=... -->`) | `b6-pr-review` | `b7-issue-to-pr` (step 5) | blockers > 0 → label `needs-human-review`, summarize, stop |
-| Merge the PR, close the issue, remove the worktree | `b9-close` | `b10-ship` | **Always** a human gate: `merge-approved` label or in-session yes; otherwise leaves `awaiting-approval` |
+| Merge the PR, close the issue, remove the worktree | `b9-close` | `b10-ship` | In session: merges on a clean review (0 blockers, no manual-validation flag). Headless: needs the `merge-approved` label, otherwise leaves `awaiting-approval` |
 
 `b7-issue-to-pr`'s five mandatory, non-skippable steps are the rows marked step 1–5 (worktree, sticky comment, commit, draft PR, review); the build and the visual verification happen between steps 2 and 3.
 
@@ -270,7 +270,7 @@ Use when several issues touch the same area and belong in a single PR (a multi-s
 There are three points where a person must decide:
 
 1. **Complex issues** are not built unattended. Triage flags `complex`; you choose force / interactive / skip.
-2. **No PR ever merges** without (a) a green `b6` review (0 blockers) **and** (b) explicit human approval — the `merge-approved` label, an in-session yes, or the delegated epic channel below.
+2. **No PR ever merges** without (a) a green `b6` review (0 blockers) **and** (b) a human authorizing it — asking in session to review, close or resolve it (that request is the approval; a review flagged `human=required` or an issue labeled `needs-human-review` still gets one explicit question), the `merge-approved` label when nobody is present, or the delegated epic channel below.
 3. **An epic's closing slice** requires an epic review and the `epic-approved` label before it merges — this gate is never delegated or auto-approved.
 
 **Delegating gate 2 at epic scale.** The `epic-auto-merge` label on an epic lets its sub-issue PRs merge unattended as each clears review, but it is a scoped delegation, not a bypass: `b9-close` re-verifies, on every single merge, that the PR belongs to that epic, that its `b6` review is fresh with 0 blockers, and that CI is green — a stale label, a foreign PR, or a `needs-human-review` sub-issue disqualifies it back to a human channel. Any sub-issue can veto the whole channel by carrying `needs-human-review`. To keep gate 1 and the regression-test judgment call from turning into one prompt per issue, epic runs batch those decisions into a single multi-select question per wave instead — see [§8](#8-orchestrators-and-their-flags).
@@ -344,8 +344,8 @@ The orchestrators are the happy path, but every skill works standalone:
 ```text
 /b-pipeline:b1-triage-issue 42      # just triage and label issue #42
 /b-pipeline:b1-add-worktree my-feature   # just create an isolated worktree
-/b-pipeline:b6-pr-review 128        # just review PR #128
-/b-pipeline:b9-close 128            # just merge PR #128 and clean up (with the gate)
+/b-pipeline:b6-pr-review 128        # review PR #128 — and, with 0 blockers, finish it (hands off to b9-close)
+/b-pipeline:b9-close 128            # finish PR #128: sync, review if missing, merge, clean up
 /b-pipeline:b11-spec-exec "bump version to 1.14.0"   # spec -> rehearse -> cheap model applies -> certify
 /b-pipeline:bt1-data-table facturas      # tanstack data table (+ cards/kanban) for a feature
 /b-pipeline:qw "rename the Save button to Guardar"   # quick-wins mode: dictated change, nothing else
@@ -365,7 +365,7 @@ The orchestrators are the happy path, but every skill works standalone:
 | Refuses to start, mentions `b7.STOP` | Kill switch file present | Delete the `b7.STOP` file in the state dir |
 | Screens skipped / "auth-required" | Dev server not up, or Chrome not logged in | Start the dev server; open the app in your real Chrome and log in, then re-run |
 | Build stops at "complex" | Complexity gate | Re-run and choose to force, or pass `--force-complex` to `b7-issue-to-pr` |
-| PR opened but won't merge | Missing approval or open `b6` blockers | Add the `merge-approved` label (or approve in session) and resolve blockers |
+| PR opened but won't merge | Missing approval or open `b6` blockers | Resolve the blockers and ask to review/close it in session, or add the `merge-approved` label for headless runs |
 
 ---
 

@@ -72,11 +72,11 @@ Esta regla es la única defensa contra el modo de falla dominante del pipeline: 
 
 `epic-auto-merge` vigente = label en el EPIC con actor humano no-bot (`bp_label_event <EPIC> epic-auto-merge`, mismo check de actor que `epic-approved`). Re-verificar en CADA iteración — el humano puede removerlo en cualquier momento.
 
-Despachar los closeable en este orden (b9 SIEMPRE serial, uno a uno; NUNCA dentro de un `parallel()`):
+Despachar los closeable en este orden (b9 SIEMPRE serial, uno a uno; NUNCA dentro de un `parallel()`). En modo epic todo `b9-close` sin `--auto-merge` lleva `--ask`, incluida la fase 5 de la cadena single-issue del closing_slice: acá el merge sin pregunta lo enciende el label `epic-auto-merge`, no la petición de procesar el epic.
 
 1. `B10_PR_MERGED` (mergeado con issue abierto) → `Skill b-pipeline:b9-close "<PR>"` directo — solo limpieza, sin gate de merge.
-2. `B10_APPROVED=true` y `B10_DIRTY=false` → `Skill b-pipeline:b9-close "<PR>"` uno a uno (b9 re-valida el label en su PASO 4 — el snapshot solo ordenó la cola).
-3. `B10_DIRTY=true` → b9 completo AUNQUE no esté aprobado: su PASO 1.5 sincroniza el worktree y re-reviewa light ANTES de pedir aprobación. Pedir aprobación sobre un PR sin sync genera labels que el push posterior invalida (staleness) — churn puro.
+2. `B10_APPROVED=true` y `B10_DIRTY=false` → `Skill b-pipeline:b9-close "<PR> --ask"` uno a uno (b9 re-valida el label en su PASO 4 — el snapshot solo ordenó la cola).
+3. `B10_DIRTY=true` → b9 completo (`"<PR> --ask"`) AUNQUE no esté aprobado: su PASO 1.5 sincroniza el worktree y re-reviewa light ANTES de pedir aprobación. Pedir aprobación sobre un PR sin sync genera labels que el push posterior invalida (staleness) — churn puro.
 4. Con `epic-auto-merge` vigente: el resto de los closeable del epic con `blockers=0` → `Skill b-pipeline:b9-close "<PR> --auto-merge --epic=<EPIC>"` serial, uno a uno. NUNCA el `closing_slice` (b10 jamás le pasa `--auto-merge`; el cinturón de b9 solo rechaza issue==epic — cuando el slice NO es el propio epic, esta exclusión es la UNICA guarda). Reglas de corte: `mergeable != MERGEABLE` → saltar ese PR (queda para humano) y seguir con el siguiente; algún check de CI en FAILURE o merge rechazado por branch protection → cortar el drenaje COMPLETO y notificar (en desatendido FAILURE nunca es "preguntar").
 5. Resto no aprobados (sin `epic-auto-merge` vigente, o `B10_APPROVED=false|stale` fuera del set drenable): desde el main context `gh pr edit <PR> --add-label awaiting-approval` (write idempotente sobre PRs distintos — el UNICO write permitido fuera de b9) + UNA `PushNotification` batch con la lista completa de PRs esperando `merge-approved`, incluyendo los saltados por `mergeable` con su razón. Cada PR frenado queda con marker visible en GitHub, no solo la notificación.
 

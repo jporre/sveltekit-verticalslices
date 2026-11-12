@@ -53,7 +53,7 @@ Saltar a la fase que indica `B10_PHASE=`:
 
 | B10_PHASE | Significado | Acción |
 | --- | --- | --- |
-| `done` | Issue cerrado | Reportar no-op. Si aparece `B10_WORKTREE` (limpieza pendiente) o `B10_PR_ORPHAN` (PR abierto de un issue cerrado), ofrecer resolverlos vía b9. |
+| `done` | Issue cerrado | Reportar no-op. `B10_WORKTREE` (limpieza pendiente) → limpiar vía b9, sin preguntar. `B10_PR_ORPHAN` (PR abierto de un issue cerrado) → ofrecer resolverlo vía b9. |
 | `close` | PR con veredicto b6 `blockers=0` (o `B10_PR_MERGED`: mergeado con issue abierto) | Ir a fase 5 (close). |
 | `verify` | PR abierto sin review, o con veredicto `blockers>0` | Ir a fase 4 (verify). |
 | `build` | Worktree existe sin PR | Retomar build (fase 3). Si `B10_ZOMBIE=true`: ver "runs zombie". |
@@ -107,15 +107,15 @@ Skill b-pipeline:b6-pr-review "<PR> --auto"
 - `blockers=0` → fase 5.
 - `blockers>0` → b7 ya re-iteró lo que pudo; label `needs-human-review` al issue, comentar resumen de blockers, notificar y parar.
 
-### 5. Close — gate humano SIEMPRE
+### 5. Close
 
 ```bash
-Skill b-pipeline:b9-close "<PR>"
+Skill b-pipeline:b9-close "<PR>"          # modo epic: "<PR> --ask" (ver epic-mode.md)
 ```
 
-b9 trae los dos canales de aprobación (label `merge-approved` asíncrono / `AskUserQuestion` en sesión) y TODOS los guardrails de limpieza (rescue branch, multi-Closes, no force-remove). No duplicar nada de eso aquí.
+"Resuelve el issue N" pedido en sesión ya autoriza terminar: con revisión limpia b9 mergea y limpia sin preguntar (canal en sesión de su PASO 4). b9 trae todos los canales de aprobación y TODOS los guardrails de limpieza (rescue branch, multi-Closes, no force-remove). No duplicar nada de eso aquí.
 
-- Usuario ausente y sin label → b9 deja `awaiting-approval` y aborta: notificar con URL del PR y parar. El próximo re-run salta directo a esta fase.
+- Headless y sin label `merge-approved` → b9 deja `awaiting-approval` y aborta: notificar con URL del PR y parar. El próximo re-run salta directo a esta fase.
 - `B9_MERGED` → si se pasó `--informe`: `Skill informe-semanal "--feature <N>"`. Reportar.
 
 ### 6. Cierre del run

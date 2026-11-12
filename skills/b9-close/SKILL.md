@@ -1,6 +1,6 @@
 ---
 name: b9-close
-description: 'Cierra un PR ya revisado: merge con aprobación, cierra sus issues y limpia el worktree ("mergear el PR N", "finalizar el issue N", "limpiar el worktree").'
+description: 'ENTRADA para terminar un PR: sincroniza lo pendiente, corre la revisión si falta, mergea, cierra sus issues y limpia worktree y branch — sin preguntar si la revisión sale limpia ("revisa el PR N", "mergear el PR N", "finalizar el issue N", "limpiar el worktree").'
 allowed-tools: Bash, Read, AskUserQuestion, Skill, Agent
 ---
 
@@ -12,7 +12,10 @@ $ARGUMENTS
 
 Acepta: número de issue (`121`), número de PR (`#170` o `pr 170`), nombre de branch (`feat/121-...`), o nada (autodetecta desde el worktree actual). El primer token decide el modo de resolución.
 
-Flags (después del target): `--auto-merge --epic=<N>` — siempre en par; activan el canal auto-merge de PASO 4 (drains desatendidos de epic, los pasa b10). `--auto-merge` sin `--epic=<N>` es inválido: abortar de inmediato con `ABORT: --auto-merge requiere --epic=<N>`. Los gates de PASO 1 y PASO 2 corren igual con o sin flags.
+Flags (después del target):
+
+- `--ask` — apaga el canal en sesión de PASO 4 (lo pasa b10 en modo epic: ahí el merge sin pregunta se enciende con el label `epic-auto-merge`, no con la petición).
+- `--auto-merge --epic=<N>` — siempre en par; activan el canal auto-merge de PASO 4 (drains desatendidos de epic, los pasa b10). `--auto-merge` sin `--epic=<N>` es inválido: abortar de inmediato con `ABORT: --auto-merge requiere --epic=<N>`. Los gates de PASO 1 y PASO 2 corren igual con o sin flags.
 
 ---
 
@@ -21,9 +24,9 @@ Flags (después del target): `--auto-merge --epic=<N>` — siempre en par; activ
 
 > **Multi-harness:** en pi, los mecanismos de Claude Code se mapean a equivalentes (`AskUserQuestion`→pregunta en texto, `Agent(subagent_type=…)`→tool `subagent`, `Skill(bN-…)`→`read` del SKILL.md de ese skill, `Workflow`→tool `subagent` con `workflowScript`, `PushNotification`→omitir). Tabla completa: README § *Instalación alternativa: pi*. En Claude Code todo funciona como está escrito.
 
-Cierre del flujo b. El feature ya fue implementado por `b7-issue-to-pr` y revisado por `b6-pr-review`. Este skill **no** reimplementa ni hace review profundo: **gatea** sobre que la revisión pasó, mergea con **aprobación humana**, y deja el árbol limpio (PR cerrado, issue cerrado, worktree y branches borrados).
+Cierre del flujo b: deja el PR mergeado, sus issues cerrados y el árbol limpio (worktree y branches borrados) para seguir en otro tema. No reimplementa ni revisa por sí mismo — el review es de `b6-pr-review`.
 
-**Filosofía:** ningún PR del bot va a la rama default sin autorización humana — por PR (label `merge-approved` o respuesta interactiva) o delegada a nivel de epic vía label `epic-auto-merge` (canal auto-merge de PASO 4, re-verificado en cada corrida).
+**Filosofía: pedir revisar o cerrar un PR es pedir terminarlo.** Lo obvio se hace, no se pregunta: lo que falta commitear se commitea y se pushea (PASO 1.5), la revisión que falta se corre (PASO 2), y con revisión limpia se mergea y se limpia (PASO 4). Solo frena lo que este skill no puede resolver solo: blockers, conflictos, CI en FAILURE, validación humana pendiente. Sin un usuario presente que lo haya pedido (headless, drain de epic), la autorización sigue siendo un label puesto por un humano: `merge-approved` por PR o `epic-auto-merge` por epic.
 
 ---
 
@@ -102,7 +105,7 @@ bp_b6_verdict "$PR"
 ```
 
 - **exit 0** → review presente. Del `B6_VERDICT`: si `blockers > 0` sin resolver, PARA y reporta — devuelve al usuario / a b7, no parchea acá. `human=required` no frena los canales humanos de PASO 4 (label o interactivo — un humano aprobando ES la validación pedida); solo veta el canal auto-merge (condición 4).
-- **exit 3** → no hubo review. **Ofrece correrlo ahora** (`Skill b-pipeline:b6-pr-review` con el número de PR). No mergees sin review.
+- **exit 3** → no hubo review: correrla ahora, sin preguntar — `Skill b-pipeline:b6-pr-review "<PR> --auto"` — y re-leer `bp_b6_verdict`. No mergees sin review.
 - **Frescura**: si PASO 1.5 commiteó/pusheó commits nuevos (`SYNCED=1`), el review existente no los cubre — re-correr `Skill b-pipeline:b6-pr-review "<PR> --auto --light"` antes de seguir. **Excepción mecánica (sync de artefactos):** si `git -C "$WORKTREE" diff --name-only <sha-del-marker-b6>..HEAD` toca SOLO `CHANGELOG.md`, `.b7/**` o `docs/**`, el review existente sigue válido — no re-correr b6 (regla por path exacto, sin juicio; el sync típico del drain es CHANGELOG/heartbeat y re-reviewarlo era churn puro). El commit de sync suele ser chico; `--light` combina con el size-gate para no re-revisar full una rama ya aprobada.
 
 ## PASO 3: Resumen pre-merge
@@ -124,11 +127,19 @@ b6-review:    presente (<fecha>) — <K blockers, M warnings>
 Estrategia:   <MERGE_STRATEGY> (<MERGE_STRATEGY_SRC>) + delete-branch
 ```
 
-Con `--auto-merge` emitir el mismo resumen igual (queda como registro del drain) y seguir de inmediato al PASO 4 sin esperar respuesta.
+Es registro, no pregunta: emitirlo y seguir de inmediato al PASO 4.
 
-## PASO 4: Aprobación humana (OBLIGATORIO — no saltar)
+## PASO 4: Aprobación (OBLIGATORIO — no saltar)
 
-Tres canales válidos, en este orden:
+Cuatro canales válidos, en este orden:
+
+**Canal en sesión (default):** hay un usuario presente y pidió revisar, cerrar o resolver (directo, por el `NEXT` de b6, o por b10 single-issue) — esa petición ES la aprobación. Concedida sin preguntar cuando PASO 1 pasó (MERGEABLE, sin CI en FAILURE), el `B6_VERDICT` vigente de PASO 2 trae `blockers=0` sin `human=required`, y ningún issue del PR lleva `needs-human-review`:
+
+```bash
+for i in $ISSUES; do gh issue view "$i" --json labels --jq '.labels[].name'; done | grep -qx needs-human-review && echo "VETO needs-human-review"
+```
+
+Reportar "aprobado en sesión (b6 blockers=0)" y seguir al PASO 5; equivale a "Mergear y limpiar". Los warnings no frenan: van al reporte final. Con `human=required` o `VETO` → canal interactivo, con esa razón en la pregunta. El canal NO existe con `--ask`, con `--auto-merge` ni en headless — ahí rigen los de abajo.
 
 **Canal asíncrono — label `merge-approved`:** el usuario puede autorizar el merge desde GitHub web/móvil agregando el label `merge-approved` al PR (GitHub bloquea aprobar el propio PR vía review, por eso el canal es un label). Verificar label Y actor humano:
 
@@ -193,11 +204,11 @@ gh pr comment "$PR" --body "auto-merged bajo epic-auto-merge #${EPIC_N} (b6 bloc
 
 Opciones: **Mergear y limpiar** / **Solo mergear (conservar worktree)** / **Cancelar**.
 
-**No mergear sin uno de los tres canales.** En headless sin label `merge-approved`, sin canal auto-merge satisfecho y sin canal de respuesta: agregar label `awaiting-approval` al PR, reportar "requiere aprobación humana — agregar label merge-approved al PR o re-correr en sesión" y abortar. Excepciones bajo `--auto-merge`: CI FAILURE no deja `awaiting-approval` — corta el drenaje con ABORT (condición 5); los saltos por CI PENDING o `mergeable != "MERGEABLE"` tampoco la dejan — terminan con reporte de skip (precedencia de fallas arriba).
+**No mergear sin uno de los cuatro canales.** En headless sin label `merge-approved`, sin canal auto-merge satisfecho y sin canal de respuesta: agregar label `awaiting-approval` al PR, reportar "requiere aprobación humana — agregar label merge-approved al PR o re-correr en sesión" y abortar. Excepciones bajo `--auto-merge`: CI FAILURE no deja `awaiting-approval` — corta el drenaje con ABORT (condición 5); los saltos por CI PENDING o `mergeable != "MERGEABLE"` tampoco la dejan — terminan con reporte de skip (precedencia de fallas arriba).
 
 ## PASO 5: Merge + cierre del PR
 
-Solo con aprobación concedida por alguno de los tres canales del PASO 4:
+Solo con aprobación concedida por alguno de los canales del PASO 4:
 
 ```bash
 # Un-draft si está en draft (no se puede mergear un draft).
@@ -220,7 +231,7 @@ Si el merge falla (p.ej. requiere aprobación de reviewer en branch protection),
 
 ## PASO 6: Limpieza local
 
-Solo si existe `$WORKTREE` y (el usuario eligió "Mergear y limpiar" O la aprobación vino por label `merge-approved` O por el canal auto-merge):
+Solo si existe `$WORKTREE` y la aprobación NO fue "Solo mergear (conservar worktree)". Si `$WORKTREE` es el repo principal (la rama del PR vive en el checkout principal) no hay worktree que remover: correr igual el `assert-clean` de abajo (exit 6 → rescue) y, en vez de `cleanup-worktree.sh`, cambiar a la rama default, `pull --ff-only` y `git branch -D "$BRANCH"` (el merge ya se verificó en PASO 5).
 
 ```bash
 # Apagar cualquier dev server del worktree que haya quedado vivo.
@@ -307,6 +318,7 @@ Worktree:     removido (<path>) | conservado | n/a
 Rama local:   borrada | n/a
 rama default local: actualizada (pull --ff-only)
 Rescue:       rescue/<branch>-<ts> | n/a
+Warnings b6:  <M> — uno por línea, del comentario de review | 0
 Plan:         SI-13 completed | n/a
 
 B9_MERGED pr=<N> sha=<sha-corto> issues=<i1,i2,...>

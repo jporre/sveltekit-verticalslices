@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [1.20.0] — 2026-11-12
+
+Revisar un PR es terminarlo; b7 más rápido.
+
+### Cambio — revisar un PR es terminarlo (b6 + b9)
+
+Pedir "revisa el PR N" en sesión deja el PR mergeado y el árbol limpio de una pasada, sin la cadena de preguntas y re-revisiones.
+
+- **b9** gana el **canal en sesión** (default): la petición del usuario presente es la aprobación. Con `blockers=0`, sin `human=required`, sin `needs-human-review`, MERGEABLE y sin CI en FAILURE, mergea y limpia sin `AskUserQuestion`. La pregunta queda solo para `human=required`/`needs-human-review`. Headless sigue exigiendo el label `merge-approved`; el modo epic pasa `--ask` y sigue gobernado por `epic-auto-merge`.
+- **b9** sin review publicada la corre directo (antes la "ofrecía"); el resumen pre-merge es registro, no pausa; los warnings van al reporte final.
+- **b9** limpia también cuando la rama del PR vive en el checkout principal (vuelve a la default, `pull --ff-only`, borra la rama local).
+- **b6** sin `--auto` (lo pidió un humano): commitea y pushea lo pendiente ANTES de revisar (el review cubre todo, sin re-review posterior), publica sin preguntar y, con 0 blockers, el handoff trae `NEXT Skill b-pipeline:b9-close "<PR>"`. Ya no usa `AskUserQuestion`.
+- **b6** reescribe título/descripción malos o incompletos en PRs propios o de bot (`gh pr edit`) en vez de reportarlos como finding/BLOCKER.
+- **b10** single-issue: la fase 5 hereda el canal en sesión — "resuelve el issue N" llega al merge sin gate adicional.
+- **b8** invoca b6 con `--auto` explícito (sin él, el nuevo modo humano encadenaría el merge).
+
 Auditoría de velocidad y calidad de ejecución (medida, no estimada).
 
 ### Perf — b7

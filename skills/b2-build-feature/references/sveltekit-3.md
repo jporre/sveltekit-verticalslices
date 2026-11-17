@@ -22,6 +22,8 @@ Mínimos SK3: Node 22.17, TypeScript 6, Svelte 5.57.1, Vite 8.0.12, vite-plugin-
 | Cookies | nombres libres | v2: nombres ASCII; `path` por defecto `'/'` |
 | Hooks | `handleValidationError` | `handleError` con `kind: 'validation'` |
 | Param matchers | `src/params/<name>.ts` | un solo `src/params.ts` con `defineParams` |
-| Server-only | `$lib/server`, `*.server.ts` | además cualquier archivo con segmento `server` o dir `server` fuera de `src/routes` |
+| Server-only | `$lib/server`, `*.server.ts` | además cualquier archivo con segmento `server` o dir `server` fuera de `src/routes`. Dentro de `src/routes` una carpeta `server/` no protege nada: usar sufijo `.server.ts` |
+
+Prácticas con remote functions en SK3 (autenticación y autorización, caché y refresh, formularios, SSR, producción, criterios de revisión): `sveltekit-3-remote-functions.md`.
 
 Regla de slice: el contrato de errores del plugin (`code` estable) se conserva; solo cambia la forma de la llamada.

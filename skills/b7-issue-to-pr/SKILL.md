@@ -62,7 +62,7 @@ Defaults: `--wet`, `--max-iterations=6`, `--budget-files=25`, screens habilitada
 
 ## Principio: enfocado en pantallas
 
-Cada feature se triagea, diseña, implementa y revisa como pantallas (`screens[]` del triage: `route`, `user_journey`, `acceptance_criteria_visual`, `success_metrics`, `states_required`). Layout colocado: UI en `src/routes/<feature>/+page.svelte`, datos en `server/data.remote.ts`, componentes en `ui/<Componente>.svelte`. Spec: `$PLUGIN_ROOT/skills/b2-build-feature/references/slice-spec.md`. Sin `screens[]` (backend/infra) b7 corre igual, sin review visual, `screens=none` y sin `SKIPPED.json`.
+Cada feature se triagea, diseña, implementa y revisa como pantallas (`screens[]` del triage: `route`, `user_journey`, `acceptance_criteria_visual`, `success_metrics`, `states_required`). Layout colocado: UI en `src/routes/<feature>/+page.svelte`, datos en `data.remote.ts`, componentes en `<Componente>.svelte`. Spec: `$PLUGIN_ROOT/skills/b2-build-feature/references/slice-spec.md`. Sin `screens[]` (backend/infra) b7 corre igual, sin review visual, `screens=none` y sin `SKIPPED.json`.
 
 ## Workflow
 

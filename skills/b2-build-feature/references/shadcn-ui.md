@@ -20,7 +20,7 @@ agente suele improvisar.
 | Error de validación de campo | `fields.name.issues()` inline (forms-recipe) | toast |
 | Fechas / montos | componente del proyecto o formateo helper; estilo con tokens | `<input type="date">` estilizado a mano sin razón |
 
-Regla general: si el patrón aparece 2+ veces en el feature, es componente en `ui/`
+Regla general: si el patrón aparece 2+ veces en el feature, es componente en la carpeta del feature
 (PascalCase) del feature; si aparece en 3+ features, es candidato a `$lib/components/ui/`
 (ver slice-spec §Colocation).
 

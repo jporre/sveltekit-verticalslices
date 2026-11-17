@@ -70,7 +70,7 @@ A few ideas explain the whole design:
 | **`pi-subagents` package (pi only)** | Resolves the plugin's agents (`b7-impl`, `b7-impl-s`, `b7-screen-review`) from `pi-agents/`. | `pi list` |
 | **`gh` CLI, authenticated** | All GitHub state (issues, labels, PRs, comments) goes through `gh`. | `gh auth status` |
 | **A git repo with a GitHub remote** | The pipeline reads issues and opens PRs against `origin`. | `gh repo view` |
-| **A SvelteKit project** | `b2-build-feature` is SvelteKit-specific (Remote Functions, Svelte 5, Drizzle, shadcn-svelte). SvelteKit 2 and 3 are supported; the major is detected and SK3 deltas (`#lib`, config in `vite.config`, `refreshAll`…) live in `skills/b2-build-feature/references/sveltekit-3.md`. | — |
+| **A SvelteKit project** | `b2-build-feature` is SvelteKit-specific (Remote Functions, Svelte 5, Drizzle, shadcn-svelte). SvelteKit 2 and 3 are supported; the major is detected and SK3 deltas (`#lib`, config in `vite.config`, `refreshAll`…) live in `skills/b2-build-feature/references/sveltekit-3.md`; SK3 remote-function practices (auth, cache, forms, SSR, production) live in `references/sveltekit-3-remote-functions.md`. | — |
 | **Node + a dev server** | The worktree runs `vite` so screens can be verified. | `npm run dev` works |
 | **`agent-browser` CLI** | Visual screen review drives its own browser (navigation, auth cookie, screenshots, console). | `agent-browser --help` |
 

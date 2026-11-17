@@ -20,7 +20,7 @@ export async function load({params}) {
 }
 ```
 
-## 2. Remote Functions (`server/data.remote.ts`)
+## 2. Remote Functions (`data.remote.ts`)
 
 Ejemplos de `requireUser()` / `requirePermission()` como primera operación (regla: tabla del Area 3):
 
@@ -42,6 +42,8 @@ export const get_datos = query(async () => {
   return listDatos() // cualquier visitante puede llamar esto
 })
 ```
+
+Además del guard: autorizar el recurso contra la sesión (`id`, `userId`, `tenantId` y campos ocultos del cliente son entrada no confiable; la restricción de acceso va en el `WHERE`), validar argumentos con schema y devolver solo los campos que usa la interfaz. Reglas completas y pruebas a ejecutar: secciones "Autenticación y autorización" y "Criterios de revisión" de `../../b2-build-feature/references/sveltekit-3-remote-functions.md`.
 
 ### Formato de permisos
 

@@ -48,10 +48,10 @@ Cada pantalla es **una ola** con, como mínimo, 4 issues (`kind`):
 
 | kind | Entrega | Archivos |
 | --- | --- | --- |
-| `remote` | remote functions de la pantalla (`query`/`form`/`command`), SQL-first, con `requireUser()` | `server/data.remote.ts` (+ schema si falta) |
-| `ui` | `+page.svelte` + `ui/*.svelte` consumiendo las remote functions; criterios visuales | `+page.svelte`, `ui/`, `+page.server.ts` |
-| `tests` | unit de las remote functions + browser check de la pantalla | `*.test.ts` colocados |
-| `docs` | `docs/readme.md` de la carpeta + entrada en `docs/ARCHITECTURE.md` | docs de la ruta |
+| `remote` | remote functions de la pantalla (`query`/`form`/`command`), SQL-first, con `requireUser()` | `data.remote.ts` (+ schema si falta) |
+| `ui` | `+page.svelte` + componentes del feature consumiendo las remote functions; criterios visuales | `+page.svelte`, `<Componente>.svelte` |
+| `tests` | unit de las remote functions + browser check de la pantalla | `*.spec.ts` junto al archivo que prueban |
+| `docs` | `README.md` del feature (solo si hay un porqué que el código no explica) + entrada en `docs/ARCHITECTURE.md` | docs de la ruta |
 
 Deps dentro de la ola: `ui` ← `remote`; `tests` y `docs` ← `ui`. Entre olas: la pantalla B depende de A **solo** si navega a A o consume sus remote functions. Se permite un issue `kind: infra` sin pantalla (prefactor, schema compartido, refactor ancho), nunca un issue "feature" horizontal.
 
@@ -101,7 +101,7 @@ Regla dura: **no agregar requisitos que no estén en la conversación o el doc.*
 
 Para que los issues nombren rutas/entidades REALES (no inventadas), un grounding breve — mismo espíritu acotado que b1-triage (grounding, no exploración exhaustiva).
 
-Incluye la doc viva del repo: `docs/ARCHITECTURE.md` (mapa de slices + Decisiones) y el `docs/readme.md` colocado de cada feature que un slice toque. Títulos y bodies usan el vocabulario real del dominio, y ningún slice re-propone algo rechazado en Decisiones.
+Incluye la doc viva del repo: `docs/ARCHITECTURE.md` (mapa de slices + Decisiones) y el `README.md` colocado de cada feature que un slice toque. Títulos y bodies usan el vocabulario real del dominio, y ningún slice re-propone algo rechazado en Decisiones.
 
 **Primero, un probe FUNCIONAL de codegraph** (no confiar en "existe `.codegraph/`": la db puede estar rota o stale). Correr el probe compartido y, si dice `ok`, confirmar con una query real de la **entidad 1**:
 

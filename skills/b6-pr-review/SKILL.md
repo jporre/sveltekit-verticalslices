@@ -151,8 +151,8 @@ Lee los archivos cambiados con atención. Para archivos `.svelte` y `.ts` releva
 
 **Paso mecánico primero (antes del juicio LLM):** correr `check-slice.sh` sobre la rama del PR.
 Valida la conformidad estructural del slice-spec que no requiere criterio (feature nuevo
-bajo `src/lib/features/`, `*.remote.ts` fuera de `server/`, `*.remote.ts` bajo `src/lib/server/`, slice
-nuevo sin `docs/readme.md`):
+bajo `src/lib/features/`, carpeta `server/` nueva dentro de `src/routes`, `*.remote.ts` bajo
+`src/lib/server/`, archivo `.js` nuevo):
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"; [ -d "$PLUGIN_ROOT/skills" ] || PLUGIN_ROOT="$(cat "$HOME/.claude/b-pipeline.root" 2>/dev/null || ls -d "$HOME"/.claude/plugins/marketplaces/b-pipeline* 2>/dev/null | head -1)"
@@ -175,11 +175,12 @@ Evalúa:
    - **Prosa de más**: comentarios que explican el QUÉ (el código ya lo dice), docstrings de párrafos, comentarios que referencian el task/PR. SUGGESTION para borrarlos. (Excepción: `// ponytail:` es la prosa válida — marca intención.)
 2. **Arquitectura colocada por feature**: ¿Los archivos están en la estructura correcta? Spec canónica (regla 99%, tabla de excepciones `$lib`, tolerancia legacy, checklist): `../b2-build-feature/references/slice-spec.md`.
    - Todo el feature vive en su carpeta de ruta `src/routes/<feature>/` (página, remote, componentes, types)
-   - `+page.svelte` ES la pantalla; componentes del feature en `ui/<Componente>.svelte` (PascalCase), nunca en `src/lib/features/`
-   - Remote functions en `server/data.remote.ts` — ningún `*.remote.ts` fuera de `server/` (patrón viejo `<feature>.remote.ts` suelto en la raíz) ni bajo `src/lib/server/`
-   - Server-only code en `.server.ts` colocados; solo lo realmente compartido vive en `$lib` (excepciones taxativas del spec: shadcn, css, db, transversales 3+ features)
+   - `+page.svelte` ES la pantalla; componentes del feature en `<Componente>.svelte` (PascalCase), nunca en `src/lib/features/`
+   - Remote functions en `data.remote.ts`, en la raíz de la carpeta del feature — ninguna carpeta `server/` nueva dentro de `src/routes` ni `*.remote.ts` bajo `src/lib/server/`
+   - Server-only code en `.server.ts` colocados; solo lo que usan 3+ features vive en `$lib` (excepciones taxativas del spec: shadcn, css, db, auth). Con dos consumidores, el segundo importa desde la carpeta del primero
    - **Tolerancia legacy**: editar un feature existente bajo `src/lib/features/` siguiendo su patrón interno NO es finding; crear un feature NUEVO ahí es BLOCKER.
-   - Feature nuevo sin su `docs/readme.md` (doc del slice) → WARNING
+   - `+page.server.ts`, `+layout.server.ts` o `+page.ts` NUEVO → WARNING (los datos llegan por remote functions; el guard de página vive en `hooks.server.ts`); con `load()` que devuelve datos es AP2
+   - `README.md` del feature no es obligatorio: solo cuando hay un porqué que el código no explica
 3. **Convenciones**:
    - shadcn-svelte con namespace imports (`import * as Card from ...`)
    - Lucide con deep imports (`import Plus from '@lucide/svelte/icons/plus'`)
@@ -205,6 +206,8 @@ La tabla y la lista inline de esta área son la fuente canónica de las reglas; 
 | LOAD_SERVER / LAYOUT_SERVER (`+page.server.ts`, `+layout.server.ts`) | check de `locals.user` antes de devolver datos protegidos (excepción: páginas explícitamente públicas) | BLOCKER |
 | REMOTE_FUNCTION (`*.remote.ts`) | cada `query`/`form`/`command` llama `requireUser()` o `requirePermission('verbo:sustantivo')` como primera operación (formato `verbo:sustantivo`, sin roles hardcodeados) | BLOCKER |
 | API_ENDPOINT (`+server.ts`) | `locals.user` o API key | BLOCKER |
+
+En REMOTE_FUNCTION el guard no basta: un `id`/`userId`/`tenantId` del cliente usado sin restringir la consulta a la sesión es BLOCKER. Reglas de autorización de remote functions: `../b2-build-feature/references/sveltekit-3-remote-functions.md` (sección "Autenticación y autorización").
 
 **Para TODO el diff**: sin secrets/API keys/passwords hardcodeados (usar `$env/static/private` o `$env/dynamic/private`); errores con formato estructurado `{ message, code }` (no `throw new Error()` donde debería ser `error(status, { message, code })`); sin variables mutables a nivel de módulo en `.server.ts` (data leak entre usuarios).
 

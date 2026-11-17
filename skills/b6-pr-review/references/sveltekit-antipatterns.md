@@ -34,7 +34,7 @@ onMount(async () => {
 
 <!-- BIEN: remote function -->
 <script>
-import { get_items } from './server/data.remote'
+import { get_items } from './data.remote'
 const items = $derived(await get_items())
 </script>
 ```
@@ -155,9 +155,9 @@ import Plus from '@lucide/svelte/icons/plus'
 </script>
 ```
 
-## 10. Remote function fuera de server/ del feature (prohibido)
+## 10. Remote function mal ubicada (prohibido)
 
-Los archivos `.remote.ts` NO pueden estar dentro de `src/lib/server/` (el cliente los importa). Viven en `src/routes/<feature>/server/data.remote.ts`, nunca sueltos en la raíz de la ruta (patrón viejo `<feature>.remote.ts`).
+Los archivos `.remote.ts` NO pueden estar dentro de `src/lib/server/` (el cliente los importa). Viven en `src/routes/<feature>/data.remote.ts`, en la raíz de la carpeta del feature. Una carpeta `server/` nueva dentro de `src/routes` también es hallazgo: no protege nada (el código server-only lleva sufijo `.server.ts`).
 
 ## 11. Query sin refresh después de mutación
 
@@ -257,3 +257,8 @@ Marcar como hallazgo; detalle en `../../b2-build-feature/references/sveltekit-3.
 - `svelte.config.js` con opciones, o `$lib` en vez de `#lib` con extensión
 - `error(status, { message, code })` → `error(status, 'msg', { code })`
 - `redirect` a URL externa sin `{ external: true }`
+- `<input name="...">` escrito a mano dentro de un `form` remoto (usar `fields.campo.as(...)`), o `use:enhance` de `$app/forms` mezclado con `.enhance(...)` remoto
+- `event.url`/`event.params`/`event.route` dentro de `query` (lanza), o usados para decidir permisos en `form`/`command`
+- `redirect` dentro de un `command` o de un guard compartido con `command` (usar `error(401, ...)`)
+
+Prácticas completas (caché, refresh, forms, SSR, producción): `../../b2-build-feature/references/sveltekit-3-remote-functions.md`.

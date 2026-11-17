@@ -100,7 +100,7 @@ seventeen.
    (p. ej. `fila_origen → "Fila"`). Si el usuario dice "los primeros N campos de
    la vista", listalos y confirmalos.
 4. **Ubicación** — feature carpeta + nombre del componente (default:
-   `<feature>/ui/<tabla>.svelte`).
+   `<feature>/<tabla>.svelte`).
 
 **Optional (each has a default — only ask when the user's request hints
 otherwise):**
@@ -216,7 +216,7 @@ Decide the feature folder (e.g. `src/lib/features/<feature>/`). Then:
 ### Step 3 — The table component
 
 Copy `references/EXAMPLE-Table.svelte` to
-`<feature>/ui/components/<Feature>Table.svelte` and adapt the five
+`<feature>/<Feature>Table.svelte` and adapt the five
 `── GENERATE` blocks: the row type, the column definitions, the
 ids/labels/defaults arrays, the views (`VIEWS` + `KANBAN`), and the `card`
 snippet. Everything else is fixed boilerplate — including the `features`
@@ -238,7 +238,7 @@ delete. Don't leave an unused kanban in a table that has no lane column.
 
 ### Step 4 — The page and route
 
-1. Copy `references/EXAMPLE-Page.svelte` to `<feature>/ui/<Feature>Page.svelte`
+1. Copy `references/EXAMPLE-Page.svelte` to `<feature>/<Feature>Page.svelte`
    and adapt the filter resolution, the props and the mutations. The data
    flow is `const q = $derived(get_x(filters))` + `q.current` — no `$effect`,
    no cancellation flags: each filter set is its own query instance, so a slow

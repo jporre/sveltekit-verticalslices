@@ -1,7 +1,7 @@
 <!--
   EXAMPLE-Page.svelte — the bt1-data-table page component (no-cache baseline).
 
-  Copy this into <feature>/ui/<Feature>Page.svelte. It owns: resolving filters,
+  Copy this into <feature>/<Feature>Page.svelte. It owns: resolving filters,
   calling the remote query, loading/error/truncated states, handing rows to the
   table, and the mutations the views need (kanban `onMove`). To add the
   stale-while-revalidate cache instead, follow references/caching.md.
@@ -14,9 +14,9 @@
   No `$effect`, no cancellation flags.
 -->
 <script lang="ts">
-import {get_orders, set_channel} from '../data.remote'
+import {get_orders, set_channel} from './data.remote'
 import type {OrdersResult, OrderRow} from '../types'
-import OrdersTable from './components/OrdersTable.svelte'
+import OrdersTable from './OrdersTable.svelte'
 import {Badge} from '$lib/components/ui/badge'
 
 // ── GENERATE: props the page accepts (optional) ────────────────────────────

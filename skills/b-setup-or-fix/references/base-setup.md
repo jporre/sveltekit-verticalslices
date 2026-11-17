@@ -24,7 +24,7 @@ const config = {
 Van donde la config YA vive — verificar antes de crear nada:
 - `vite.config.{js,ts}` pasa opciones a `sveltekit({...})` → mergear los flags ahí. Desde @sveltejs/kit 2.62.0 la config puede ir inline en el plugin y en ese caso `svelte.config.js` se IGNORA (crearlo sería un no-op silencioso). `sv create` >= 0.16.0 (jun 2026) scaffoldea así, sin `svelte.config.js`.
 - Existe `svelte.config.js` y `sveltekit()` va sin opciones → mergear ahí (adapter, preprocess, etc. se respetan).
-- SK3 (`SK_MAJOR=3`): `svelte.config.js` ya no se soporta, solo `sveltekit({...})` en `vite.config`; remote functions siguen experimentales (mismos flags). Delta completo: `../../b2-build-feature/references/sveltekit-3.md`.
+- SK3 (`SK_MAJOR=3`): `svelte.config.js` ya no se soporta, solo `sveltekit({...})` en `vite.config`; remote functions siguen experimentales (mismos flags). Delta completo: `../../b2-build-feature/references/sveltekit-3.md`; prácticas con remote functions: `../../b2-build-feature/references/sveltekit-3-remote-functions.md`.
 - Ninguno tiene config → flags dentro de `sveltekit({...})` en `vite.config`.
 
 Requiere SvelteKit >= 2.27; si la versión no alcanza, proponer el upgrade al usuario — no forzarlo.
@@ -85,15 +85,15 @@ Solo las claves de la estrategia elegida. Reglas de seguridad: NADA de esto pued
 ```markdown
 # Reglas del proyecto
 
-- Cada feature es un vertical slice en `src/routes/<feature>/`: archivos de ruta (`+page.svelte`, `+page.server.ts`, …) + `server/data.remote.ts` (TODO el manejo de datos) + `ui/` (componentes) + `data/` (constantes `as const` y schemas) + `docs/` + `tests/` — solo las subcarpetas con contenido. La carpeta de ruta ES la carpeta del feature.
-- Datos SOLO via remote functions (`query`/`form`/`command` de `$app/server`) en `server/data.remote.ts`: sin `+server.ts` internos, sin `fetch` manual, sin `load()` para datos (`+page.server.ts` solo guard/redirect; la deduplicación de queries cubre el dato compartido). Camino más corto: Drizzle -> remote function -> componente; cero capas intermedias.
-- En `server/`, todo archivo que no es `*.remote.ts` lleva sufijo `.server.ts` (enforcement server-only del compilador). Entre features solo se importan remote functions ajenas (API pública); `ui/`/`data/`/`tests/` son privados.
-- SQL-first: filtros, group by, agregaciones y aritmética en la query (Drizzle); JavaScript solo lo mínimo justificable. Debug de datos = `server/data.remote.ts`, un solo archivo.
+- Cada feature vive completo y plano en `src/routes/<feature>/`: `+page.svelte` (pantalla) + `data.remote.ts` (TODO el manejo de datos). Se agregan en la misma carpeta, solo cuando hacen falta: `<Componente>.svelte`, `schemas.ts`, `<nombre>.server.ts`, tests `*.spec.ts` junto al archivo y `README.md`. Sin subcarpetas `server/`, `ui/`, `docs/` ni `tests/`.
+- Datos SOLO via remote functions (`query`/`form`/`command` de `$app/server`) en `data.remote.ts`: sin `+server.ts` internos, sin `fetch` manual, sin `load()` (no crear `+page.server.ts`, `+layout.server.ts` ni `+page.ts`; el guard de página vive en `hooks.server.ts`). Camino más corto: Drizzle -> remote function -> componente; cero capas intermedias.
+- Código de servidor que no es remote lleva sufijo `.server.ts`: dentro de `src/routes` una carpeta `server/` no protege nada. Siempre `.ts`, nunca `.js`.
+- SQL-first: filtros, group by, agregaciones y aritmética en la query (Drizzle); JavaScript solo lo mínimo justificable. Debug de datos = `data.remote.ts`, un solo archivo.
 - Toda remote function: guard (`requireUser`/`requirePermission`) primera línea + schema zod si recibe argumentos. Nombres `snake_case`.
 - Svelte 5 runes siempre: `$state`/`$derived`/`$props`/snippets; `onclick` no `on:click`; `$effect` solo para efectos reales (DOM, timers).
 - Mutación => refresh explícito (`.refresh()` / `.updates()`), nunca datos stale.
-- `$lib` solo para transversales genuinos (ui shadcn, db, auth, helpers de 3+ features).
-- Sin comentarios salvo `// ponytail:` (atajo deliberado, nombra el techo). La documentación vive en `docs/readme.md` del slice y `docs/ARCHITECTURE.md`, no en el código.
+- `src/lib/` solo para lo que usan 3 o más features (ui shadcn, db, auth). Con dos consumidores, el segundo importa desde la carpeta del primero.
+- Sin comentarios salvo `// ponytail:` (atajo deliberado, nombra el techo). Los porqués viven en el `README.md` del feature (solo si hace falta) y `docs/ARCHITECTURE.md`, no en el código.
 - El código más simple que funciona, gana: nada especulativo, abstraer recién con 2+ implementaciones reales.
 ```
 
@@ -110,7 +110,7 @@ SvelteKit (remote functions + async experimental) · Svelte 5 runes · Drizzle +
 ## Mapa de slices
 | Feature | Ruta | Doc |
 |---|---|---|
-| <feature> | `src/routes/<feature>/` | [`docs/readme.md`](../src/routes/<feature>/docs/readme.md) |
+| <feature> | `src/routes/<feature>/` | [`README.md`](../src/routes/<feature>/README.md) |
 
 ## Transversales ($lib)
 - `$lib/server/db` — cliente Drizzle
@@ -118,16 +118,16 @@ SvelteKit (remote functions + async experimental) · Svelte 5 runes · Drizzle +
 - `$lib/components/ui` — shadcn-svelte
 
 ## Decisiones
-- <fecha> — <decision y por qué> (las decisiones de features viven en su docs/readme.md)
+- <fecha> — <decision y por qué> (las decisiones de features viven en su README.md)
 ```
 
 Se actualiza la tabla al agregar slices. Rechazos load-bearing del usuario durante un rescate se anotan en Decisiones para no re-sugerirlos.
 
 ## 5. Política documental y de comentarios (E6)
 
-- **Por feature**: `docs/readme.md` dentro del slice, 6 secciones (fuente única: `slice-spec.md`): Propósito, Pantallas y rutas, Remote functions, Datos, Decisiones, Problemas conocidos. Primera parada de debug; se actualiza en el mismo PR que cambia contratos o pantallas.
+- **Por feature**: `README.md` dentro del slice, 6 secciones (fuente única: `slice-spec.md`): Propósito, Pantallas y rutas, Remote functions, Datos, Decisiones, Problemas conocidos. Primera parada de debug; se actualiza en el mismo PR que cambia contratos o pantallas.
 - **Nivel repo**: `docs/ARCHITECTURE.md` (mapa) + `CLAUDE.md` (reglas para agentes). Nada más — la doc que nadie mantiene es peor que ninguna.
-- **Comentarios**: default cero. Borrar el QUÉ ("incrementa el contador"), referencias a tasks/PRs, y prosa defensiva. Preservar `// ponytail:` (con techo y upgrade path) y TODO/FIXME accionables. Contexto útil migra al `docs/readme.md` antes de borrar. Regla: si la explicación es más larga que el código, se borra la explicación.
+- **Comentarios**: default cero. Borrar el QUÉ ("incrementa el contador"), referencias a tasks/PRs, y prosa defensiva. Preservar `// ponytail:` (con techo y upgrade path) y TODO/FIXME accionables. Contexto útil migra al `README.md` antes de borrar. Regla: si la explicación es más larga que el código, se borra la explicación.
 
 ## 6. Checklist de base instalada
 

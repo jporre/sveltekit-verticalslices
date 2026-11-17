@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [1.21.0] — 2026-11-17
+
+### Cambio — layout plano del feature (slice-spec)
+
+Un feature es una carpeta de rutas plana: `+page.svelte` + `data.remote.ts`. Los demás archivos (`<Componente>.svelte`, `schemas.ts`, `<nombre>.server.ts`, tests `*.spec.ts` junto al archivo, `README.md`) se agregan en la misma carpeta solo cuando hacen falta.
+
+- Se eliminan las subcarpetas `server/`, `ui/`, `data/`, `docs/` y `tests/`. Dentro de `src/routes` una carpeta `server/` no protege nada; el código server-only lleva sufijo `.server.ts`.
+- Sin `load()`: no se crean `+page.server.ts`, `+layout.server.ts` ni `+page.ts`. El guard de página vive en `hooks.server.ts`; el de datos, dentro de cada remote function.
+- `README.md` del feature deja de ser obligatorio: solo cuando hay un porqué que el código no explica.
+- `src/lib/` solo para lo que usan 3+ features; con dos consumidores, el segundo importa desde la carpeta del primero.
+- `scaffold-slice.sh` genera 2 archivos. `check-slice.sh`: VIOLATION por carpeta `server/` nueva dentro de `src/routes` y por `.js` nuevo; WARNING por `+page.server.ts`/`+layout.server.ts`/`+page.ts` nuevos; ya no exige doc. Agregar a un `server/` que ya existía sigue siendo tolerancia legacy.
+- `audit.sh` (b-setup-or-fix) detecta remotes dentro de `server/` y subcarpetas del layout anterior; E2 de `fix-ladder.md` las aplana. Ya no reporta features sin doc.
+- Actualizados: b2 (SKILL, templates, complex-features), b6 (Área 2, AP10), context snapshot de b7, agentes `b7-impl`/`b7-impl-s` (CC y pi), b0, b1, bt1 y `base-setup.md`.
+- Features existentes con el layout anterior (`server/data.remote.ts`, `ui/`, `docs/readme.md`) son legacy: editarlos sigue su patrón; migrarlos es un issue propio o el peldaño E2.
+
+### Docs — guía SvelteKit 3 con remote functions
+
+- Nueva referencia `skills/b2-build-feature/references/sveltekit-3-remote-functions.md` (actualizada 2026-11-17): autenticación y autorización, elección de remote function, caché y refresh, formularios, SSR, seguridad de producción y criterios de revisión.
+- La enlazan b2 (SKILL, `sveltekit-3.md`, sign-off de verificación), b6 (Área 3, `security-checklist.md`, sección SK3 de antipatrones con 3 hallazgos nuevos), el context snapshot de b7 y b-setup-or-fix.
+
 ## [1.20.0] — 2026-11-12
 
 Revisar un PR es terminarlo; b7 más rápido.

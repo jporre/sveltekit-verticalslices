@@ -1,7 +1,7 @@
 <!--
   EXAMPLE-Table.svelte — the bt1-data-table table component (TanStack Table v9).
 
-  Copy this into <feature>/ui/components/<Feature>Table.svelte and adapt the
+  Copy this into <feature>/<Feature>Table.svelte and adapt the
   five places marked `── GENERATE`. Everything else is fixed boilerplate that
   works the same for every table.
 

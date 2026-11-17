@@ -131,7 +131,7 @@ show "remote functions sin requireUser/requirePermission (SEC-B)" "$h"
 h="$(g '*.server.ts' '^(let|var) ')"
 show "estado mutable a nivel de modulo en .server.ts (SEC-E)" "$h"
 h="$(find "$SRC/routes" -path '*/server/*' \( -name '*.ts' -o -name '*.js' \) ! -name '*.remote.ts' ! -name '*.server.ts' 2>/dev/null)"
-show "archivos en server/ sin sufijo .server.ts (sin enforcement server-only del compilador)" "$h"
+show "archivos en server/ de src/routes sin sufijo .server.ts (la carpeta no protege nada)" "$h"
 h="$(grep -rEin --include='*.ts' "(api_?key|token|password|secret)$Q?[[:space:]]*[:=][[:space:]]*$Q[A-Za-z0-9_-]{8,}" "$SRC" 2>/dev/null | grep -v '\.test\.' || true)"
 show "posibles secrets hardcodeados (SEC-D)" "$h"
 rung E1
@@ -139,14 +139,18 @@ rung E1
 echo "=== E2 === estructura / colocación"
 h="$(find "$SRC/lib/features" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)"
 show "features bajo src/lib/features (CAL-5)" "$h"
-h="$(find "$SRC/routes" -name '*.remote.*' 2>/dev/null | grep -v '/server/' || true)"
-show "*.remote.ts fuera de server/ (canónico: <feature>/server/data.remote.ts)" "$h"
+h="$(find "$SRC/routes" -name '*.remote.*' 2>/dev/null | grep '/server/' || true)"
+show "*.remote.ts dentro de server/ (canónico: <feature>/data.remote.ts)" "$h"
 h="$(find "$SRC/lib/server" -name '*.remote.*' 2>/dev/null)"
 show "*.remote.ts bajo src/lib/server (AP10)" "$h"
-h="$(find "$SRC/routes" -name '*.svelte' ! -name '+*' 2>/dev/null | grep -v '/ui/' || true)"
-show "componentes sueltos fuera de ui/ (mover a <feature>/ui/)" "$h"
-h="$(find "$SRC/routes" -name '*.md' 2>/dev/null | grep -v '/docs/' || true)"
-show "docs de feature fuera de docs/ (mover a <feature>/docs/)" "$h"
+# Subcarpetas del layout anterior. Una carpeta con archivos + es una ruta real (/docs, /data), no layout.
+h=""
+while IFS= read -r d; do
+  [ -n "$d" ] || continue
+  ls "$d"/+* >/dev/null 2>&1 || h="$h$d
+"
+done < <(find "$SRC/routes" -type d \( -name server -o -name ui -o -name data -o -name docs -o -name tests \) 2>/dev/null)
+show "subcarpetas server/ ui/ data/ docs/ tests/ dentro de un feature (aplanar en su carpeta)" "$h"
 h="$(find "$SRC/routes" -name '*Page.svelte' 2>/dev/null)"
 show "wrappers <Feature>Page.svelte" "$h"
 rung E2
@@ -201,13 +205,6 @@ echo "=== E6 === comentarios y docs"
 COMMENT_LINES=$(grep -rE --include='*.ts' --include='*.svelte' '^[[:space:]]*//' "$SRC" 2>/dev/null | grep -cv 'ponytail:' || true)
 echo "-- líneas de comentario (sin ponytail): $COMMENT_LINES"
 [ "$COMMENT_LINES" -gt 50 ] && echo "$COMMENT_LINES" >> /tmp/b-setup-or-fix-audit-counts.$$ || echo 0 >> /tmp/b-setup-or-fix-audit-counts.$$
-h=""
-while IFS= read -r d; do
-  [ -n "$d" ] || continue
-  ls "$d"/docs/*.md >/dev/null 2>&1 || ls "$d"/*.md >/dev/null 2>&1 || h="$h$d
-"
-done < <(find "$SRC/routes" -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
-show "features sin doc colocado (docs/readme.md) (CAL-6)" "$h"
 [ -f docs/ARCHITECTURE.md ] || [ -f ARCHITECTURE.md ] || { echo "-- falta doc nivel repo (ARCHITECTURE.md)"; echo 1 >> /tmp/b-setup-or-fix-audit-counts.$$; }
 rung E6
 

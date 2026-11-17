@@ -9,11 +9,12 @@
 #
 # Checklist mecánico (slice-spec.md, checklist de conformidad):
 #   1. Nada NUEVO bajo src/lib/features/ (tolerancia legacy: EDITAR ahí es OK).
-#   2. Remote colocado: todo *.remote.ts NUEVO va en server/ del feature
-#      (src/routes/<feature>/server/data.remote.ts); ninguno bajo src/lib/server/.
-#   3. Feature NUEVO (slice con +page.svelte/*.remote.ts nuevos) trae su docs/readme.md
-#      (se acepta .md en la raíz del slice: layout anterior).
+#   2. Ningún *.remote.ts bajo src/lib/server/. Ninguna carpeta server/ NUEVA dentro de
+#      src/routes/ (no protege nada; canónico: src/routes/<feature>/data.remote.ts y
+#      <nombre>.server.ts). Agregar a un server/ que ya existía = tolerancia legacy.
+#   3. Ningún .js NUEVO bajo src/routes/ (siempre .ts).
 #   4. (WARNING) Archivos NUEVOS en $lib fuera de la tabla de excepciones del spec.
+#   5. (WARNING) +page.server.ts / +layout.server.ts / +page.ts NUEVOS (sin load() para datos).
 #
 # Exit codes estables:
 #   0  sin violaciones (puede haber WARNINGs)
@@ -50,9 +51,6 @@ warnings=0
 viol() { echo "VIOLATION: $*"; violations=$((violations + 1)); }
 warn() { echo "WARNING:   $*"; warnings=$((warnings + 1)); }
 
-# Recolecta carpetas de slices nuevos (para el check 3), sin duplicados.
-new_slice_dirs=""
-
 while IFS=$'\t' read -r status path rest; do
   [ -z "${status:-}" ] && continue
   # Renombrados (Rxxx) traen 'path' = origen y 'rest' = destino.
@@ -72,14 +70,24 @@ while IFS=$'\t' read -r status path rest; do
   # (EDITAR un archivo existente = M/D => tolerancia legacy, no es violación.)
   [ "$status" = "A" ] || continue
 
-  # --- Check 2b: remote NUEVO va en server/ del feature ---
-  if [[ "$base" == *.remote.ts ]]; then
-    case "$path" in
-      src/lib/*) : ;;                # ya cubierto por 2a
-      */server/*.remote.ts) : ;;     # canónico
-      *) viol "remote NUEVO fuera de server/ (canónico: src/routes/<feature>/server/data.remote.ts): $path" ;;
-    esac
-  fi
+  # --- Check 2b: ninguna carpeta server/ NUEVA dentro de src/routes/ ---
+  case "$path" in
+    src/routes/*/server/*)
+      sdir="${path%%/server/*}/server"
+      git cat-file -e "$MB:$sdir" 2>/dev/null \
+        || viol "carpeta server/ NUEVA dentro de src/routes (no protege nada; canónico: <feature>/data.remote.ts y <nombre>.server.ts): $path" ;;
+  esac
+
+  # --- Check 3: siempre .ts, nunca .js ---
+  case "$path" in
+    src/routes/*.js) viol "archivo .js NUEVO (siempre .ts): $path" ;;
+  esac
+
+  # --- Check 5 (WARNING): sin load() para datos ---
+  case "$base" in
+    +page.server.ts|+layout.server.ts|+page.ts)
+      warn "$base NUEVO — los datos llegan por remote functions, no por load(): $path" ;;
+  esac
 
   # --- Check 1: nada nuevo bajo src/lib/features/ ---
   case "$path" in
@@ -91,28 +99,11 @@ while IFS=$'\t' read -r status path rest; do
   # --- Check 4 (WARNING): $lib nuevo fuera de la tabla de excepciones ---
   case "$path" in
     src/lib/components/ui/*) : ;;                 # shadcn-svelte
-    src/lib/server/db/*) : ;;                     # conexión/schema DB
+    src/lib/server/db/*|src/lib/server/db.ts) : ;; # conexión/schema DB
     src/lib/*)
       warn "archivo NUEVO en \$lib — justificar como transversal 3+ features o mover al slice: $path" ;;
   esac
-
-  # --- Recolecta slices nuevos para el check 3 ---
-  case "$path" in
-    src/routes/*)
-      dir="$(dirname "$path")"
-      case "$dir" in */server) dir="$(dirname "$dir")" ;; esac
-      if [ "$base" = "+page.svelte" ] || [[ "$base" == *.remote.ts ]]; then
-        case " $new_slice_dirs " in *" $dir "*) : ;; *) new_slice_dirs="$new_slice_dirs $dir" ;; esac
-      fi ;;
-  esac
 done <<< "$CHANGED"
-
-# --- Check 3: cada slice nuevo trae su doc (docs/readme.md; raíz = legacy) ---
-for dir in $new_slice_dirs; do
-  if ! ls "$REPO_ROOT/$dir"/docs/*.md >/dev/null 2>&1 && ! ls "$REPO_ROOT/$dir"/*.md >/dev/null 2>&1; then
-    viol "feature NUEVO sin doc docs/readme.md: $dir/"
-  fi
-done
 
 echo ""
 if [ "$violations" -eq 0 ]; then

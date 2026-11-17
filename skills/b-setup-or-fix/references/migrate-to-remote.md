@@ -2,11 +2,11 @@
 
 > Templates canónicos completos (CRUD entero): `../../b2-build-feature/references/feature-templates.md` — incluye el **Template 5 (escritura multi-tabla con `db.transaction` dentro de la remote function)**, que aplica igual en la migración: si la lógica legacy encadena dos writes sin atomicidad, la remote function los envuelve en transacción. Forms con shadcn y campos no-nativos: `../../b2-build-feature/references/forms-recipe.md`. Este archivo solo trae el mapeo legacy → remote, receta por receta. Si el skill `using-remote-functions` está disponible, sus docs (QUERY/FORM/COMMAND/SINGLE-FLIGHT) profundizan cada tipo.
 
-Prerrequisitos (E1 ya los dejó): flags `kit.experimental.remoteFunctions: true` y `compilerOptions.experimental.async: true` donde viva la config (`vite.config` o `svelte.config.js` — ver `base-setup.md`; en SK3 solo `vite.config`, remote sigue experimental — `../../b2-build-feature/references/sveltekit-3.md`); SvelteKit >= 2.27.
+Prerrequisitos (E1 ya los dejó): flags `kit.experimental.remoteFunctions: true` y `compilerOptions.experimental.async: true` donde viva la config (`vite.config` o `svelte.config.js` — ver `base-setup.md`; en SK3 solo `vite.config`, remote sigue experimental — `../../b2-build-feature/references/sveltekit-3.md` y, para auth/caché/forms, `../../b2-build-feature/references/sveltekit-3-remote-functions.md`); SvelteKit >= 2.27.
 
 Reglas fijas de toda función migrada:
 
-- Vive en `src/routes/<feature>/server/data.remote.ts` — TODO el manejo de datos del feature en ese único archivo; nunca bajo `src/lib/server/`. SQL-first: filtros, group by y agregaciones en la query (Drizzle), no en JS.
+- Vive en `src/routes/<feature>/data.remote.ts` — TODO el manejo de datos del feature en ese único archivo; nunca bajo `src/lib/server/`. SQL-first: filtros, group by y agregaciones en la query (Drizzle), no en JS.
 - `requireUser()` / `requirePermission('verbo:sustantivo')` como **primera operación**.
 - Todo argumento validado con schema zod como primer parámetro (`query(z.string(), async (id) => ...)`). Sin schema solo cuando no recibe argumentos.
 - Nombres `snake_case`: `get_items`, `upsert_item`, `delete_item`.
@@ -26,7 +26,7 @@ export const load = async ({ locals }) => {
 ```
 
 ```ts
-// BIEN — server/data.remote.ts
+// BIEN — data.remote.ts
 import { query } from '$app/server';
 import { requireUser } from '$lib/server/auth';
 
@@ -39,7 +39,7 @@ export const get_items = query(async () => {
 ```svelte
 <!-- BIEN — +page.svelte: sin prop data, sin loading manual -->
 <script lang="ts">
-  import { get_items } from './server/data.remote';
+  import { get_items } from './data.remote';
   const items = $derived(await get_items());
 </script>
 
@@ -58,7 +58,7 @@ export const actions = { default: async ({ request }) => { /* FormData a mano */
 ```
 
 ```ts
-// BIEN — server/data.remote.ts: UN upsert con id opcional (nunca create/edit separados)
+// BIEN — data.remote.ts: UN upsert con id opcional (nunca create/edit separados)
 import { form } from '$app/server';
 import { z } from 'zod';
 
@@ -100,7 +100,7 @@ export const upsert_item = form(
 ```svelte
 <!-- BIEN -->
 <script lang="ts">
-  import { get_items } from './server/data.remote';
+  import { get_items } from './data.remote';
   const items = $derived(await get_items());
 </script>
 ```
@@ -160,7 +160,7 @@ Usar cuando el componente de cada item de una lista pide sus propios datos.
 
 ## Checklist por feature migrado
 
-- [ ] remote functions en `server/data.remote.ts` del feature (un solo archivo de datos)
+- [ ] remote functions en `data.remote.ts` del feature (un solo archivo de datos)
 - [ ] guard primera línea de CADA función; schema zod en toda función con argumentos
 - [ ] cero `load()`/`actions`/`fetch` interno restantes en el feature (los `+server.ts` que quedan tienen razón declarada)
 - [ ] toda mutación con estrategia de refresh explícita (R5)

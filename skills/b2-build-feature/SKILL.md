@@ -15,17 +15,17 @@ No unnecessary layers. The shortest path: **Drizzle query -> remote function -> 
 
 **The route folder IS the feature folder.** Everything for a feature lives in one
 folder under `src/routes/` — page, remote functions, components, types. Only `+`-prefixed files
-are special to the router, so `server/data.remote.ts`, `ui/<Componente>.svelte` components, and
-`<feature>-types.ts` live inside the route folder next to `+page.svelte`. No `src/lib/features/`
+are special to the router, so `data.remote.ts`, `<Componente>.svelte` components, and
+`<feature>-types.ts` live flat inside the route folder next to `+page.svelte` — no `server/`, `ui/`, `docs/` or `tests/` subfolders. No `src/lib/features/`
 split, no thin wrappers. One folder you can review, debug, and copy to another project as a unit. Shared-only
 code (shadcn `$lib/components/ui`, `$lib/server/db`, cross-feature helpers) stays in `$lib`.
 
 **Canonical spec: `references/slice-spec.md`** — the 99% rule, the exact `$lib` exception
 table, the legacy tolerance (editing an existing `src/lib/features/` feature follows ITS
-pattern; NEW features never go there), and the colocated `docs/readme.md` doc every new
-feature ships with. When in doubt about where a file goes, that spec wins.
+pattern; NEW features never go there), and when a feature gets a `README.md` (only when
+there is a why the code does not explain). When in doubt about where a file goes, that spec wins.
 
-**SvelteKit 3**: si el context snapshot dice `SK_MAJOR=3`, aplica `references/sveltekit-3.md` (`#lib` con extensión, `$app/env`, `error(status, msg, { code })`, etc.). Los ejemplos de este skill usan la sintaxis SK2.
+**SvelteKit 3**: si el context snapshot dice `SK_MAJOR=3`, aplica `references/sveltekit-3.md` (`#lib` con extensión, `$app/env`, `error(status, msg, { code })`, etc.). Los ejemplos de este skill usan la sintaxis SK2. Antes de escribir remote functions en SK3, lee también `references/sveltekit-3-remote-functions.md`: sus reglas de autenticación y autorización son obligatorias, y sus "Criterios de revisión" se suman a Phase 3.
 
 ## Entry Points
 
@@ -36,7 +36,7 @@ This skill has three starting paths:
 3. **Modo b7** — lo declara el agente `b7-impl` al invocar. El orquestador b7 ya hizo rama/worktree y triage, y después de tu pasada hace él la revisión en browser (un `b7-screen-review` por pantalla), CHANGELOG, commit y PR. Repetirlos acá duplica el tramo más lento del run. Ejecutar SOLO:
    - Phase 1 leyendo `.b7/triage.json` + `.b7/issue.json` (body y comentarios ya cacheados: sin `gh issue view`, sin preguntas al usuario) → Phase 1.5 → Phase 2.
    - Phase 3 pasos 0–2 (`check-slice.sh`, `verify.sh` hasta exit 0, autofixer). **Sin** paso 3 (browser).
-   - Phase 4 pasos 1 y 3 (feature `docs/readme.md` + `check-slice.sh`). **Sin** CHANGELOG, commit ni reporte al usuario.
+   - Phase 4 pasos 1 y 3 (`README.md` solo si corresponde + `check-slice.sh`). **Sin** CHANGELOG, commit ni reporte al usuario.
 
    Saltar Phase 0. Devolver al agente los archivos tocados y la última línea `VERIFY_RESULT`.
 
@@ -130,21 +130,21 @@ Then propose the file structure — everything colocated in the route folder:
 
 ```
 src/routes/<feature>/
-  +page.svelte               # The page itself (UI here; imports from ./ui/ and ./server/data.remote)
-  +page.server.ts            # route guard (auth/permission); load() solo según la regla de datos
-  server/data.remote.ts      # query + form + command — all data ops (SQL-first)
-  <feature>-types.ts         # types (or export them straight from server/data.remote.ts)
-  docs/readme.md          # doc del feature
+  +page.svelte               # The page itself (UI here; imports ./data.remote)
+  data.remote.ts             # query + form + command — all data ops (SQL-first)
 ```
 
 Placement: the route folder IS the feature folder (ver Colocation arriba y `references/slice-spec.md`).
 
 Only add more files — all colocated in the same folder — when justified:
 
-- `ui/<Feature>Form.svelte`, `ui/<Feature>Table.svelte` — componentes del feature en `ui/`, PascalCase
-- `schemas.ts` — only if validation is complex (beyond basic required/type checks)
-- archivos extra en `server/` — solo cuando el tamaño de `data.remote.ts` lo exija de verdad (ver `references/slice-spec.md`), NOT for simple CRUD
-- sub-routes (`new/`, `[id]/`) get their own colocated `+page.svelte`; their data also comes from `../server/data.remote.ts`
+- `<Feature>Form.svelte`, `<Feature>Table.svelte` — componentes del feature, PascalCase: cuando un bloque se repite o `+page.svelte` ya no se lee de una pasada
+- `<feature>-types.ts` — solo si los types no caben exportados desde `data.remote.ts`
+- `schemas.ts` — only if the client needs the zod schema (form `preflight` validation)
+- `<nombre>.server.ts` — lógica de servidor que no cabe con claridad en `data.remote.ts`, NOT for simple CRUD (sin carpeta `server/`: dentro de `src/routes` no protege nada)
+- `*.spec.ts`, `*.svelte.spec.ts`, `*.e2e.ts` — tests, junto al archivo que prueban
+- `README.md` — solo si hay una decisión o un porqué que el código no explica
+- sub-routes (`new/`, `[id]/`) get their own colocated `+page.svelte`; their data also comes from `../data.remote.ts`
 
 ### Phase 1.5: Análisis de impacto (condicional)
 
@@ -163,8 +163,8 @@ Corriendo bajo b7, el impact set se persiste en `.b7/state.json` campo `impact_f
 
 **Feature NUEVO: arranca del esqueleto por script — no improvises la estructura.**
 `scaffold-slice.sh` crea el slice colocado mínimo compilable (`+page.svelte`,
-`server/data.remote.ts`, `docs/readme.md`) siguiendo `references/slice-spec.md` (regla 99%,
-remote SOLO bajo `server/`, sin capa service; `ui/` y `tests/` se crean cuando hay contenido):
+`data.remote.ts`) siguiendo `references/slice-spec.md` (carpeta plana, sin capa service;
+los demás archivos se agregan cuando hacen falta):
 
 ```bash
 bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/scaffold-slice.sh" <feature> [--route-group <g>]
@@ -179,10 +179,10 @@ todos los archivos y verifica una sola vez. El código copy-paste completo de ca
 `references/feature-templates.md` (Template 1); acá solo el orden, nombres y gotchas:
 
 **Step 1: Types** (`<feature>-types.ts`) — `InferSelectModel` sobre la tabla Drizzle; en features
-simples exporta los types directo desde `server/data.remote.ts`. Si la tabla no existe, crea el
+simples exporta los types directo desde `data.remote.ts`. Si la tabla no existe, crea el
 schema Drizzle primero (skill `postgresql-table-design` si está disponible).
 
-**Step 2: Remote functions** (`server/data.remote.ts`) — el archivo CORE, SQL-first.
+**Step 2: Remote functions** (`data.remote.ts`) — el archivo CORE, SQL-first.
 **Antes de crear cualquier remote function, buscar una igual o parecida y extenderla** — una función sirve a todas las pantallas que la necesiten, se crea UNA vez:
 
 ```bash
@@ -190,24 +190,26 @@ rg -n 'export const (get|list|upsert|create|update|delete)_?<entidad>' src/route
 rg -n '<tabla-drizzle>' src/routes --glob '*.remote.ts'
 ```
 
-Si existe: importarla desde su carpeta (`import { get_x } from '../<pantalla>/server/data.remote'`) o extenderla (parámetro opcional, campo extra) y dejar el impact set en Phase 1.5. Crear otra solo si el contrato es genuinamente distinto, y decirlo en el resumen.
+Si existe: importarla desde su carpeta (`import { get_x } from '../<pantalla>/data.remote'`) o extenderla (parámetro opcional, campo extra) y dejar el impact set en Phase 1.5. Crear otra solo si el contrato es genuinamente distinto, y decirlo en el resumen.
 
 `query` (list) + `form` (UN upsert con `id` opcional) + `command` (delete). Siempre
-`server/data.remote.ts`, nunca `*.remote.ts` suelto en la raíz de la ruta (patrón anterior
-`<feature>.remote.ts`) ni bajo `src/lib/server/` (el cliente lo importa). Toda remote
+`data.remote.ts` en la raíz de la carpeta del feature, nunca dentro de una carpeta `server/`
+ni bajo `src/lib/server/` (el cliente lo importa). Toda remote
 function llama `requireUser()` (importado de `$lib/server`, ver `references/slice-spec.md`) como
-primera operación — b6 marca BLOCKER si falta.
+primera operación — b6 marca BLOCKER si falta. Autenticar no basta: autorizar cada recurso
+contra la sesión (nunca confiar en `id`/`userId`/`tenantId` del cliente) y validar argumentos
+con schema — detalle en `references/sveltekit-3-remote-functions.md`.
 
-**Step 3: Page** (`+page.svelte`) — la UI va directo en `+page.svelte`: importa `./server/data.remote`
-y componentes de `./ui/`; sin wrapper `<Feature>Page.svelte`. Query con `$derived(await get_x())`,
+**Step 3: Page** (`+page.svelte`) — la UI va directo en `+page.svelte`: importa `./data.remote`
+y componentes de `./`; sin wrapper `<Feature>Page.svelte`. Query con `$derived(await get_x())`,
 form con `{...upsert_x.enhance(...)}` + `fields.as(...)`, refresh con `.updates(get_x)` /
 `get_x.refresh()`.
 
-**Step 4: Route guard** (`+page.server.ts`, opcional pero recomendado) — las remote functions ya
-chequean auth, pero un `load` que tira `error(401, {...})` si `!locals.user` evita renderizar una
-página que el usuario no puede usar.
+**Step 4: Protección de página** — no crear `+page.server.ts`, `+layout.server.ts` ni `+page.ts`.
+Los datos los protege el guard de cada remote function; la página la protege `hooks.server.ts`
+(por `event.route.id`). Si la ruta nueva no queda cubierta por el hook, agregarla ahí.
 
-When a feature needs more screens, split into `ui/` components and sub-route folders
+When a feature needs more screens, split into components and sub-route folders
 (`new/+page.svelte`, `[id]/+page.svelte`) — the route folder IS the feature folder (ver Colocation).
 
 ### Phase 3: Verify (MANDATORY — no exceptions)
@@ -219,8 +221,8 @@ Code that compiles but hasn't been tested in a browser is NOT done. (Modo b7: el
    bash "$CLAUDE_PLUGIN_ROOT/skills/b2-build-feature/scripts/check-slice.sh"
    # → SLICE_CHECK ok | SLICE_CHECK violations=<n>
    ```
-   Cualquier `VIOLATION` (feature nuevo bajo `src/lib/features/`, `*.remote.ts` fuera de
-   `server/`, `*.remote.ts` bajo `src/lib/server/`, slice nuevo sin `docs/readme.md`) se corrige
+   Cualquier `VIOLATION` (feature nuevo bajo `src/lib/features/`, carpeta `server/` nueva dentro
+   de `src/routes`, `*.remote.ts` bajo `src/lib/server/`, archivo `.js` nuevo) se corrige
    ANTES de seguir. Es la misma verificación que corre b6 en el review.
 1. **Correr `verify.sh`** — los gates mecánicos como script (branch guard, `check:machine`,
    `format`, grep anti-React scoped al diff, `test:unit` condicional, browser-gate):
@@ -255,15 +257,10 @@ Read `references/verification-checklist.md` for the browser walkthrough how-to.
 
 After verification passes:
 
-1. **Write/update the feature doc `docs/readme.md`** — colocado en `src/routes/<feature>/docs/readme.md`.
-   Es la primera parada de debug (ver `references/slice-spec.md`). No es opcional:
-   - **Feature NUEVO** → crear `docs/readme.md` con las 6 secciones del slice-spec:
-     **Propósito** (2-3 líneas, lenguaje de usuario), **Pantallas y rutas** (qué se ve, dónde),
-     **Remote functions** (nombre + una línea de contrato c/u), **Datos** (tablas/vistas que toca),
-     **Decisiones** (por qué así, atajos `ponytail:` relevantes), **Problemas conocidos**.
-   - **Feature EXISTENTE con `.md`** → actualizarlo en ESTE PR si el cambio altera contratos
-     (remote functions, datos) o pantallas.
-   - **Feature legacy tocado SIN `.md`** → generarlo esta primera vez que un issue lo toca.
+1. **`README.md` del feature, solo si hay un porqué** — una decisión, regla de negocio no obvia,
+   atajo `ponytail:` con techo o problema conocido que el código no explica. Va en
+   `src/routes/<feature>/README.md`. Si el feature ya tiene uno y el cambio lo invalida,
+   actualizarlo en ESTE PR. Sin porqué, no se crea (ver `references/slice-spec.md`).
 
 2. **Update CHANGELOG.md** — add entry under new date section
 3. **Gate final de conformidad** — re-correr `check-slice.sh` (paso 0 de Phase 3);
@@ -300,6 +297,7 @@ Todo lo demás (upsert único, `$derived` para queries, `fields.as`, namespace i
 | URL-synced page state (filter/tab/month)      | `references/url-synced-state.md`       |
 | Screen has a create/edit form (`form()` + shadcn) | `references/forms-recipe.md`        |
 | Screen lists/filters/exports DB records       | `bt1-data-table` skill (`../bt1-data-table/SKILL.md`) — invoke it, do NOT hand-roll the table |
+| SK3: auth, caché/refresh, forms, SSR, producción con remote functions | `references/sveltekit-3-remote-functions.md` |
 | Remote function details / forms               | `using-remote-functions` skill         |
 | Drizzle / Postgres table patterns             | `postgresql-table-design` skill        |
 | Svelte 5 runes                                | `svelte-runes` skill                   |

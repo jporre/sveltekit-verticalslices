@@ -8,10 +8,10 @@ La unidad es la **pantalla** (carpeta `src/routes/<feature>/`): es lo que el cli
 
 | kind | Entrega | Archivos | Depende de |
 | --- | --- | --- | --- |
-| `remote` | remote functions de la pantalla (`query`/`form`/`command`), SQL-first, `requireUser()` primero | `server/data.remote.ts` (+ schema Drizzle si falta) | infra de la ola, si hay |
-| `ui` | `+page.svelte` + `ui/*.svelte` consumiendo las remote functions; criterios visuales | `+page.svelte`, `ui/`, `+page.server.ts` | `remote` |
-| `tests` | unit de las remote functions + browser check de la pantalla | `*.test.ts` colocados en la carpeta | `ui` |
-| `docs` | `docs/readme.md` de la carpeta + línea en `docs/ARCHITECTURE.md` | docs de la ruta | `ui` |
+| `remote` | remote functions de la pantalla (`query`/`form`/`command`), SQL-first, `requireUser()` primero | `data.remote.ts` (+ schema Drizzle si falta) | infra de la ola, si hay |
+| `ui` | `+page.svelte` + componentes del feature consumiendo las remote functions; criterios visuales | `+page.svelte`, `<Componente>.svelte` | `remote` |
+| `tests` | unit de las remote functions + browser check de la pantalla | `*.spec.ts` junto al archivo que prueban | `ui` |
+| `docs` | `README.md` del feature (solo si hay un porqué que el código no explica) + línea en `docs/ARCHITECTURE.md` | docs de la ruta | `ui` |
 
 `infra` (opcional, sin `screen`): prefactor, schema compartido, refactor ancho. Nunca un issue "feature" horizontal ("todas las remote functions del módulo", "maquetar todo").
 
@@ -24,7 +24,7 @@ La unidad es la **pantalla** (carpeta `src/routes/<feature>/`): es lo que el cli
 
 ## Remote functions: crear una vez, usar desde todas
 
-Si una función sirve a más de una pantalla, vive en la pantalla que la creó y las demás la **importan** (`../<pantalla>/server/data.remote`). El body del issue `remote` declara dos listas: **reutiliza** (nombre + path existente) y **crea** (nombre + contrato). El grounding del Paso 2 es donde se descubre qué ya existe (`rg -n 'export const' src/routes --glob '*.remote.ts'`). b2 obliga al agente a repetir esa búsqueda antes de crear cualquier función.
+Si una función sirve a más de una pantalla, vive en la pantalla que la creó y las demás la **importan** (`../<pantalla>/data.remote`). El body del issue `remote` declara dos listas: **reutiliza** (nombre + path existente) y **crea** (nombre + contrato). El grounding del Paso 2 es donde se descubre qué ya existe (`rg -n 'export const' src/routes --glob '*.remote.ts'`). b2 obliga al agente a repetir esa búsqueda antes de crear cualquier función.
 
 ## Tracer bullet
 
@@ -55,7 +55,7 @@ Si ni los lotes quedan verdes solos, `closing_slice: "epic"`.
 
 ## Ejemplo: "necesito gestionar los productos"
 
-Objetivo real: **CRUD de productos con búsqueda y detalle**. Grounding: no existe `src/routes/productos/`; ya existe `get_categorias` en `src/routes/categorias/server/data.remote.ts`.
+Objetivo real: **CRUD de productos con búsqueda y detalle**. Grounding: no existe `src/routes/productos/`; ya existe `get_categorias` en `src/routes/categorias/data.remote.ts`.
 
 ```
 Ola 0 — /productos            Ola 1 — /productos/[id]
@@ -89,7 +89,7 @@ Plan JSON (ordenado topológicamente, bodies abreviados):
     { "id": "productos-remote", "screen": "/productos", "kind": "remote",
       "title": "feat(productos): remote functions de /productos",
       "labels": ["feature", "scope:productos", "simple"], "blocked_by": [],
-      "body": "## Objetivo\nDatos y operaciones de la pantalla /productos.\n\n## Entidad / datos\n`taProductos` (id, nombre, precio, categoriaId, createdAt). Crear con Drizzle si no existe.\n\n## Remote functions\n**Reutiliza:** `get_categorias` (`src/routes/categorias/server/data.remote.ts`).\n**Crea:** `get_productos(filtro?)` query · `upsert_producto` form (id opcional, Zod: nombre requerido, precio >= 0) · `delete_producto` command. Todas con `requireUser()` primero.\n\n## Seguridad / permisos\nSesión requerida.\n\n## Archivos previstos\n`src/routes/productos/server/data.remote.ts`, `src/lib/server/db/schema.ts` (si falta la tabla).\n\n## Alcance\nSolo remote functions + schema. Sin UI (productos-ui).\n\n## Complejidad estimada\nsimple." },
+      "body": "## Objetivo\nDatos y operaciones de la pantalla /productos.\n\n## Entidad / datos\n`taProductos` (id, nombre, precio, categoriaId, createdAt). Crear con Drizzle si no existe.\n\n## Remote functions\n**Reutiliza:** `get_categorias` (`src/routes/categorias/data.remote.ts`).\n**Crea:** `get_productos(filtro?)` query · `upsert_producto` form (id opcional, Zod: nombre requerido, precio >= 0) · `delete_producto` command. Todas con `requireUser()` primero.\n\n## Seguridad / permisos\nSesión requerida.\n\n## Archivos previstos\n`src/routes/productos/data.remote.ts`, `src/lib/server/db/schema.ts` (si falta la tabla).\n\n## Alcance\nSolo remote functions + schema. Sin UI (productos-ui).\n\n## Complejidad estimada\nsimple." },
     { "id": "productos-ui", "screen": "/productos", "kind": "ui",
       "title": "feat(productos): pantalla /productos (listar, upsert, borrar, filtrar)",
       "labels": ["feature", "scope:productos", "medium"], "blocked_by": ["productos-remote"],
@@ -97,11 +97,11 @@ Plan JSON (ordenado topológicamente, bodies abreviados):
     { "id": "productos-tests", "screen": "/productos", "kind": "tests",
       "title": "test(productos): /productos",
       "labels": ["feature", "scope:productos", "simple"], "blocked_by": ["productos-ui"],
-      "body": "## Objetivo\nCobertura de la pantalla /productos.\n\n## Alcance\nUnit de `get_productos`/`upsert_producto`/`delete_producto` (validación Zod, requireUser) + browser check de los criterios visuales de productos-ui.\n\n## Archivos previstos\n`src/routes/productos/server/data.remote.test.ts`, `src/routes/productos/productos.browser.test.ts`.\n\n## Complejidad estimada\nsimple." },
+      "body": "## Objetivo\nCobertura de la pantalla /productos.\n\n## Alcance\nUnit de `get_productos`/`upsert_producto`/`delete_producto` (validación Zod, requireUser) + browser check de los criterios visuales de productos-ui.\n\n## Archivos previstos\n`src/routes/productos/data.remote.test.ts`, `src/routes/productos/productos.browser.test.ts`.\n\n## Complejidad estimada\nsimple." },
     { "id": "productos-docs", "screen": "/productos", "kind": "docs",
       "title": "docs(productos): /productos",
       "labels": ["feature", "scope:productos", "simple"], "blocked_by": ["productos-ui"],
-      "body": "## Objetivo\nDocumentar la pantalla /productos para quien la mantenga.\n\n## Alcance\n`src/routes/productos/docs/readme.md` (pantalla, remote functions con contrato, tablas, permisos) + línea en `docs/ARCHITECTURE.md`.\n\n## Complejidad estimada\nsimple." }
+      "body": "## Objetivo\nDocumentar la pantalla /productos para quien la mantenga.\n\n## Alcance\n`src/routes/productos/README.md` (pantalla, remote functions con contrato, tablas, permisos) + línea en `docs/ARCHITECTURE.md`.\n\n## Complejidad estimada\nsimple." }
   ]
 }
 ```

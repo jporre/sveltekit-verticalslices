@@ -7,11 +7,9 @@
 #   <feature>        nombre del feature (kebab o snake). Ej: productos, orden-compra
 #   --route-group <g> coloca el slice bajo src/routes/(<g>)/<feature>/
 #
-# Genera (mínimos COMPILABLES, sin service, sin carpetas vacías — ui/ y tests/ se
-# crean recién cuando haya contenido):
+# Genera (mínimos COMPILABLES, sin service, sin subcarpetas):
 #   src/routes/<feature>/+page.svelte
-#   src/routes/<feature>/server/data.remote.ts
-#   src/routes/<feature>/docs/readme.md
+#   src/routes/<feature>/data.remote.ts
 #
 # Emite en la última línea: SCAFFOLD_OK dir=<path> files=<csv>
 set -euo pipefail
@@ -55,12 +53,11 @@ if [ -d "$DIR" ]; then
   exit 1
 fi
 
-mkdir -p "$DIR/server" "$DIR/docs"
+mkdir -p "$DIR"
 
-REMOTE_FILE="server/data.remote.ts"
-MD_FILE="docs/readme.md"
+REMOTE_FILE="data.remote.ts"
 
-# --- server/data.remote.ts : el archivo CORE. TODO el manejo de datos del feature. ---
+# --- data.remote.ts : el archivo CORE. TODO el manejo de datos del feature. ---
 # Path fijo en todo feature: debug de una query = revisar este archivo, siempre.
 cat > "${DIR}/${REMOTE_FILE}" <<REMOTE
 import {query} from '\$app/server'
@@ -75,7 +72,7 @@ REMOTE
 # --- +page.svelte : la pantalla. UI aquí; importa el remote colocado. ---
 cat > "${DIR}/+page.svelte" <<PAGE
 <script lang="ts">
-import {get_${feat_snake}} from './server/data.remote'
+import {get_${feat_snake}} from './data.remote'
 
 const items = \$derived(await get_${feat_snake}())
 </script>
@@ -91,35 +88,6 @@ const items = \$derived(await get_${feat_snake}())
 </div>
 PAGE
 
-# --- docs/readme.md : doc del slice (primera parada de debug). 6 secciones del spec. ---
-cat > "${DIR}/${MD_FILE}" <<DOC
-# ${feat_pascal}
-
-## Propósito
-
-<!-- 2-3 líneas en lenguaje de usuario: qué resuelve este feature. -->
-
-## Pantallas y rutas
-
-- \`/${feat_kebab}\` — <!-- qué se ve aquí -->
-
-## Remote functions
-
-- \`get_${feat_snake}\` — <!-- una línea de contrato -->
-
-## Datos
-
-<!-- tablas/vistas que toca: ta_${feat_snake}, ... -->
-
-## Decisiones
-
-<!-- por qué se hizo así; atajos ponytail: relevantes -->
-
-## Problemas conocidos
-
-<!-- ninguno por ahora -->
-DOC
-
-FILES="${REL}/+page.svelte,${REL}/${REMOTE_FILE},${REL}/${MD_FILE}"
-echo "Slice creado en ${REL}/ (3 archivos: +page.svelte, ${REMOTE_FILE}, ${MD_FILE})"
+FILES="${REL}/+page.svelte,${REL}/${REMOTE_FILE}"
+echo "Slice creado en ${REL}/ (2 archivos: +page.svelte, ${REMOTE_FILE})"
 echo "SCAFFOLD_OK dir=${REL} files=${FILES}"

@@ -27,21 +27,21 @@ until the end, when there are 5 errors across 15 files.
 
 ```
 Screen 1: List page
-  → server/data.remote.ts (get_items query)
+  → data.remote.ts (get_items query)
   → +page.svelte (list UI)
   → VERIFY: type check + browser test
   ✓ Screen 1 works
 
 Screen 2: Create/Edit form
-  → add upsert_item form to server/data.remote.ts
-  → ui/<Feature>Form.svelte
+  → add upsert_item form to data.remote.ts
+  → <Feature>Form.svelte
   → sub-routes new/+page.svelte, [id]/+page.svelte
   → VERIFY: type check + browser test (create AND edit)
   ✓ Screen 2 works
 
 Screen 3: Detail/execution view
-  → add queries to server/data.remote.ts
-  → ui/<Feature>Detail.svelte
+  → add queries to data.remote.ts
+  → <Feature>Detail.svelte
   → VERIFY: type check + browser test
   ✓ Screen 3 works
 ```
@@ -86,14 +86,14 @@ For each screen, write these files in order:
 
 Only then move to the next screen.
 
-### Step 4: Keep ONE `server/data.remote.ts`
+### Step 4: Keep ONE `data.remote.ts`
 
-Do NOT split remote functions across files. One `server/data.remote.ts` per feature, growing
+Do NOT split remote functions across files. One `data.remote.ts` per feature, growing
 as you add screens. This prevents import confusion and makes the API surface visible.
-Sub-routes (`new/`, `[id]/`) import from `../server/data.remote` — never a scoped remote
+Sub-routes (`new/`, `[id]/`) import from `../data.remote` — never a scoped remote
 file colocated in the sub-route folder.
 
-For a complex feature the file can grow, but the split threshold is MEASURABLE: **>300 líneas o >15 funciones exportadas → split dentro de `server/`** (e.g. `server/detail.remote.ts`). Bajo el umbral, un solo archivo con 15 well-organized remote functions beats 3 files with unclear boundaries.
+For a complex feature the file can grow, but the split threshold is MEASURABLE: **>300 líneas o >15 funciones exportadas → split en la misma carpeta** (e.g. `detail.remote.ts`). Bajo el umbral, un solo archivo con 15 well-organized remote functions beats 3 files with unclear boundaries.
 
 ## When to Split Files
 
@@ -103,10 +103,10 @@ All split targets stay INSIDE the feature route folder — never `src/lib/featur
 | -------------------------------------------- | ------ | --------------------------------------------------- |
 | Multiple screens sharing types               | Yes    | One `<feature>-types.ts`                             |
 | Complex validation schemas                   | Yes    | One `schemas.ts`                                     |
-| Business logic beyond CRUD                   | Yes    | Extra files in `server/` next to `data.remote.ts`   |
-| Multiple destination types (adapter pattern) | Yes    | `server/adapters/` subfolder (`*.server.ts` files)  |
-| UI components reused across screens          | Yes    | `ui/<Componente>.svelte`, PascalCase                |
-| Simple CRUD screens                          | No     | Query in `server/data.remote.ts`, UI in `+page.svelte`|
+| Business logic beyond CRUD                   | Yes    | `<nombre>.server.ts` next to `data.remote.ts`       |
+| Multiple destination types (adapter pattern) | Yes    | One `<destino>.server.ts` per adapter               |
+| UI components reused across screens          | Yes    | `<Componente>.svelte`, PascalCase                |
+| Simple CRUD screens                          | No     | Query in `data.remote.ts`, UI in `+page.svelte`|
 
 ## When NOT to Abstract
 
@@ -134,7 +134,7 @@ Better: use `$state` for the form data and submit manually:
 
 ```svelte
 <script>
-import {create_envio, get_envios} from './server/data.remote'
+import {create_envio, get_envios} from './data.remote'
 
 let formData = $state({
   nombre: '',
@@ -173,7 +173,7 @@ async function handleSubmit() {
 
 ```svelte
 <script>
-let {envio} = $props() // from +page.server.ts load
+let {envio} = $props() // el padre lo leyó con await get_envio(id)
 
 // Initialize state from loaded data
 let formData = $state({

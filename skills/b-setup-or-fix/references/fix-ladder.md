@@ -38,13 +38,13 @@ Salida: check/build verdes, cero SEC pendientes fuera del plan.
 
 Entrada: E1 verde. Riesgo: mover archivos rompe imports — **trazar callers antes de cada move** (`codegraph_callers` o `rg -n "from ['\"].*<archivo>"`), actualizar imports en el mismo cambio (REG-1).
 
-Layout canónico (fuente única: `../../b2-build-feature/references/slice-spec.md`): `src/routes/<feature>/` con archivos de ruta (`+page.svelte`, `+page.server.ts`, …) + subcarpetas `server/` (`data.remote.ts` + `*.server.ts`), `ui/`, `data/`, `docs/`, `tests/` — solo las que tengan contenido.
+Layout canónico (fuente única: `../../b2-build-feature/references/slice-spec.md`): `src/routes/<feature>/` plana: `+page.svelte` + `data.remote.ts`, y solo cuando hacen falta `<Componente>.svelte`, `schemas.ts`, `<nombre>.server.ts`, tests `*.spec.ts` junto al archivo y `README.md`. Sin subcarpetas `server/`, `ui/`, `data/`, `docs/` ni `tests/`.
 
 1. Feature bajo `src/lib/features/<x>/` → `src/routes/<x>/`. Con muchos features, migrar solo los del plan aprobado — tolerancia legacy para el resto.
-2. `<feature>.remote.ts` suelto en la raíz de la ruta (o cualquier `*.remote.ts` fuera de `server/`) → `git mv` a `server/data.remote.ts` — TODO el manejo de datos del feature en ese único archivo; debug de una query = un solo path, igual en todo feature.
-3. `*.remote.ts` bajo `src/lib/server/` → `server/` de su feature (AP10: el cliente lo importa, SvelteKit lo rechaza bajo `lib/server`).
-4. Componentes `.svelte` sueltos en la raíz del slice → `ui/` (PascalCase). Wrapper `<Feature>Page.svelte` → la UI va directo en `+page.svelte`.
-5. `<feature>.md` en la raíz del slice → `docs/readme.md` (git mv con rename); tests del feature → `tests/`.
+2. `<feature>.remote.ts` suelto o `server/data.remote.ts` → `git mv` a `data.remote.ts` en la raíz del feature — TODO el manejo de datos del feature en ese único archivo; debug de una query = un solo path, igual en todo feature.
+3. `*.remote.ts` bajo `src/lib/server/` → `data.remote.ts` de su feature (AP10: el cliente lo importa, SvelteKit lo rechaza bajo `lib/server`).
+4. Carpeta `server/` dentro de `src/routes` → aplanar: cada archivo no-remote sube a la raíz del feature con sufijo `.server.ts` (la carpeta no protege nada; el sufijo sí hace fallar el build).
+5. Subcarpetas `ui/`, `data/`, `docs/`, `tests/` → aplanar en la raíz del feature: componentes PascalCase, `schemas.ts`, tests como `*.spec.ts` junto al archivo que prueban, `docs/readme.md` → `README.md` (o borrarlo si solo repite el código). Wrapper `<Feature>Page.svelte` → la UI va directo en `+page.svelte`.
 6. **Doc del repo**: si `CLAUDE.md` o `README.md` documentan la estructura de carpetas, actualizar esa sección al layout canónico EN ESTE peldaño (template en `base-setup.md`) — doc de estructura stale es peor que ninguna.
 
 Salida: `check-slice.sh` de b2 (`../../b2-build-feature/scripts/check-slice.sh <dir>`) sin violaciones sobre cada feature tocado.
@@ -57,7 +57,7 @@ Entrada: E1 verde (flags presentes) + SvelteKit >= 2.27 (si no, el peldaño qued
 
 | Legacy | Destino | Receta |
 |---|---|---|
-| `load()` en `+page(.server).ts` | `query()` en `server/data.remote.ts` + `$derived(await get_x())` | R1 |
+| `load()` en `+page(.server).ts` | `query()` en `data.remote.ts` + `$derived(await get_x())` | R1 |
 | `export const actions` + `use:enhance` | `form()` + `{...upsert_x}` + `fields.x.as()` | R2 |
 | `onMount` + `fetch` | `query()` + `await` en el componente | R3 |
 | `+server.ts` interno (GET) | `query()` | R4 |
@@ -109,8 +109,8 @@ Salida: cada consolidación con su lista de callers actualizados; diff neto nega
 
 Entrada: E5 verde (se documenta el estado FINAL). Política completa en `base-setup.md`.
 
-1. **Podar comentarios**: borrar los que explican el QUE, los que referencian tasks/PRs, y docstrings de párrafo. Contexto ÚTIL (por qué existe un workaround, techo de un atajo) migra al `docs/readme.md` ANTES de borrar. Se preservan `// ponytail:` y TODO/FIXME accionables.
-2. **`docs/readme.md`** por cada feature tocado, con las 6 secciones de `slice-spec.md`: Propósito, Pantallas y rutas, Remote functions, Datos, Decisiones, Problemas conocidos.
+1. **Podar comentarios**: borrar los que explican el QUE, los que referencian tasks/PRs, y docstrings de párrafo. Contexto ÚTIL (por qué existe un workaround, techo de un atajo) migra al `README.md` ANTES de borrar. Se preservan `// ponytail:` y TODO/FIXME accionables.
+2. **`README.md`** del feature solo donde hay una decisión o un porqué que el código no explica (`slice-spec.md`); no se genera uno por feature.
 3. **Doc nivel repo**: `docs/ARCHITECTURE.md` (mapa de slices + stack + decisiones) y `CLAUDE.md` con la doctrina (~10 líneas, template en `base-setup.md`).
 
 Salida: `audit.sh` E6 en cero para los features del plan; regla de oro: si la explicación es más larga que el código, se borra la explicación.

@@ -46,11 +46,11 @@ Orden fijo: primero lo que habilita (config, seguridad), después mover archivos
 | Peldaño | Corrige | Riesgo |
 |---|---|---|
 | **E1 Base y seguridad** | flags `remoteFunctions`/`async` faltantes, scripts npm mínimos, infra `requireUser`/`requirePermission` inexistente, remote functions/endpoints sin guard, estado mutable a nivel de módulo en `.server.ts`, secrets hardcodeados | bajo |
-| **E2 Estructura** | features fuera de `src/routes/<feature>/`, `*.remote.ts` fuera de `server/` (canónico: `server/data.remote.ts`), `*.remote.ts` bajo `src/lib/server/`, componentes sueltos fuera de `ui/`, docs fuera de `docs/`, wrappers `<Feature>Page.svelte`, sección Estructura stale en README/CLAUDE.md del repo | bajo-medio (mueve archivos: trazar callers antes) |
+| **E2 Estructura** | features fuera de `src/routes/<feature>/`, `*.remote.ts` dentro de `server/` (canónico: `data.remote.ts` en la raíz del feature), `*.remote.ts` bajo `src/lib/server/`, subcarpetas `server/` `ui/` `data/` `docs/` `tests/` dentro de un feature, wrappers `<Feature>Page.svelte`, sección Estructura stale en README/CLAUDE.md del repo | bajo-medio (mueve archivos: trazar callers antes) |
 | **E3 Remote functions** | `load()` en `+page(.server).ts`, `export const actions`, `+server.ts` internos, `onMount`+`fetch`, mutaciones sin refresh → `query`/`form`/`command` + single-flight | medio-alto (cambia semántica SSR: feature por feature, nunca barrido ciego) |
 | **E4 Runas y stack** | `on:click`, `export let`, `<slot>`, `$:`, `$effect` que computa, spreads inmutables sobre `$state`, named imports shadcn, `lucide-svelte`, `Select.Value` | medio |
 | **E5 Desingenieria y duplicados** | capas pass-through (service/repository/factory para CRUD), helpers que solo reenvían, funciones duplicadas, código muerto | medio-alto (consolidar sin tests del survivor está prohibido) |
-| **E6 Comentarios y docs** | prosa que explica el QUÉ (se preserva `// ponytail:`), `docs/readme.md` faltantes, doc nivel repo inexistente | bajo |
+| **E6 Comentarios y docs** | prosa que explica el QUÉ (se preserva `// ponytail:`), doc nivel repo inexistente | bajo |
 
 **Catálogos canónicos — citar, no duplicar.** Los antipatrones viven en `../b6-pr-review/references/sveltekit-antipatterns.md` (sus secciones 1-14 son lo que este skill llama `AP1`-`AP14`) y los checks de seguridad en `security-checklist.md`; el layout del slice en `../b2-build-feature/references/slice-spec.md` (gana ante cualquier contradicción); la escalera de simpleza en `../b2-build-feature/references/simplicity-ladder.md`. Las siglas `SEC-*`/`CAL-*`/`DUP-*`/`REG-*` son notación interna de este skill — tabla de mapeo a las secciones reales al inicio de `references/fix-ladder.md`. Este skill solo agrega lo propio: la escalera E1-E6, las recetas de migración y el modo base.
 
@@ -192,7 +192,7 @@ Termina con `B11_RESULT mode=init rungs_done=E1 rungs_blocked= features=<n>` + `
 - Editar código antes del gate de FASE 2, o continuar la escalera tras un `RUNG_VERIFY fail`.
 - Migrar a remote functions un repo cuya versión de SvelteKit no las soporta (< 2.27): E3 se reporta **bloqueado**, no se intenta (`AUDIT` lo detecta en `=== STACK ===`).
 - Consolidar duplicados sin verificar que el survivor tiene tests que cubren a los borrados: ante duda, INVESTIGATE — nunca CONSOLIDATE automático.
-- Borrar comentarios con contexto útil sin migrarlo antes al `docs/readme.md`. `// ponytail:` y TODO/FIXME accionables se preservan.
+- Borrar comentarios con contexto útil sin migrarlo antes al `README.md`. `// ponytail:` y TODO/FIXME accionables se preservan.
 - Copiar los catálogos de b2/b6 dentro de este skill (drift documental).
 - Resolver "rápido" un hallazgo agregando una capa nueva: la salida de cada peldaño es MENOS código, no más.
 - Instalar service worker/PWA por iniciativa propia. Solo si el usuario lo pide, y ahí manda `references/pwa-setup.md`.
